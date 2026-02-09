@@ -150,6 +150,14 @@ export async function GET(request) {
         list = data.listOlt ?? data.olt ?? data.danhSachOlt ?? data.data ?? data.result ?? data.list ?? data.danhSach;
       } else if (loaiKey === 'card_olt') {
         list = data.listCardOlt ?? data.listCard ?? data.cardOlt ?? data.danhSachCardOlt ?? data.data ?? data.result ?? data.list ?? data.danhSach;
+        // OneBSS có thể trả nhóm: [ { tenOlt, cards: [...] }, ... ] — flatten lấy chỉ các card
+        if (Array.isArray(list) && list.length > 0) {
+          const first = list[0];
+          const nested = first?.cards ?? first?.listCard ?? first?.danhSach ?? first?.data;
+          if (Array.isArray(nested)) {
+            list = list.flatMap((item) => item?.cards ?? item?.listCard ?? item?.danhSach ?? item?.data ?? [item]);
+          }
+        }
       } else {
         list = data.data ?? data.result ?? data.list ?? data.listOlt ?? data.olt ?? data.listToKyThuat ?? data.toKyThuat ?? data.listVeTinh ?? data.veTinh ?? data.danhSach;
       }

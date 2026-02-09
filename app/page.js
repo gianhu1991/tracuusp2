@@ -465,7 +465,7 @@ export default function TraCuuSP2Page() {
                 </div>
                 <div className="space-y-0 order-2 sm:order-2">
                   <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} />
-                  <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={listCardOlt} />
+                  <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={listCardOlt} optionValue={(item) => { if (typeof item === 'string') return item; const v = item?.CARD_ID ?? item?.SLOT_ID ?? item?.PORTVL_ID ?? item?.VITRI ?? item?.TEN_TB ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} />
                   <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={listPortOlt.length > 0 ? listPortOlt : PORT_OLT_OPTIONS} optionValue={(v) => typeof v === 'number' ? String(v) : optionValue(v)} optionLabel={(v) => typeof v === 'number' ? String(v) : optionLabel(v)} />
                 </div>
               </div>
