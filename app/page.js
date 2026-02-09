@@ -110,8 +110,15 @@ export default function TraCuuSP2Page() {
       LOG('loadDanhSach ToQL', { status: resToQL.status, ok: resToQL.ok, data: dataToQL, list: normaliseList(dataToQL).length });
       if (resTtvt.ok) setListTtvt(normaliseList(dataTtvt));
       else setListTtvt([]);
-      if (resToQL.ok) setListToQL(normaliseList(dataToQL));
-      else setListToQL([]);
+      const listToQLData = normaliseList(dataToQL);
+      if (resToQL.ok) {
+        setListToQL(listToQLData);
+        const nhoQuan = listToQLData.find((item) => {
+          const label = optionLabel(item);
+          return label && String(label).toLowerCase().includes('nho quan');
+        });
+        if (nhoQuan != null) setToQL(optionValue(nhoQuan));
+      } else setListToQL([]);
       if (!resTtvt.ok && !resToQL.ok) {
         const msg = dataTtvt?.message || dataToQL?.message;
         const is404 = resTtvt.status === 404 || resToQL.status === 404;
