@@ -6,6 +6,8 @@ const PLACEHOLDER_TONG = '-- Chọn Tổ kỹ thuật --';
 const PLACEHOLDER_OLT = '-- Chọn OLT --';
 
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
+const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
+const AUTH_PASSWORD = '1234';
 
 export default function TraCuuSP2Page() {
   const [toKyThuat, setToKyThuat] = useState('');
@@ -18,12 +20,33 @@ export default function TraCuuSP2Page() {
 
   const [authorization, setAuthorization] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [authUnlocked, setAuthUnlocked] = useState(false);
+  const [authPasswordInput, setAuthPasswordInput] = useState('');
+  const [authPasswordError, setAuthPasswordError] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setAuthorization(localStorage.getItem(STORAGE_AUTH) || '');
+      setAuthUnlocked(sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) === '1');
     }
   }, []);
+
+  const handleUnlockAuth = (e) => {
+    e.preventDefault();
+    setAuthPasswordError('');
+    if (authPasswordInput === AUTH_PASSWORD) {
+      setAuthUnlocked(true);
+      if (typeof window !== 'undefined') sessionStorage.setItem(STORAGE_AUTH_UNLOCKED, '1');
+      setAuthPasswordInput('');
+    } else {
+      setAuthPasswordError('Mật khẩu không đúng.');
+    }
+  };
+
+  const handleLockAuth = () => {
+    setAuthUnlocked(false);
+    if (typeof window !== 'undefined') sessionStorage.removeItem(STORAGE_AUTH_UNLOCKED);
+  };
 
   const saveAuth = (value) => {
     setAuthorization(value);
@@ -97,20 +120,45 @@ export default function TraCuuSP2Page() {
             </div>
           </div>
 
-          {/* Cài đặt Authorization - chỉ cần đổi token */}
+          {/* Cài đặt Authorization - bảo vệ bằng mật khẩu 1234 */}
           {showSettings && (
             <div className="border-b border-slate-100 bg-slate-50/80 px-4 sm:px-8 py-4 shrink-0">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Authorization (Bearer token)</label>
-                <input
-                  type="password"
-                  value={authorization}
-                  onChange={(e) => saveAuth(e.target.value)}
-                  placeholder="Bearer eyJhbGci... hoặc token của bạn"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 text-base sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px]"
-                />
-                <p className="text-xs text-slate-500 mt-1">API mặc định: api-onebss.vnpt.vn. Khi token đổi, sửa ở đây.</p>
-              </div>
+              {!authUnlocked ? (
+                <form onSubmit={handleUnlockAuth} className="space-y-3 max-w-xs">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nhập mật khẩu để xem / đổi Authorization</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={authPasswordInput}
+                      onChange={(e) => { setAuthPasswordInput(e.target.value); setAuthPasswordError(''); }}
+                      placeholder="Mật khẩu"
+                      className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 placeholder-slate-400 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px]"
+                      autoComplete="current-password"
+                    />
+                    <button type="submit" className="rounded-lg bg-indigo-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-indigo-700 min-h-[44px]">
+                      Mở khóa
+                    </button>
+                  </div>
+                  {authPasswordError && <p className="text-xs text-red-600">{authPasswordError}</p>}
+                </form>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600">Authorization (Bearer token)</label>
+                    <button type="button" onClick={handleLockAuth} className="text-xs text-slate-500 hover:text-slate-700 underline">
+                      Khóa lại
+                    </button>
+                  </div>
+                  <input
+                    type="password"
+                    value={authorization}
+                    onChange={(e) => saveAuth(e.target.value)}
+                    placeholder="Bearer eyJhbGci... hoặc token của bạn"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 text-base sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px]"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">API mặc định: api-onebss.vnpt.vn. Khi token đổi, sửa ở đây.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -131,7 +179,7 @@ export default function TraCuuSP2Page() {
                     <option value="to3">Tổ Kỹ thuật Địa bàn Nho Quan</option>
                   </select>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-end">
                   <div className="flex-1 min-w-0">
                     <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">OLT</label>
                     <select
@@ -147,7 +195,7 @@ export default function TraCuuSP2Page() {
                   <button
                     type="button"
                     onClick={handleLamMoiOlt}
-                    className="rounded-md bg-indigo-500 text-white p-1.5 hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-300 shrink-0 flex items-center justify-center h-8 w-8"
+                    className="rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-300 shrink-0 flex items-center justify-center h-[44px] w-[44px]"
                     title="Làm mới OLT"
                     aria-label="Làm mới OLT"
                   >
