@@ -24,12 +24,82 @@ export default function TraCuuSP2Page() {
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authPasswordError, setAuthPasswordError] = useState('');
 
+  const [listToKyThuat, setListToKyThuat] = useState([]);
+  const [listOlt, setListOlt] = useState([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [listError, setListError] = useState('');
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setAuthorization(localStorage.getItem(STORAGE_AUTH) || '');
       setAuthUnlocked(sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) === '1');
     }
   }, []);
+
+  function normaliseList(res) {
+    if (Array.isArray(res)) return res;
+    if (res?.data && Array.isArray(res.data)) return res.data;
+    if (res?.result && Array.isArray(res.result)) return res.result;
+    if (res?.list && Array.isArray(res.list)) return res.list;
+    return [];
+  }
+
+  function optionValue(item) {
+    if (typeof item === 'string') return item;
+    return item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
+  }
+  function optionLabel(item) {
+    if (typeof item === 'string') return item;
+    return item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(optionValue(item) || '');
+  }
+
+  async function loadDanhSach() {
+    const auth = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '';
+    if (!auth?.trim()) {
+      setListError('Chưa có Authorization. Vào Cài đặt, nhập mật khẩu 1234 và thêm token.');
+      return;
+    }
+    setLoadingList(true);
+    setListError('');
+    try {
+      const headers = { Authorization: auth.trim() };
+      const [resTong, resOlt] = await Promise.all([
+        fetch('/api/danh-sach?loai=to_ky_thuat', { headers }),
+        fetch('/api/danh-sach?loai=olt', { headers }),
+      ]);
+      const dataTong = await resTong.json().catch(() => ({}));
+      const dataOlt = await resOlt.json().catch(() => ({}));
+      if (resTong.ok) setListToKyThuat(normaliseList(dataTong));
+      else setListToKyThuat([]);
+      if (resOlt.ok) setListOlt(normaliseList(dataOlt));
+      else setListOlt([]);
+      if (!resTong.ok && !resOlt.ok) setListError(dataTong?.message || dataOlt?.message || 'Không tải được danh sách. Kiểm tra token hoặc đường dẫn API.');
+    } catch (e) {
+      setListError(e.message || 'Lỗi tải danh sách.');
+      setListToKyThuat([]);
+      setListOlt([]);
+    } finally {
+      setLoadingList(false);
+    }
+  }
+
+  useEffect(() => {
+    if (authorization?.trim()) loadDanhSach();
+    else {
+      setListToKyThuat([]);
+      setListOlt([]);
+    }
+  }, [authorization]);
+
+  useEffect(() => {
+    if (!toKyThuat || !authorization?.trim()) return;
+    const auth = localStorage.getItem(STORAGE_AUTH);
+    if (!auth?.trim()) return;
+    fetch(`/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toKyThuat)}`, { headers: { Authorization: auth.trim() } })
+      .then((r) => r.json().catch(() => ({})))
+      .then((data) => { if (data?.message && !Array.isArray(data) && !data?.data) return; setListOlt(normaliseList(data)); })
+      .catch(() => {});
+  }, [toKyThuat]);
 
   const handleUnlockAuth = (e) => {
     e.preventDefault();
@@ -84,7 +154,17 @@ export default function TraCuuSP2Page() {
     }
   };
 
-  const handleLamMoiOlt = () => setOlt('');
+  const handleLamMoiOlt = () => {
+    setOlt('');
+    if (authorization?.trim() && toKyThuat) {
+      fetch(`/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toKyThuat)}`, {
+        headers: { Authorization: authorization.trim() },
+      })
+        .then((r) => r.json().catch(() => ({})))
+        .then((data) => setListOlt(normaliseList(data)))
+        .catch(() => {});
+    }
+  };
   const chuaTraCuu = !ketQua && !loi && !loading;
 
   return (
@@ -174,9 +254,9 @@ export default function TraCuuSP2Page() {
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-700 text-base sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px] touch-manipulation"
                   >
                     <option value="">{PLACEHOLDER_TONG}</option>
-                    <option value="to1">Tổ Kỹ thuật 1</option>
-                    <option value="to2">Tổ Kỹ thuật 2</option>
-                    <option value="to3">Tổ Kỹ thuật Địa bàn Nho Quan</option>
+                    {listToKyThuat.map((item, i) => (
+                      <option key={i} value={optionValue(item)}>{optionLabel(item)}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="flex gap-2 items-end">
@@ -188,8 +268,9 @@ export default function TraCuuSP2Page() {
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-700 text-base sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px] touch-manipulation"
                     >
                       <option value="">{PLACEHOLDER_OLT}</option>
-                      <option value="olt1">OLT Y Na 1</option>
-                      <option value="olt2">OLT Nho Quan 1</option>
+                      {listOlt.map((item, i) => (
+                        <option key={i} value={optionValue(item)}>{optionLabel(item)}</option>
+                      ))}
                     </select>
                   </div>
                   <button
@@ -237,6 +318,17 @@ export default function TraCuuSP2Page() {
                 </div>
               </div>
             </form>
+            {(listError || loadingList || listToKyThuat.length > 0) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {loadingList && <span className="text-xs text-slate-500">Đang tải danh sách...</span>}
+                {listError && <span className="text-xs text-red-600">{listError}</span>}
+                {authorization?.trim() && (
+                  <button type="button" onClick={loadDanhSach} disabled={loadingList} className="text-xs text-indigo-600 hover:underline disabled:opacity-50">
+                    Tải lại danh sách
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
             {/* Khu vực kết quả - dài ra chiếm phần còn lại */}
