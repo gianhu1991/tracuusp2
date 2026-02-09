@@ -5,12 +5,33 @@ import { useState, useEffect } from 'react';
 const PLACEHOLDER = '-- Chọn --';
 const PORT_OLT_OPTIONS = Array.from({ length: 33 }, (_, i) => i);
 
+/** Dữ liệu cứng cho dropdown (OneBSS chỉ có 1 URL tra cứu ds_splitter_theo_port_olt). Sửa tại đây khi cần thêm/bớt mục. */
+/** TTVT luôn cố định, không đổi. */
+const TTVT_CO_DINH = 'Trung tâm Viễn thông Nho Quan';
+const DANH_SACH_TTVT = [{ ma: TTVT_CO_DINH, ten: TTVT_CO_DINH }];
+const DANH_SACH_TO_QL = [
+  { ma: 'TQ01', ten: 'Tổ quản lý 01' },
+  { ma: 'TQ02', ten: 'Tổ quản lý 02' },
+];
+const DANH_SACH_VE_TINH = [
+  { ma: 'VT01', ten: 'Vệ tinh 01' },
+  { ma: 'VT02', ten: 'Vệ tinh 02' },
+];
+const DANH_SACH_CARD_OLT = [
+  { ma: 'CARD0', ten: 'Card 0' },
+  { ma: 'CARD1', ten: 'Card 1' },
+];
+const DANH_SACH_THIET_BI_OLT = [
+  { ma: 'OLT01', ten: 'OLT 01' },
+  { ma: 'OLT02', ten: 'OLT 02' },
+];
+
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_PASSWORD = '1234';
 
 export default function TraCuuSP2Page() {
-  const [ttvt, setTtvt] = useState('');
+  const [ttvt, setTtvt] = useState(TTVT_CO_DINH);
   const [veTinh, setVeTinh] = useState('');
   const [cardOlt, setCardOlt] = useState('');
   const [toQL, setToQL] = useState('');
@@ -33,13 +54,6 @@ export default function TraCuuSP2Page() {
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authPasswordError, setAuthPasswordError] = useState('');
 
-  const [listTtvt, setListTtvt] = useState([]);
-  const [listVeTinh, setListVeTinh] = useState([]);
-  const [listCardOlt, setListCardOlt] = useState([]);
-  const [listToQL, setListToQL] = useState([]);
-  const [listThietBiOlt, setListThietBiOlt] = useState([]);
-  const [loadingList, setLoadingList] = useState(false);
-  const [listError, setListError] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -66,118 +80,6 @@ export default function TraCuuSP2Page() {
   }
 
   const LOG = (tag, ...args) => { try { console.log('[TracuuSP2]', tag, ...args); } catch (_) {} };
-
-  async function loadDanhSach() {
-    const auth = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '';
-    if (!auth?.trim()) {
-      LOG('loadDanhSach', 'Lỗi: Chưa có Authorization');
-      setListError('Chưa có Authorization. Vào Cài đặt, nhập mật khẩu 1234 và thêm token.');
-      return;
-    }
-    setLoadingList(true);
-    setListError('');
-    LOG('loadDanhSach', 'Bắt đầu gọi API danh sách ttvt và to_ky_thuat');
-    try {
-      const headers = { Authorization: auth.trim() };
-      const [resTtvt, resToQL] = await Promise.all([
-        fetch('/api/danh-sach?loai=ttvt', { headers }),
-        fetch('/api/danh-sach?loai=to_ky_thuat', { headers }),
-      ]);
-      const dataTtvt = await resTtvt.json().catch(() => ({}));
-      const dataToQL = await resToQL.json().catch(() => ({}));
-      LOG('loadDanhSach', 'TTVT', { status: resTtvt.status, ok: resTtvt.ok, data: dataTtvt });
-      LOG('loadDanhSach', 'Tổ QL', { status: resToQL.status, ok: resToQL.ok, data: dataToQL });
-      if (!resTtvt.ok) LOG('loadDanhSach LỖI TTVT', resTtvt.status, dataTtvt?.message || dataTtvt?.error || JSON.stringify(dataTtvt)?.slice(0, 300));
-      if (!resToQL.ok) LOG('loadDanhSach LỖI TỔ QL', resToQL.status, dataToQL?.message || dataToQL?.error || JSON.stringify(dataToQL)?.slice(0, 300));
-      if (resTtvt.ok) setListTtvt(normaliseList(dataTtvt));
-      else setListTtvt([]);
-      if (resToQL.ok) setListToQL(normaliseList(dataToQL));
-      else setListToQL([]);
-      if (!resTtvt.ok && !resToQL.ok) setListError(dataTtvt?.message || dataToQL?.message || 'Dữ liệu dropdown bắt buộc lấy từ API. Kiểm tra Authorization và đường dẫn API OneBSS.');
-    } catch (e) {
-      LOG('loadDanhSach', 'Lỗi', e);
-      setListError(e.message || 'Dữ liệu bắt buộc lấy từ API. Không thể nhập tay.');
-      setListTtvt([]);
-      setListToQL([]);
-    } finally {
-      setLoadingList(false);
-    }
-  }
-
-  useEffect(() => {
-    if (authorization?.trim()) loadDanhSach();
-    else {
-      setListTtvt([]);
-      setListToQL([]);
-      setListVeTinh([]);
-      setListCardOlt([]);
-      setListThietBiOlt([]);
-    }
-  }, [authorization]);
-
-  useEffect(() => {
-    if (!toQL || !authorization?.trim()) {
-      setListVeTinh([]);
-      setVeTinh('');
-      setCardOlt('');
-      setThietBiOlt('');
-      return;
-    }
-    setVeTinh('');
-    setCardOlt('');
-    setThietBiOlt('');
-    const auth = localStorage.getItem(STORAGE_AUTH);
-    if (!auth?.trim()) return;
-    const url = `/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`;
-    LOG('Vệ tinh', 'Gọi', url);
-    fetch(url, { headers: { Authorization: auth.trim() } })
-      .then((r) => {
-        if (!r.ok) LOG('Vệ tinh LỖI', r.status, r.statusText);
-        return r.json().catch(() => ({}));
-      })
-      .then((data) => {
-        LOG('Vệ tinh', 'Response', { status: 'ok', data });
-        if (data?.message && !Array.isArray(data) && !data?.data) {
-          LOG('Vệ tinh LỖI body', data?.message || data?.error || JSON.stringify(data)?.slice(0, 300));
-          setListVeTinh([]);
-          return;
-        }
-        setListVeTinh(normaliseList(data));
-      })
-      .catch((e) => { LOG('Vệ tinh', 'Lỗi', e); setListVeTinh([]); });
-  }, [toQL]);
-
-  useEffect(() => {
-    if (!veTinh || !authorization?.trim()) {
-      setListCardOlt([]);
-      setListThietBiOlt([]);
-      setCardOlt('');
-      setThietBiOlt('');
-      return;
-    }
-    setCardOlt('');
-    setThietBiOlt('');
-    const auth = localStorage.getItem(STORAGE_AUTH);
-    if (!auth?.trim()) return;
-    const h = { Authorization: auth.trim() };
-    const u1 = `/api/danh-sach?loai=card_olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
-    const u2 = `/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
-    LOG('Card OLT + OLT', 'Gọi', u1, u2);
-    Promise.all([fetch(u1, { headers: h }), fetch(u2, { headers: h })])
-      .then(([r1, r2]) => {
-        if (!r1.ok) LOG('Card OLT LỖI', r1.status, r1.statusText);
-        if (!r2.ok) LOG('OLT LỖI', r2.status, r2.statusText);
-        return Promise.all([r1.json().catch(() => ({})), r2.json().catch(() => ({}))]);
-      })
-      .then(([d1, d2]) => {
-        LOG('Card OLT + OLT', 'Response', { cardOlt: d1, olt: d2 });
-        if (d1?.message && !Array.isArray(d1) && !d1?.data) LOG('Card OLT LỖI body', d1?.message || JSON.stringify(d1)?.slice(0, 200));
-        if (d2?.message && !Array.isArray(d2) && !d2?.data) LOG('OLT LỖI body', d2?.message || JSON.stringify(d2)?.slice(0, 200));
-        setListCardOlt(normaliseList(d1));
-        setListThietBiOlt(normaliseList(d2));
-      })
-      .catch((e) => { LOG('Card OLT + OLT', 'Lỗi', e); setListCardOlt([]); setListThietBiOlt([]); });
-  }, [veTinh, toQL]);
 
   const handleUnlockAuth = (e) => {
     e.preventDefault();
@@ -335,13 +237,16 @@ export default function TraCuuSP2Page() {
             <form onSubmit={handleTraCuu} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
                 <div className="space-y-0">
-                  <DropRow label="TTVT" required checked={useTtvt} onCheck={setUseTtvt} value={ttvt} onChange={setTtvt} options={listTtvt} />
-                  <DropRow label="Vệ tinh" checked={useVeTinh} onCheck={setUseVeTinh} value={veTinh} onChange={setVeTinh} options={listVeTinh} />
-                  <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={listCardOlt} />
+                  <div className="flex items-center gap-2 py-1.5">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider shrink-0 min-w-[100px] sm:min-w-[90px]">TTVT*</label>
+                    <input type="text" readOnly value={ttvt} className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-sm min-h-[40px] cursor-default" aria-readonly="true" />
+                  </div>
+                  <DropRow label="Vệ tinh" checked={useVeTinh} onCheck={setUseVeTinh} value={veTinh} onChange={setVeTinh} options={DANH_SACH_VE_TINH} />
+                  <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={DANH_SACH_CARD_OLT} />
                 </div>
                 <div className="space-y-0">
-                  <DropRow label="Tổ QL" required checked={useToQL} onCheck={setUseToQL} value={toQL} onChange={setToQL} options={listToQL} />
-                  <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} />
+                  <DropRow label="Tổ QL" required checked={useToQL} onCheck={setUseToQL} value={toQL} onChange={setToQL} options={DANH_SACH_TO_QL} />
+                  <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={DANH_SACH_THIET_BI_OLT} />
                   <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={PORT_OLT_OPTIONS} optionValue={(v) => String(v)} optionLabel={(v) => String(v)} />
                 </div>
               </div>
@@ -355,17 +260,6 @@ export default function TraCuuSP2Page() {
                 </button>
               </div>
             </form>
-            {(listError || loadingList || listTtvt.length > 0 || listToQL.length > 0) && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {loadingList && <span className="text-xs text-slate-500">Đang tải danh sách...</span>}
-                {listError && <span className="text-xs text-red-600">{listError}</span>}
-                {authorization?.trim() && (
-                  <button type="button" onClick={loadDanhSach} disabled={loadingList} className="text-xs text-indigo-600 hover:underline disabled:opacity-50">
-                    Tải lại danh sách
-                  </button>
-                )}
-              </div>
-            )}
           </div>
 
             {/* Khu vực kết quả - dài ra chiếm phần còn lại */}

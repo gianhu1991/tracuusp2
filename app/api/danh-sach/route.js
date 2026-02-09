@@ -1,55 +1,77 @@
 import { NextResponse } from 'next/server';
 
-const BASE = 'https://api-onebss.vnpt.vn/web-ecms/tracuu';
+const BASE_TRACUU = 'https://api-onebss.vnpt.vn/web-ecms/tracuu';
+const BASE_ECMS = 'https://api-onebss.vnpt.vn/web-ecms';
 
 /**
  * Lấy danh sách (TTVT, Tổ QL, Vệ tinh, Card OLT, OLT) từ OneBSS.
- * Dữ liệu dropdown bắt buộc lấy từ API, không nhập tay.
- * Thử GET trước, nếu 404 thì thử POST với body.
+ * Thử nhiều base URL và path (GET/POST). Cấu hình LIST_API_BASE nếu OneBSS dùng đường dẫn khác.
  */
 function log(tag, ...args) {
   try { console.log('[TracuuSP2 API danh-sach]', tag, ...args); } catch (_) {}
 }
 
 async function callOneBssList({ auth, loai, toKyThuat, tramBts }) {
-  const paths = {
-    to_ky_thuat: ['/danh_sach_to_ky_thuat', '/ds_to_ky_thuat', '/to_ky_thuat'],
-    ttvt: ['/danh_sach_ttvt', '/ds_ttvt', '/ttvt'],
-    tram_bts: ['/danh_sach_tram_bts', '/ds_tram_bts', '/ve_tinh'],
-    card_olt: ['/danh_sach_card_olt', '/ds_card_olt'],
-    olt: ['/danh_sach_olt', '/ds_olt'],
+  const listPaths = {
+    to_ky_thuat: ['/danh_sach_to_ky_thuat', '/ds_to_ky_thuat', '/to_ky_thuat', '/get_to_ky_thuat', '/danh_sach'],
+    ttvt: ['/danh_sach_ttvt', '/ds_ttvt', '/ttvt', '/get_ttvt', '/danh_sach'],
+    tram_bts: ['/danh_sach_tram_bts', '/ds_tram_bts', '/ve_tinh', '/get_tram_bts', '/danh_sach'],
+    card_olt: ['/danh_sach_card_olt', '/ds_card_olt', '/get_card_olt', '/danh_sach'],
+    olt: ['/danh_sach_olt', '/ds_olt', '/get_olt', '/danh_sach'],
   };
-  const list = paths[loai] || []; const path = list[0] || `/${loai}`;
+  const bases = [
+    process.env.LIST_API_BASE || process.env.TRACUU_LIST_BASE,
+    BASE_TRACUU,
+    `${BASE_ECMS}/tracuu`,
+    BASE_ECMS,
+  ].filter(Boolean);
+  const defaultBase = bases[0] || BASE_TRACUU;
+
   const q = new URLSearchParams();
   if (toKyThuat) q.set('toKyThuat', toKyThuat);
   if (tramBts) q.set('tramBts', tramBts);
   const query = q.toString();
-  const urlGet = `${BASE}${path}${query ? '?' + query : ''}`;
   const body = { loai, toKyThuat: toKyThuat || undefined, tramBts: tramBts || undefined };
 
-  log('callOneBssList', { loai, toKyThuat, tramBts, urlGet });
+  const list = listPaths[loai] || [`/${loai}`];
+  const path = list[0];
 
-  let res = await fetch(urlGet, { method: 'GET', headers: { Authorization: auth } });
-  if (res.ok) { log('GET OK', urlGet); return res; }
-  const text = await res.clone().text().catch(() => '');
-  log('GET FAIL', urlGet, 'status', res.status, 'body', text?.slice(0, 400));
-
-  res = await fetch(`${BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: auth },
-    body: JSON.stringify(body),
-  });
-  if (res.ok) { log('POST OK', BASE + path); return res; }
-  const text2 = await res.clone().text().catch(() => '');
-  log('POST FAIL', BASE + path, 'status', res.status, 'body', text2?.slice(0, 400));
-
-  for (let i = 1; i < list.length; i++) {
-    const u = `${BASE}${list[i]}${query ? '?' + query : ''}`;
-    res = await fetch(u, { method: 'GET', headers: { Authorization: auth } });
-    if (res.ok) { log('GET alt OK', u); return res; }
-    log('GET alt FAIL', u, 'status', res.status);
+  const attempts = [];
+  for (const base of bases.length ? bases : [defaultBase]) {
+    const B = base.replace(/\/$/, '');
+    const urlGet = `${B}${path}${query ? '?' + query : ''}`;
+    attempts.push({ method: 'GET', url: urlGet });
+    attempts.push({ method: 'POST', url: B + path, body });
   }
-  return res;
+  for (let i = 1; i < list.length; i++) {
+    const p = list[i];
+    if (p === '/danh_sach') {
+      attempts.push({ method: 'GET', url: `${defaultBase}${p}?loai=${loai}${query ? '&' + query : ''}` });
+      attempts.push({ method: 'POST', url: defaultBase + p, body: { ...body, loai } });
+    } else {
+      attempts.push({ method: 'GET', url: `${defaultBase}${p}${query ? '?' + query : ''}` });
+      attempts.push({ method: 'POST', url: defaultBase + p, body });
+    }
+  }
+
+  let lastRes = null;
+  for (const att of attempts) {
+    const { method, url } = att;
+    const bodyPayload = att.body !== undefined ? att.body : body;
+    log('thu', method, url);
+    const opt = method === 'GET'
+      ? { method: 'GET', headers: { Authorization: auth } }
+      : { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth }, body: JSON.stringify(bodyPayload) };
+    const res = await fetch(url, opt);
+    lastRes = res;
+    if (res.ok) {
+      log('OK', method, url);
+      return res;
+    }
+    const txt = await res.clone().text().catch(() => '');
+    log('FAIL', res.status, url, txt?.slice(0, 300));
+  }
+  return lastRes;
 }
 
 export async function GET(request) {

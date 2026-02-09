@@ -23,6 +23,7 @@ Mở http://localhost:3000
 2. Trong Vercel: **Project → Settings → Environment Variables** thêm:
    - **BACKEND_URL** (hoặc TRACUU_BACKEND_URL): URL backend tra cứu (nếu bạn có server chạy Playwright/API).
    - **AUTHORIZATION** (hoặc TRACUU_AUTHORIZATION): Token gửi kèm request (khi token đổi, sửa ở đây).
+   - **LIST_API_BASE** (tùy chọn): Base URL API lấy danh sách TTVT/Tổ QL/Vệ tinh/OLT. Nếu dropdown trống và báo 404, cần hỏi VNPT đúng đường dẫn API danh sách rồi set biến này (vd: `https://api-onebss.vnpt.vn/web-ecms/danh-sach`).
 3. Deploy lại.
 
 Nếu chưa có backend, giao diện vẫn chạy; khi bấm Tra cứu sẽ báo cần cấu hình BACKEND_URL.
