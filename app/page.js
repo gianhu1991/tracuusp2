@@ -76,7 +76,7 @@ export default function TraCuuSP2Page() {
 
   function optionValue(item) {
     if (typeof item === 'string') return item;
-    // Tổ QL: donviId; Vệ tinh: DONVI_ID; OLT: THIETBI_ID; Card OLT: CARD_ID/THIETBI_ID/VITRI; Port: PORTVL_ID
+    // Tổ KT: donviId; Trạm BTS: DONVI_ID; OLT: THIETBI_ID; Card OLT: CARD_ID/THIETBI_ID/VITRI; Port: PORTVL_ID
     const v = item?.donviId ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? item?.CARD_ID ?? item?.SLOT_ID ?? item?.PORTVL_ID ?? item?.VITRI ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? (item?.TEN_TB != null && item.TEN_TB !== '' ? item.TEN_TB : '');
     return v !== undefined && v !== null ? String(v) : '';
   }
@@ -156,21 +156,21 @@ export default function TraCuuSP2Page() {
       .then(({ ok, status, data }) => {
         LOG('VeTinh data', data, 'list length', normaliseList(data).length);
         if (!ok) {
-          setListError(data?.message || data?.error || `Không tải được danh sách Vệ tinh (${status}). Kiểm tra Authorization hoặc thử tổ QL khác.`);
+          setListError(data?.message || data?.error || `Không tải được danh sách Trạm BTS (${status}). Kiểm tra Authorization hoặc thử tổ KT khác.`);
           setListVeTinh([]);
           return;
         }
         if (data?.message && !Array.isArray(data) && !data?.data) {
-          setListError(data.message || 'Không có dữ liệu Vệ tinh.');
+          setListError(data.message || 'Không có dữ liệu Trạm BTS.');
           setListVeTinh([]);
           return;
         }
         setListVeTinh(normaliseList(data));
       })
-      .catch((e) => { LOG('VeTinh error', e); setListError(e.message || 'Lỗi tải danh sách Vệ tinh.'); setListVeTinh([]); });
+      .catch((e) => { LOG('VeTinh error', e); setListError(e.message || 'Lỗi tải danh sách Trạm BTS.'); setListVeTinh([]); });
   }, [toQL, authorization]);
 
-  // Chọn Vệ tinh → chỉ load danh sách Thiết bị OLT
+  // Chọn Trạm BTS → chỉ load danh sách Thiết bị OLT
   useEffect(() => {
     if (!veTinh) {
       setListThietBiOlt([]);
@@ -305,7 +305,7 @@ export default function TraCuuSP2Page() {
       return;
     }
     if (!toQL?.trim() && useToQL) {
-      setLoi('Vui lòng chọn Tổ QL.');
+      setLoi('Vui lòng chọn Tổ KT.');
       setLoading(false);
       return;
     }
@@ -327,7 +327,7 @@ export default function TraCuuSP2Page() {
         return;
       }
       const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? []);
-      const message = data?.message || (list.length === 0 ? 'Không có bản ghi nào. Thử chọn đủ Tổ QL, Vệ tinh, Thiết bị OLT, Port OLT và kiểm tra Authorization.' : null);
+      const message = data?.message || (list.length === 0 ? 'Không có bản ghi nào. Thử chọn đủ Tổ KT, Trạm BTS, Thiết bị OLT, Port OLT và kiểm tra Authorization.' : null);
       setKetQua({ data: Array.isArray(list) ? list : [], message });
     } catch (err) {
       LOG('Tra cứu', 'Lỗi', err);
@@ -342,12 +342,12 @@ export default function TraCuuSP2Page() {
   function DropRow({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
     return (
       <div className="flex items-center gap-1.5 sm:gap-2 py-1 sm:py-1.5">
-        <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0 w-4 h-4 sm:w-auto sm:h-auto" />
+        <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.target.checked)} className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 shrink-0 w-4 h-4 sm:w-auto sm:h-auto" />
         <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider shrink-0 min-w-[70px] sm:min-w-[90px]">{label}{required && '*'}</label>
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1.5 sm:px-3 sm:py-2 text-slate-700 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 min-h-[36px] sm:min-h-[40px]"
+          className="flex-1 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1.5 sm:px-3 sm:py-2 text-slate-700 text-xs sm:text-sm focus:ring-2 focus:ring-sky-500 min-h-[36px] sm:min-h-[40px]"
         >
           <option value="">{PLACEHOLDER}</option>
           {(options || []).map((item, i) => {
@@ -363,18 +363,18 @@ export default function TraCuuSP2Page() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-r from-indigo-50/80 via-slate-50 to-violet-50/80 py-2 px-2 sm:py-6 sm:px-4 lg:px-6">
+    <main className="min-h-screen bg-gradient-to-r from-sky-50/80 via-slate-50 to-blue-50/80 py-2 px-2 sm:py-6 sm:px-4 lg:px-6">
       <div className="w-full max-w-[1600px] mx-auto min-h-0 flex flex-col sm:min-h-[calc(100vh-2rem)]">
         {/* Card chính - vừa màn hình mobile */}
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-slate-200/80 overflow-hidden flex-1 flex flex-col min-h-0 sm:min-h-[80vh]">
           {/* Header - gọn trên mobile */}
-          <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-3 sm:px-8 sm:py-6 shrink-0">
+          <div className="bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-3 sm:px-8 sm:py-6 shrink-0">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <h1 className="text-base sm:text-2xl font-bold text-white tracking-tight truncate">
                   Module tra cứu Spliter cấp 2
                 </h1>
-                <p className="text-indigo-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1 hidden sm:block">
+                <p className="text-sky-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1 hidden sm:block">
                   Hệ thống tra cứu thông tin Spliter cấp 2 theo OLT, Slot và Port
                 </p>
               </div>
@@ -408,10 +408,10 @@ export default function TraCuuSP2Page() {
                       value={authPasswordInput}
                       onChange={(e) => { setAuthPasswordInput(e.target.value); setAuthPasswordError(''); }}
                       placeholder="Mật khẩu"
-                      className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 placeholder-slate-400 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px]"
+                      className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 placeholder-slate-400 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
                       autoComplete="current-password"
                     />
-                    <button type="submit" className="rounded-lg bg-indigo-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-indigo-700 min-h-[44px]">
+                    <button type="submit" className="rounded-lg bg-sky-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-700 min-h-[44px]">
                       Mở khóa
                     </button>
                   </div>
@@ -430,7 +430,7 @@ export default function TraCuuSP2Page() {
                     value={authorization}
                     onChange={(e) => saveAuth(e.target.value)}
                     placeholder="Bearer eyJhbGci... hoặc token của bạn"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 text-base sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px]"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 text-base sm:text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
                   />
                   <form onSubmit={handleSaveToServer} className="mt-3 space-y-2">
                     <label className="block text-xs text-slate-600">Mật khẩu quản trị (ADMIN_PASSWORD trên server)</label>
@@ -442,7 +442,7 @@ export default function TraCuuSP2Page() {
                         placeholder="Mật khẩu quản trị"
                         className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-48 max-w-full"
                       />
-                      <button type="submit" disabled={saveToServerStatus === 'saving' || !authorization?.trim()} className="rounded-lg bg-violet-600 text-white px-4 py-2 text-sm font-medium hover:bg-violet-700 disabled:opacity-50">
+                      <button type="submit" disabled={saveToServerStatus === 'saving' || !authorization?.trim()} className="rounded-lg bg-sky-600 text-white px-4 py-2 text-sm font-medium hover:bg-sky-700 disabled:opacity-50">
                         {saveToServerStatus === 'saving' ? 'Đang lưu...' : 'Lưu token lên server'}
                       </button>
                     </div>
@@ -456,13 +456,13 @@ export default function TraCuuSP2Page() {
 
           {/* Form tra cứu - Tìm kiếm thông tin Splitter */}
           <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0">
-            <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-indigo-500 pb-1 mb-3 sm:mb-4">Tìm kiếm thông tin Splitter</h2>
+            <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">Tìm kiếm thông tin Splitter</h2>
             <form onSubmit={handleTraCuu} className="space-y-3 sm:space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-8">
                 <div className="space-y-0 order-1 sm:order-1">
                   <DropRow label="TTVT" required checked={useTtvt} onCheck={setUseTtvt} value={ttvt} onChange={setTtvt} options={listTtvt} />
-                  <DropRow label="Tổ QL" required checked={useToQL} onCheck={setUseToQL} value={toQL} onChange={setToQL} options={listToQL} />
-                  <DropRow label="Vệ tinh" checked={useVeTinh} onCheck={setUseVeTinh} value={veTinh} onChange={setVeTinh} options={listVeTinh} />
+                  <DropRow label="Tổ KT" required checked={useToQL} onCheck={setUseToQL} value={toQL} onChange={setToQL} options={listToQL} />
+                  <DropRow label="Trạm BTS" checked={useVeTinh} onCheck={setUseVeTinh} value={veTinh} onChange={setVeTinh} options={listVeTinh} />
                 </div>
                 <div className="space-y-0 order-2 sm:order-2">
                   <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} />
@@ -477,7 +477,7 @@ export default function TraCuuSP2Page() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-2.5 rounded-lg font-semibold text-white text-xs sm:text-sm bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed min-h-[40px] sm:min-h-[44px]"
+                  className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-2.5 rounded-lg font-semibold text-white text-xs sm:text-sm bg-sky-600 hover:bg-sky-700 focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-70 disabled:cursor-not-allowed min-h-[40px] sm:min-h-[44px]"
                 >
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
@@ -487,7 +487,7 @@ export default function TraCuuSP2Page() {
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {loadingList && <span className="text-xs text-slate-500">Đang tải danh sách...</span>}
               {listError && <span className="text-xs text-red-600">{listError}</span>}
-              <button type="button" onClick={loadDanhSach} disabled={loadingList} className="text-xs text-indigo-600 hover:underline disabled:opacity-50">
+              <button type="button" onClick={loadDanhSach} disabled={loadingList} className="hidden text-xs text-sky-600 hover:underline disabled:opacity-50">
                 Tải lại danh sách
               </button>
             </div>
@@ -501,7 +501,7 @@ export default function TraCuuSP2Page() {
                 </p>
               )}
               {loading && (
-                <p className="text-indigo-600 font-medium text-xs sm:text-base py-6 sm:py-12 text-center flex-1 flex items-center justify-center">Đang tra cứu...</p>
+                <p className="text-sky-600 font-medium text-xs sm:text-base py-6 sm:py-12 text-center flex-1 flex items-center justify-center">Đang tra cứu...</p>
               )}
               {loi && (
                 <p className="text-red-600 text-center text-xs sm:text-base max-w-md py-4 sm:py-6">{loi}</p>
@@ -515,10 +515,10 @@ export default function TraCuuSP2Page() {
                   {Array.isArray(ketQua.data) && ketQua.data.length > 0 ? (
                     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                       <div className="grid grid-cols-[1fr_auto] gap-0">
-                        <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-2 sm:px-6 sm:py-3 text-white font-semibold text-xs sm:text-sm uppercase tracking-wide min-w-0">
+                        <div className="bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-2 sm:px-6 sm:py-3 text-white font-semibold text-xs sm:text-sm uppercase tracking-wide min-w-0">
                           Danh sách S2 tìm thấy
                         </div>
-                        <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-2 sm:px-6 sm:py-3 text-white font-semibold text-xs sm:text-sm uppercase tracking-wide text-right shrink-0">
+                        <div className="bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-2 sm:px-6 sm:py-3 text-white font-semibold text-xs sm:text-sm uppercase tracking-wide text-right shrink-0">
                           Hành động
                         </div>
                       </div>
@@ -540,7 +540,7 @@ export default function TraCuuSP2Page() {
                                     setTimeout(() => setShowCopyToast(false), 2000);
                                   }
                                 }}
-                                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-medium shadow-sm"
+                                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-medium shadow-sm"
                               >
                                 <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                                 Copy
@@ -559,8 +559,8 @@ export default function TraCuuSP2Page() {
         </div>
       </div>
     {showCopyToast && (
-        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
-          <div className="bg-indigo-600/90 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium">
+        <div className="fixed inset-0 flex items-end justify-center pb-8 sm:pb-12 pointer-events-none z-50">
+          <div className="bg-black/40 backdrop-blur-sm text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium border border-white/20">
             Đã copy!
           </div>
         </div>

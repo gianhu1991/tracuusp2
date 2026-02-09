@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { getStoredAuth } from '../../../lib/auth-store';
 
 const BASE_ECMS = 'https://api-onebss.vnpt.vn/web-ecms';
-/** Tổ kỹ thuật + Vệ tinh (chọn Tổ QL và Vệ tinh). */
+/** Tổ kỹ thuật + Trạm BTS (chọn Tổ KT và Trạm BTS). */
 const URL_LAY_DS_VE_TINH = BASE_ECMS + '/danhmuc/layDsVeTinh';
-/** Danh sách OLT theo Vệ tinh (danhmuc). */
+/** Danh sách OLT theo Trạm BTS (danhmuc). */
 const URL_OLT_THEO_VE_TINH = BASE_ECMS + '/danhmuc/layDsOltTheoVeTinh';
 /** Danh sách Card OLT theo OLT (danhmuc). */
 const URL_CARD_OLT_THEO_OLT = BASE_ECMS + '/danhmuc/layDsCardOltTheoOlt';
@@ -44,7 +44,7 @@ async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) 
     return res;
   }
 
-  // OLT: OneBSS layDsOltTheoVeTinh — body { id: number } = DONVI_ID của Vệ tinh đã chọn
+  // OLT: OneBSS layDsOltTheoVeTinh — body { id: number } = DONVI_ID của Trạm BTS đã chọn
   if (loai === 'olt') {
     const url = process.env.URL_OLT_THEO_VE_TINH || URL_OLT_THEO_VE_TINH;
     const idNum = tramBts === '' || tramBts == null ? null : Number(tramBts);
@@ -57,7 +57,7 @@ async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) 
     return res;
   }
 
-  // Tổ QL (to_ky_thuat): 2 tổ kỹ thuật, layDsVeTinh cần body { id: số } (donviId)
+  // Tổ KT (to_ky_thuat): 2 tổ kỹ thuật, layDsVeTinh cần body { id: số } (donviId)
   if (loai === 'to_ky_thuat') {
     const fixedToQL = [
       { id: 'd4febad9-f7b4-41a4-85ab-1e8fc1fd754a', donviId: 1002688, ten: 'Tổ Kỹ thuật Địa bàn Gia Viễn' },
@@ -67,7 +67,7 @@ async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) 
     return new Response(JSON.stringify(fixedToQL), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Vệ tinh (tram_bts): OneBSS layDsVeTinh nhận body { id: number } (donviId tổ KT)
+  // Trạm BTS (tram_bts): OneBSS layDsVeTinh nhận body { id: number } (donviId tổ KT)
   if (loai === 'tram_bts') {
     const url = process.env.URL_LAY_DS_VE_TINH || URL_LAY_DS_VE_TINH;
     const idNum = toKyThuat === '' || toKyThuat == null ? null : Number(toKyThuat);
@@ -139,7 +139,7 @@ export async function GET(request) {
         { status: 400 }
       );
     }
-    // Chuẩn hóa list: OneBSS Vệ tinh trả data[], mỗi item có DONVI_ID, TEN_DV
+    // Chuẩn hóa list: OneBSS Trạm BTS trả data[], mỗi item có DONVI_ID, TEN_DV
     let list = Array.isArray(data) ? data : null;
     if (!list && data && typeof data === 'object') {
       if (loaiKey === 'to_ky_thuat') {
