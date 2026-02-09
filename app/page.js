@@ -144,8 +144,7 @@ export default function TraCuuSP2Page() {
     setVeTinh('');
     setCardOlt('');
     setThietBiOlt('');
-    const auth = localStorage.getItem(STORAGE_AUTH);
-    if (!auth?.trim()) return;
+    const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
     const url = `/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`;
     LOG('VeTinh request', url, 'toQL', toQL);
     fetch(url, { headers: { Authorization: auth.trim() } })
@@ -182,8 +181,7 @@ export default function TraCuuSP2Page() {
     setThietBiOlt('');
     setListCardOlt([]);
     setCardOlt('');
-    const auth = localStorage.getItem(STORAGE_AUTH);
-    if (!auth?.trim()) return;
+    const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
     const url = `/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
     LOG('OLT request', url, 'veTinh (DONVI_ID)', veTinh);
     fetch(url, { headers: { Authorization: auth.trim() } })
@@ -206,8 +204,7 @@ export default function TraCuuSP2Page() {
       return;
     }
     setCardOlt('');
-    const auth = localStorage.getItem(STORAGE_AUTH);
-    if (!auth?.trim()) return;
+    const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
     const url = `/api/danh-sach?loai=card_olt&olt=${encodeURIComponent(thietBiOlt)}`;
     LOG('Card OLT request', url, 'thietBiOlt (THIETBI_ID)', thietBiOlt);
     fetch(url, { headers: { Authorization: auth.trim() } })
@@ -233,11 +230,7 @@ export default function TraCuuSP2Page() {
     setPortOlt('');
     setLoadingPortOlt(true);
     setListPortOlt([]);
-    const auth = localStorage.getItem(STORAGE_AUTH);
-    if (!auth?.trim()) {
-      setLoadingPortOlt(false);
-      return;
-    }
+    const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
     const url = `/api/danh-sach?loai=port_olt&cardOlt=${encodeURIComponent(cardOlt)}`;
     LOG('Port OLT request', url);
     fetch(url, { headers: { Authorization: auth.trim() } })
@@ -437,10 +430,7 @@ export default function TraCuuSP2Page() {
                     placeholder="Bearer eyJhbGci... hoặc token của bạn"
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 text-base sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px]"
                   />
-                  <p className="text-xs text-slate-500 mt-1">API mặc định: api-onebss.vnpt.vn. Khi token đổi, sửa ở đây.</p>
-                  <p className="text-xs text-amber-600 mt-1">Token được lưu trên trình duyệt này. Mở bằng trình duyệt khác cần nhập lại token.</p>
-                  <p className="text-xs text-slate-600 mt-1 font-medium">Quản trị — đổi token ngay trên web (không cần vào Vercel):</p>
-                  <form onSubmit={handleSaveToServer} className="mt-2 space-y-2">
+                  <form onSubmit={handleSaveToServer} className="mt-3 space-y-2">
                     <label className="block text-xs text-slate-600">Mật khẩu quản trị (ADMIN_PASSWORD trên server)</label>
                     <div className="flex gap-2 flex-wrap items-center">
                       <input
@@ -490,17 +480,15 @@ export default function TraCuuSP2Page() {
                 >
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
-                <p className="text-xs text-slate-500 mt-2">Dữ liệu dropdown lấy từ API. Cần nhập Authorization trong Cài đặt. Nếu không tải được danh sách, liên hệ quản trị.</p>
+                <p className="text-xs text-slate-500 mt-2">Dữ liệu lấy từ API. Nếu quản trị đã <strong>Lưu token lên server</strong> (trong Cài đặt), mọi người dùng được mà không cần nhập token. Nếu không tải được: nhập token trong Cài đặt (chỉ máy bạn) hoặc nhờ quản trị <strong>Lưu token lên server</strong>.</p>
               </div>
             </form>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {loadingList && <span className="text-xs text-slate-500">Đang tải danh sách...</span>}
               {listError && <span className="text-xs text-red-600">{listError}</span>}
-              {authorization?.trim() && (
-                <button type="button" onClick={loadDanhSach} disabled={loadingList} className="text-xs text-indigo-600 hover:underline disabled:opacity-50">
-                  Tải lại danh sách
-                </button>
-              )}
+              <button type="button" onClick={loadDanhSach} disabled={loadingList} className="text-xs text-indigo-600 hover:underline disabled:opacity-50">
+                Tải lại danh sách
+              </button>
             </div>
           </div>
 
