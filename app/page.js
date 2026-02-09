@@ -65,8 +65,8 @@ export default function TraCuuSP2Page() {
   const chuaTraCuu = !ketQua && !loi && !loading;
 
   return (
-    <main className="min-h-screen bg-gradient-to-r from-indigo-50/80 via-slate-50 to-violet-50/80 py-4 sm:py-6 px-3 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto min-h-[calc(100vh-2rem)] flex flex-col">
+    <main className="min-h-screen bg-gradient-to-r from-indigo-50/80 via-slate-50 to-violet-50/80 py-4 sm:py-6 px-3 sm:px-4 lg:px-6">
+      <div className="w-full max-w-[1600px] mx-auto min-h-[calc(100vh-2rem)] flex flex-col">
         {/* Card chính - dài full chiều cao có thể */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200/80 overflow-hidden flex-1 flex flex-col min-h-[85vh] sm:min-h-[80vh]">
           {/* Header */}
