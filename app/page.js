@@ -66,7 +66,8 @@ export default function TraCuuSP2Page() {
 
   function optionValue(item) {
     if (typeof item === 'string') return item;
-    const v = item?.DONVI_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
+    // Tổ QL: dùng donviId (số) để gọi layDsVeTinh body { id }
+    const v = item?.donviId ?? item?.DONVI_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
     return v !== undefined && v !== null ? String(v) : '';
   }
   function optionLabel(item) {

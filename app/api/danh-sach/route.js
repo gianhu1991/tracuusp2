@@ -107,41 +107,26 @@ async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) 
     return res;
   }
 
-  // Tổ QL (to_ky_thuat): 2 tổ kỹ thuật có sẵn, mỗi tổ có 1 ID (request gửi ID)
+  // Tổ QL (to_ky_thuat): 2 tổ kỹ thuật, layDsVeTinh cần body { id: số } (donviId)
   if (loai === 'to_ky_thuat') {
     const fixedToQL = [
-      { id: 'd4febad9-f7b4-41a4-85ab-1e8fc1fd754a', ma: 'd4febad9-f7b4-41a4-85ab-1e8fc1fd754a', ten: 'Tổ Kỹ thuật Địa bàn Gia Viễn' },
-      { id: '5f0ad13b-53ee-4869-a66f-4023cba821a7', ma: '5f0ad13b-53ee-4869-a66f-4023cba821a7', ten: 'Tổ Kỹ thuật Địa bàn Nho Quan' },
+      { id: 'd4febad9-f7b4-41a4-85ab-1e8fc1fd754a', donviId: 1002688, ten: 'Tổ Kỹ thuật Địa bàn Gia Viễn' },
+      { id: '5f0ad13b-53ee-4869-a66f-4023cba821a7', donviId: 1002689, ten: 'Tổ Kỹ thuật Địa bàn Nho Quan' },
     ];
     log('to_ky_thuat fixed', fixedToQL.length);
     return new Response(JSON.stringify(fixedToQL), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Vệ tinh (tram_bts): gọi layDsVeTinh với toKyThuat = ID tổ KT (UUID)
+  // Vệ tinh (tram_bts): OneBSS layDsVeTinh nhận body { id: number } (donviId tổ KT)
   if (loai === 'tram_bts') {
     const url = process.env.URL_LAY_DS_VE_TINH || URL_LAY_DS_VE_TINH;
-    const body = {};
-    if (toKyThuat) body.toKyThuat = toKyThuat;
-    if (tramBts) body.tramBts = tramBts;
-    if (tramBts) body.veTinh = tramBts;
+    const idNum = toKyThuat === '' || toKyThuat == null ? null : Number(toKyThuat);
+    const body = idNum !== null && !Number.isNaN(idNum) ? { id: idNum } : {};
     log('layDsVeTinh POST', url, body);
-    let res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-    const txtPost = await res.clone().text().catch(() => '');
-    if (res.ok) {
-      log('layDsVeTinh POST OK', res.status, 'body sample', txtPost?.slice(0, 500));
-      return res;
-    }
-    log('layDsVeTinh POST FAIL', res.status, txtPost?.slice(0, 300));
-    // Thử GET với query toKyThuat (một số API hỗ trợ GET)
-    const q = new URLSearchParams();
-    if (toKyThuat) q.set('toKyThuat', toKyThuat);
-    if (tramBts) q.set('tramBts', tramBts);
-    const urlGet = q.toString() ? `${url}?${q.toString()}` : url;
-    log('layDsVeTinh GET', urlGet);
-    res = await fetch(urlGet, { method: 'GET', headers: { Authorization: auth } });
-    const txtGet = await res.clone().text().catch(() => '');
-    if (res.ok) log('layDsVeTinh GET OK', res.status);
-    else log('layDsVeTinh GET FAIL', res.status, txtGet?.slice(0, 300));
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    const txt = await res.clone().text().catch(() => '');
+    if (res.ok) log('layDsVeTinh POST OK', res.status);
+    else log('layDsVeTinh POST FAIL', res.status, txt?.slice(0, 300));
     return res;
   }
 
