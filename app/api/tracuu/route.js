@@ -43,7 +43,8 @@ export async function POST(request) {
     });
     const data = await res.json().catch(() => ({}));
     const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result);
-    console.log('[TracuuSP2 API tracuu] Response', { status: res.status, ok: res.ok, payloadKeys: Object.keys(payload), dataKeys: Object.keys(data || {}), listLength: Array.isArray(list) ? list.length : (list ? 'n/a' : '-') });
+    const bodySample = JSON.stringify(data).slice(0, 500);
+    console.log('[TracuuSP2 API tracuu] Response', { status: res.status, ok: res.ok, payloadKeys: Object.keys(payload), dataKeys: Object.keys(data || {}), listLength: Array.isArray(list) ? list.length : (list ? 'n/a' : '-'), bodySample });
     if (!res.ok) {
       return NextResponse.json(
         { message: data.message || data.error || 'API lỗi' },

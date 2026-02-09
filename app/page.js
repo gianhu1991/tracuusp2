@@ -39,6 +39,7 @@ export default function TraCuuSP2Page() {
   const [listVeTinh, setListVeTinh] = useState([]);
   const [listCardOlt, setListCardOlt] = useState([]);
   const [listThietBiOlt, setListThietBiOlt] = useState([]);
+  const [listPortOlt, setListPortOlt] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
   const [listError, setListError] = useState('');
 
@@ -76,14 +77,19 @@ export default function TraCuuSP2Page() {
     }
     setLoadingList(true);
     setListError('');
+    const urlTtvt = '/api/danh-sach?loai=ttvt';
+    const urlToQL = '/api/danh-sach?loai=to_ky_thuat';
+    LOG('loadDanhSach request', { urlTtvt, urlToQL, hasAuth: !!auth?.trim() });
     try {
       const headers = { Authorization: auth.trim() };
       const [resTtvt, resToQL] = await Promise.all([
-        fetch('/api/danh-sach?loai=ttvt', { headers }),
-        fetch('/api/danh-sach?loai=to_ky_thuat', { headers }),
+        fetch(urlTtvt, { headers }),
+        fetch(urlToQL, { headers }),
       ]);
       const dataTtvt = await resTtvt.json().catch(() => ({}));
       const dataToQL = await resToQL.json().catch(() => ({}));
+      LOG('loadDanhSach TTVT', { status: resTtvt.status, ok: resTtvt.ok, data: dataTtvt, list: normaliseList(dataTtvt).length });
+      LOG('loadDanhSach ToQL', { status: resToQL.status, ok: resToQL.ok, data: dataToQL, list: normaliseList(dataToQL).length });
       if (resTtvt.ok) setListTtvt(normaliseList(dataTtvt));
       else setListTtvt([]);
       if (resToQL.ok) setListToQL(normaliseList(dataToQL));
@@ -97,6 +103,7 @@ export default function TraCuuSP2Page() {
           : 'Không tải được danh sách. Kiểm tra Authorization và API danh sách OneBSS.'));
       }
     } catch (e) {
+      LOG('loadDanhSach error', e);
       setListError(e.message || 'Lỗi tải danh sách.');
       setListTtvt([]);
       setListToQL([]);
@@ -113,6 +120,7 @@ export default function TraCuuSP2Page() {
       setListVeTinh([]);
       setListCardOlt([]);
       setListThietBiOlt([]);
+      setListPortOlt([]);
     }
   }, [authorization]);
 
@@ -129,13 +137,19 @@ export default function TraCuuSP2Page() {
     setThietBiOlt('');
     const auth = localStorage.getItem(STORAGE_AUTH);
     if (!auth?.trim()) return;
-    fetch(`/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`, { headers: { Authorization: auth.trim() } })
-      .then((r) => r.json().catch(() => ({})))
+    const url = `/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`;
+    LOG('VeTinh request', url);
+    fetch(url, { headers: { Authorization: auth.trim() } })
+      .then((r) => {
+        LOG('VeTinh response', r.status, r.ok);
+        return r.json().catch(() => ({}));
+      })
       .then((data) => {
+        LOG('VeTinh data', data, 'list length', normaliseList(data).length);
         if (data?.message && !Array.isArray(data) && !data?.data) return;
         setListVeTinh(normaliseList(data));
       })
-      .catch(() => setListVeTinh([]));
+      .catch((e) => { LOG('VeTinh error', e); setListVeTinh([]); });
   }, [toQL, authorization]);
 
   useEffect(() => {
@@ -152,19 +166,51 @@ export default function TraCuuSP2Page() {
     if (!auth?.trim()) return;
     const h = { Authorization: auth.trim() };
     const q = `toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
+    const u1 = `/api/danh-sach?loai=card_olt&${q}`;
+    const u2 = `/api/danh-sach?loai=olt&${q}`;
+    LOG('Card OLT + OLT request', u1, u2);
     Promise.all([
-      fetch(`/api/danh-sach?loai=card_olt&${q}`, { headers: h }),
-      fetch(`/api/danh-sach?loai=olt&${q}`, { headers: h }),
+      fetch(u1, { headers: h }),
+      fetch(u2, { headers: h }),
     ])
-      .then(([r1, r2]) => Promise.all([r1.json().catch(() => ({})), r2.json().catch(() => ({}))]))
+      .then(([r1, r2]) => {
+        LOG('Card OLT + OLT response', r1.status, r2.status);
+        return Promise.all([r1.json().catch(() => ({})), r2.json().catch(() => ({}))]);
+      })
       .then(([d1, d2]) => {
+        LOG('Card OLT + OLT data', { cardOlt: d1, olt: d2, len1: normaliseList(d1).length, len2: normaliseList(d2).length });
         if (d1?.message && !Array.isArray(d1) && !d1?.data) return;
         if (d2?.message && !Array.isArray(d2) && !d2?.data) return;
         setListCardOlt(normaliseList(d1));
         setListThietBiOlt(normaliseList(d2));
       })
-      .catch(() => { setListCardOlt([]); setListThietBiOlt([]); });
+      .catch((e) => { LOG('Card OLT + OLT error', e); setListCardOlt([]); setListThietBiOlt([]); });
   }, [veTinh, toQL, authorization]);
+
+  useEffect(() => {
+    if (!cardOlt || !authorization?.trim()) {
+      setListPortOlt([]);
+      setPortOlt('');
+      return;
+    }
+    setPortOlt('');
+    const auth = localStorage.getItem(STORAGE_AUTH);
+    if (!auth?.trim()) return;
+    const q = `toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}&cardOlt=${encodeURIComponent(cardOlt)}`;
+    const url = `/api/danh-sach?loai=port_olt&${q}`;
+    LOG('Port OLT request', url);
+    fetch(url, { headers: { Authorization: auth.trim() } })
+      .then((r) => {
+        LOG('Port OLT response', r.status, r.ok);
+        return r.json().catch(() => ({}));
+      })
+      .then((data) => {
+        LOG('Port OLT data', data, 'list length', normaliseList(data).length);
+        if (data?.message && !Array.isArray(data) && !data?.data) return;
+        setListPortOlt(normaliseList(data));
+      })
+      .catch((e) => { LOG('Port OLT error', e); setListPortOlt([]); });
+  }, [cardOlt, toQL, veTinh, authorization]);
 
   const handleUnlockAuth = (e) => {
     e.preventDefault();
@@ -345,7 +391,7 @@ export default function TraCuuSP2Page() {
                 <div className="space-y-0">
                   <DropRow label="Tổ QL" required checked={useToQL} onCheck={setUseToQL} value={toQL} onChange={setToQL} options={listToQL} />
                   <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} />
-                  <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={PORT_OLT_OPTIONS} optionValue={(v) => String(v)} optionLabel={(v) => String(v)} />
+                  <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={listPortOlt.length > 0 ? listPortOlt : PORT_OLT_OPTIONS} optionValue={(v) => typeof v === 'number' ? String(v) : optionValue(v)} optionLabel={(v) => typeof v === 'number' ? String(v) : optionLabel(v)} />
                 </div>
               </div>
               <div className="pt-2">
