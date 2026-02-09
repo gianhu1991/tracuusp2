@@ -190,18 +190,15 @@ export default function TraCuuSP2Page() {
       fetch(u1, { headers: h }),
       fetch(u2, { headers: h }),
     ])
-      .then(([r1, r2]) => {
-        LOG('Card OLT + OLT response', r1.status, r2.status);
-        return Promise.all([r1.json().catch(() => ({})), r2.json().catch(() => ({}))]);
+      .then(([r1, r2]) => Promise.all([r1.json().catch(() => ({})), r2.json().catch(() => ({}))]).then(([d1, d2]) => ({ ok1: r1.ok, ok2: r2.ok, d1, d2 })))
+      .then(({ ok1, ok2, d1, d2 }) => {
+        LOG('Card OLT + OLT data', { ok1, ok2, len1: normaliseList(d1).length, len2: normaliseList(d2).length });
+        if (!ok1 && d1?.message) setListError(d1.message || 'Không tải được danh sách Card OLT.');
+        if (!ok2 && d2?.message) setListError(d2?.message || 'Không tải được danh sách Thiết bị OLT.');
+        if (d1?.message && !Array.isArray(d1) && !d1?.data) { setListCardOlt([]); } else { setListCardOlt(normaliseList(d1)); }
+        if (d2?.message && !Array.isArray(d2) && !d2?.data) { setListThietBiOlt([]); } else { setListThietBiOlt(normaliseList(d2)); }
       })
-      .then(([d1, d2]) => {
-        LOG('Card OLT + OLT data', { cardOlt: d1, olt: d2, len1: normaliseList(d1).length, len2: normaliseList(d2).length });
-        if (d1?.message && !Array.isArray(d1) && !d1?.data) return;
-        if (d2?.message && !Array.isArray(d2) && !d2?.data) return;
-        setListCardOlt(normaliseList(d1));
-        setListThietBiOlt(normaliseList(d2));
-      })
-      .catch((e) => { LOG('Card OLT + OLT error', e); setListCardOlt([]); setListThietBiOlt([]); });
+      .catch((e) => { LOG('Card OLT + OLT error', e); setListError(e.message || 'Lỗi tải OLT/Card OLT.'); setListCardOlt([]); setListThietBiOlt([]); });
   }, [veTinh, toQL, authorization]);
 
   useEffect(() => {

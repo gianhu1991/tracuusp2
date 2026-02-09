@@ -78,32 +78,16 @@ async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) 
     return res;
   }
 
-  // OLT: gọi URL riêng layDsOltTheoVeTinh (cần tramBts/veTinh)
+  // OLT: OneBSS layDsOltTheoVeTinh có thể nhận body { id: number } (DONVI_ID của Vệ tinh đã chọn)
   if (loai === 'olt') {
     const url = process.env.URL_OLT_THEO_VE_TINH || URL_OLT_THEO_VE_TINH;
-    const q = new URLSearchParams();
-    if (tramBts) q.set('veTinh', tramBts);
-    if (tramBts) q.set('tramBts', tramBts);
-    if (toKyThuat) q.set('toKyThuat', toKyThuat);
-    const query = q.toString();
-    const body = { veTinh: tramBts || undefined, tramBts: tramBts || undefined, toKyThuat: toKyThuat || undefined };
-    const urlGet = query ? `${url}?${query}` : url;
-    log('OLT GET', urlGet);
-    let res = await fetch(urlGet, { method: 'GET', headers: { Authorization: auth } });
-    const txtGet = await res.clone().text().catch(() => '');
-    if (res.ok) {
-      log('OLT GET OK', res.status, 'body sample', txtGet?.slice(0, 500));
-      return res;
-    }
-    log('OLT GET FAIL', res.status, txtGet?.slice(0, 300));
-    log('OLT POST', url, body);
-    res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-    const txtPost = await res.clone().text().catch(() => '');
-    if (res.ok) {
-      log('OLT POST OK', res.status, txtPost?.slice(0, 500));
-      return res;
-    }
-    log('OLT POST FAIL', res.status, txtPost?.slice(0, 300));
+    const idNum = tramBts === '' || tramBts == null ? null : Number(tramBts);
+    const body = idNum !== null && !Number.isNaN(idNum) ? { id: idNum } : {};
+    log('layDsOltTheoVeTinh POST', url, body);
+    let res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    const txt = await res.clone().text().catch(() => '');
+    if (res.ok) log('OLT POST OK', res.status);
+    else log('OLT POST FAIL', res.status, txt?.slice(0, 300));
     return res;
   }
 
