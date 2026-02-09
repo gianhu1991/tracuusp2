@@ -17,16 +17,20 @@ export async function POST(request) {
       toKyThuat, olt, slot, port,
     } = body;
 
-    const toQLVal = toQL ?? toKyThuat ?? body.toQL ?? body.toKyThuat;
-    const payload = {
-      ttvt: ttvt ?? body.ttvt,
-      veTinh: veTinh ?? body.veTinh,
-      cardOlt: cardOlt ?? body.cardOlt,
-      toQL: toQLVal,
-      toKyThuat: toQLVal,
-      thietBiOlt: thietBiOlt ?? olt ?? body.thietBiOlt ?? body.olt,
-      portOlt: portOlt ?? port ?? body.portOlt ?? body.port,
+    const num = (v) => (v === '' || v == null) ? undefined : (Number(v) || undefined);
+    const str = (v) => (v === '' || v == null) ? undefined : String(v);
+    // OneBSS ds_splitter_theo_port_olt nhận payload: ttvt_id, tokt_id, tramtb_id, olt_id, cardolt_id, lst_port_vl_id, dia_chi?, ky_hieu?
+    const payloadRaw = {
+      ttvt_id: body.ttvt_id ?? num(body.ttvt_id) ?? (body.ttvt && String(body.ttvt).includes('Nho Quan') ? 301431 : undefined),
+      tokt_id: num(toQL ?? toKyThuat ?? body.toQL ?? body.toKyThuat),
+      tramtb_id: num(veTinh ?? body.veTinh),
+      olt_id: num(thietBiOlt ?? olt ?? body.thietBiOlt ?? body.olt),
+      cardolt_id: str(cardOlt ?? body.cardOlt),
+      lst_port_vl_id: str(portOlt ?? port ?? body.portOlt ?? body.port),
+      dia_chi: body.dia_chi !== undefined ? body.dia_chi : null,
+      ky_hieu: body.ky_hieu !== undefined ? body.ky_hieu : null,
     };
+    const payload = Object.fromEntries(Object.entries(payloadRaw).filter(([, v]) => v !== undefined));
 
     const backendUrl = process.env.BACKEND_URL || process.env.TRACUU_BACKEND_URL || body.backendUrl || DEFAULT_BACKEND_URL;
     const authFromHeader = (request.headers.get('Authorization') || request.headers.get('authorization') || '').trim();
