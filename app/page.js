@@ -85,9 +85,9 @@ export default function TraCuuSP2Page() {
       else setListTtvt([]);
       if (resToQL.ok) setListToQL(normaliseList(dataToQL));
       else setListToQL([]);
-      if (!resTtvt.ok && !resToQL.ok) setListError(dataTtvt?.message || dataToQL?.message || 'Không tải được danh sách. Kiểm tra token hoặc đường dẫn API.');
+      if (!resTtvt.ok && !resToQL.ok) setListError(dataTtvt?.message || dataToQL?.message || 'Dữ liệu dropdown bắt buộc lấy từ API. Kiểm tra Authorization và đường dẫn API OneBSS.');
     } catch (e) {
-      setListError(e.message || 'Lỗi tải danh sách.');
+      setListError(e.message || 'Dữ liệu bắt buộc lấy từ API. Không thể nhập tay.');
       setListTtvt([]);
       setListToQL([]);
     } finally {
