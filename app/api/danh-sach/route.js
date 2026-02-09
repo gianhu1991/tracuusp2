@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 
 const BASE_ECMS = 'https://api-onebss.vnpt.vn/web-ecms';
-const URL_TRACUU = BASE_ECMS + '/tracuu/ds_splitter_theo_port_olt';
+/** Tổ kỹ thuật + Vệ tinh (chọn Tổ QL và Vệ tinh). */
+const URL_LAY_DS_VE_TINH = BASE_ECMS + '/danhmuc/layDsVeTinh';
 /** Danh sách OLT theo Vệ tinh (danhmuc). */
 const URL_OLT_THEO_VE_TINH = BASE_ECMS + '/danhmuc/layDsOltTheoVeTinh';
 /** Danh sách Card OLT theo OLT (danhmuc). */
@@ -106,35 +107,42 @@ async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) 
     return res;
   }
 
-  // Các loại khác (ttvt, to_ky_thuat, tram_bts): gọi URL tra cứu với ?loai=...
-  const url = process.env.BACKEND_URL || process.env.TRACUU_BACKEND_URL || URL_TRACUU;
-  const q = new URLSearchParams();
-  q.set('loai', loai);
-  if (toKyThuat) q.set('toKyThuat', toKyThuat);
-  if (tramBts) q.set('tramBts', tramBts);
-  const query = q.toString();
-  const body = { loai, toKyThuat: toKyThuat || undefined, tramBts: tramBts || undefined };
-
-  const urlGet = `${url}?${query}`;
-  log('GET url', urlGet);
-  let res = await fetch(urlGet, { method: 'GET', headers: { Authorization: auth } });
-  const txtGet = await res.clone().text().catch(() => '');
-  if (res.ok) {
-    log('GET OK', res.status, 'body length', txtGet?.length, 'body sample', txtGet?.slice(0, 500));
+  // Tổ QL (to_ky_thuat) và Vệ tinh (tram_bts): gọi layDsVeTinh (không tham số = Tổ QL, có toKyThuat = Vệ tinh)
+  if (loai === 'to_ky_thuat' || loai === 'tram_bts') {
+    const url = process.env.URL_LAY_DS_VE_TINH || URL_LAY_DS_VE_TINH;
+    const q = new URLSearchParams();
+    if (toKyThuat) q.set('toKyThuat', toKyThuat);
+    if (tramBts) q.set('tramBts', tramBts);
+    if (tramBts) q.set('veTinh', tramBts);
+    const query = q.toString();
+    const body = { toKyThuat: toKyThuat || undefined, tramBts: tramBts || undefined, veTinh: tramBts || undefined };
+    const urlGet = query ? `${url}?${query}` : url;
+    log('layDsVeTinh GET', urlGet);
+    let res = await fetch(urlGet, { method: 'GET', headers: { Authorization: auth } });
+    const txtGet = await res.clone().text().catch(() => '');
+    if (res.ok) {
+      log('layDsVeTinh GET OK', res.status, 'body sample', txtGet?.slice(0, 500));
+      return res;
+    }
+    log('layDsVeTinh GET FAIL', res.status, txtGet?.slice(0, 300));
+    log('layDsVeTinh POST', url, body);
+    res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    const txtPost = await res.clone().text().catch(() => '');
+    if (res.ok) {
+      log('layDsVeTinh POST OK', res.status, txtPost?.slice(0, 500));
+      return res;
+    }
+    log('layDsVeTinh POST FAIL', res.status, txtPost?.slice(0, 300));
     return res;
   }
-  log('GET FAIL', res.status, 'body', txtGet?.slice(0, 500));
 
-  log('POST url', url, 'body', JSON.stringify(body));
-  res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-  const txtPost = await res.clone().text().catch(() => '');
-  if (res.ok) {
-    log('POST OK', res.status, 'body length', txtPost?.length, 'body sample', txtPost?.slice(0, 500));
-    return res;
+  // ttvt: mặc định không gọi API (trung tâm cố định Nho Quan) - trả về danh sách 1 phần tử
+  if (loai === 'ttvt') {
+    const fixed = [{ ma: 'Trung tâm viễn thông Nho Quan', ten: 'Trung tâm viễn thông Nho Quan' }];
+    return new Response(JSON.stringify(fixed), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
-  log('POST FAIL', res.status, 'body', txtPost?.slice(0, 500));
 
-  return res;
+  return new Response(JSON.stringify({ message: 'Loại không hỗ trợ' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
 }
 
 export async function GET(request) {

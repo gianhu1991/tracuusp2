@@ -5,13 +5,14 @@ import { useState, useEffect } from 'react';
 const PLACEHOLDER = '-- Chọn --';
 const PORT_OLT_OPTIONS = Array.from({ length: 33 }, (_, i) => i);
 
-/** Tất cả dropdown (TTVT, Tổ QL, Vệ tinh, Card OLT, Thiết bị OLT) lấy từ API OneBSS (online). */
+/** TTVT mặc định theo OneBSS (trang tra cứu splitter theo port OLT). */
+const TTVT_MAC_DINH = 'Trung tâm viễn thông Nho Quan';
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_PASSWORD = '1234';
 
 export default function TraCuuSP2Page() {
-  const [ttvt, setTtvt] = useState('');
+  const [ttvt, setTtvt] = useState(TTVT_MAC_DINH);
   const [veTinh, setVeTinh] = useState('');
   const [cardOlt, setCardOlt] = useState('');
   const [toQL, setToQL] = useState('');
