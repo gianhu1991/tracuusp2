@@ -148,6 +148,8 @@ export async function GET(request) {
         list = data.listVeTinh ?? data.veTinh ?? data.danhSachVeTinh ?? data.tramBts ?? data.data ?? data.result ?? data.list ?? data.danhSach;
       } else if (loaiKey === 'olt') {
         list = data.listOlt ?? data.olt ?? data.danhSachOlt ?? data.data ?? data.result ?? data.list ?? data.danhSach;
+      } else if (loaiKey === 'card_olt') {
+        list = data.listCardOlt ?? data.listCard ?? data.cardOlt ?? data.danhSachCardOlt ?? data.data ?? data.result ?? data.list ?? data.danhSach;
       } else {
         list = data.data ?? data.result ?? data.list ?? data.listOlt ?? data.olt ?? data.listToKyThuat ?? data.toKyThuat ?? data.listVeTinh ?? data.veTinh ?? data.danhSach;
       }

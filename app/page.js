@@ -59,6 +59,8 @@ export default function TraCuuSP2Page() {
     if (res?.data && Array.isArray(res.data)) return res.data;
     if (res?.result && Array.isArray(res.result)) return res.result;
     if (res?.list && Array.isArray(res.list)) return res.list;
+    if (res?.listCardOlt && Array.isArray(res.listCardOlt)) return res.listCardOlt;
+    if (res?.listCard && Array.isArray(res.listCard)) return res.listCard;
     if (res?.listOlt && Array.isArray(res.listOlt)) return res.listOlt;
     if (res?.olt && Array.isArray(res.olt)) return res.olt;
     if (res?.listToKyThuat && Array.isArray(res.listToKyThuat)) return res.listToKyThuat;
@@ -71,8 +73,8 @@ export default function TraCuuSP2Page() {
 
   function optionValue(item) {
     if (typeof item === 'string') return item;
-    // Tổ QL: donviId; Vệ tinh: DONVI_ID; OLT: THIETBI_ID; Card/Port OLT: PORTVL_ID hoặc VITRI (để luôn có value chọn được)
-    const v = item?.donviId ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? item?.PORTVL_ID ?? item?.VITRI ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
+    // Tổ QL: donviId; Vệ tinh: DONVI_ID; OLT: THIETBI_ID; Card OLT: CARD_ID/THIETBI_ID/VITRI; Port: PORTVL_ID
+    const v = item?.donviId ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? item?.CARD_ID ?? item?.SLOT_ID ?? item?.PORTVL_ID ?? item?.VITRI ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? (item?.TEN_TB != null && item.TEN_TB !== '' ? item.TEN_TB : '');
     return v !== undefined && v !== null ? String(v) : '';
   }
   function optionLabel(item) {
@@ -345,9 +347,13 @@ export default function TraCuuSP2Page() {
           className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-700 text-sm focus:ring-2 focus:ring-indigo-500 min-h-[40px]"
         >
           <option value="">{PLACEHOLDER}</option>
-          {(options || []).map((item, i) => (
-            <option key={i} value={ov ? ov(item) : optionValue(item)}>{ol ? ol(item) : optionLabel(item)}</option>
-          ))}
+          {(options || []).map((item, i) => {
+            const val = ov ? ov(item) : optionValue(item);
+            const strVal = (val !== undefined && val !== null && val !== '') ? String(val) : '';
+            return (
+              <option key={strVal ? strVal : `opt-${i}`} value={strVal}>{ol ? ol(item) : optionLabel(item)}</option>
+            );
+          })}
         </select>
       </div>
     );
@@ -452,14 +458,14 @@ export default function TraCuuSP2Page() {
             <h2 className="text-base font-semibold text-slate-800 border-b-2 border-indigo-500 pb-1.5 mb-4">Tìm kiếm thông tin Splitter</h2>
             <form onSubmit={handleTraCuu} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
-                <div className="space-y-0">
+                <div className="space-y-0 order-1 sm:order-1">
                   <DropRow label="TTVT" required checked={useTtvt} onCheck={setUseTtvt} value={ttvt} onChange={setTtvt} options={listTtvt} />
-                  <DropRow label="Vệ tinh" checked={useVeTinh} onCheck={setUseVeTinh} value={veTinh} onChange={setVeTinh} options={listVeTinh} />
-                  <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={listCardOlt} />
-                </div>
-                <div className="space-y-0">
                   <DropRow label="Tổ QL" required checked={useToQL} onCheck={setUseToQL} value={toQL} onChange={setToQL} options={listToQL} />
+                  <DropRow label="Vệ tinh" checked={useVeTinh} onCheck={setUseVeTinh} value={veTinh} onChange={setVeTinh} options={listVeTinh} />
+                </div>
+                <div className="space-y-0 order-2 sm:order-2">
                   <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} />
+                  <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={listCardOlt} />
                   <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={listPortOlt.length > 0 ? listPortOlt : PORT_OLT_OPTIONS} optionValue={(v) => typeof v === 'number' ? String(v) : optionValue(v)} optionLabel={(v) => typeof v === 'number' ? String(v) : optionLabel(v)} />
                 </div>
               </div>
