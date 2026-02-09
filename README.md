@@ -21,10 +21,14 @@ Mở http://localhost:3000
 
 1. Đẩy code lên GitHub (hoặc Git khác), kết nối repo với Vercel.
 2. Trong Vercel: **Project → Settings → Environment Variables** thêm:
-   - **BACKEND_URL** (hoặc TRACUU_BACKEND_URL): URL backend tra cứu (nếu bạn có server chạy Playwright/API).
-   - **AUTHORIZATION** (hoặc TRACUU_AUTHORIZATION): Token gửi kèm request (khi token đổi, sửa ở đây).
-   - **LIST_API_BASE** hoặc **LIST_API_URL** (tùy chọn): URL hoặc base URL API lấy danh sách TTVT/Tổ QL/Vệ tinh/OLT. Nếu dropdown trống và báo Not found/404, set biến này với đúng đường dẫn API danh sách OneBSS (vd: `https://api-onebss.vnpt.vn/web-ecms/danh_sach`). Ứng dụng cũng thử gọi URL tra cứu với tham số `loai=ttvt` nếu chưa cấu hình.
-3. Deploy lại.
+   - **ADMIN_PASSWORD**: Mật khẩu quản trị để đổi token **ngay trên web** (Cài đặt → Lưu token lên server). Quản trị dùng mật khẩu này khi bấm "Lưu token lên server".
+   - **ONE_BSS_AUTHORIZATION** (hoặc **AUTHORIZATION**): Token Bearer OneBSS. Có thể set ở đây hoặc **đổi hàng ngày trên web** (xem bước 3).
+   - **BACKEND_URL** / **TRACUU_AUTHORIZATION** / **LIST_API_*** (tùy chọn): theo nhu cầu.
+3. **Đổi token hàng ngày trên web (không cần vào Vercel):**
+   - Tạo project **Supabase** → SQL Editor chạy: `create table if not exists app_config ( key text primary key, value text );`
+   - Vercel → **Settings → Environment Variables** thêm: **NEXT_PUBLIC_SUPABASE_URL**, **SUPABASE_SERVICE_ROLE_KEY** (lấy từ Supabase → Settings → API).
+   - Deploy lại. Trên app: **Cài đặt** → mở khóa → nhập token mới → nhập **Mật khẩu quản trị** (đúng ADMIN_PASSWORD) → bấm **Lưu token lên server**. Mọi người dùng app sẽ dùng token này cho đến khi quản trị lưu token mới.
+4. Deploy lại.
 
 Nếu chưa có backend, giao diện vẫn chạy; khi bấm Tra cứu sẽ báo cần cấu hình BACKEND_URL.
 

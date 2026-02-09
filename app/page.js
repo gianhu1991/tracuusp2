@@ -34,6 +34,9 @@ export default function TraCuuSP2Page() {
   const [authUnlocked, setAuthUnlocked] = useState(false);
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authPasswordError, setAuthPasswordError] = useState('');
+  const [adminPasswordForServer, setAdminPasswordForServer] = useState('');
+  const [saveToServerStatus, setSaveToServerStatus] = useState('');
+  const [saveToServerMessage, setSaveToServerMessage] = useState('');
 
   const [listTtvt, setListTtvt] = useState([]);
   const [listToQL, setListToQL] = useState([]);
@@ -85,17 +88,13 @@ export default function TraCuuSP2Page() {
 
   async function loadDanhSach() {
     const auth = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '';
-    if (!auth?.trim()) {
-      setListError('Chưa có Authorization. Vào Cài đặt, nhập mật khẩu và thêm token.');
-      return;
-    }
     setLoadingList(true);
     setListError('');
     const urlTtvt = '/api/danh-sach?loai=ttvt';
     const urlToQL = '/api/danh-sach?loai=to_ky_thuat';
     LOG('loadDanhSach request', { urlTtvt, urlToQL, hasAuth: !!auth?.trim() });
     try {
-      const headers = { Authorization: auth.trim() };
+      const headers = { Authorization: (auth && auth.trim()) || '' };
       const [resTtvt, resToQL] = await Promise.all([
         fetch(urlTtvt, { headers }),
         fetch(urlToQL, { headers }),
@@ -127,19 +126,11 @@ export default function TraCuuSP2Page() {
   }
 
   useEffect(() => {
-    if (authorization?.trim()) loadDanhSach();
-    else {
-      setListTtvt([]);
-      setListToQL([]);
-      setListVeTinh([]);
-      setListCardOlt([]);
-      setListThietBiOlt([]);
-      setListPortOlt([]);
-    }
+    loadDanhSach();
   }, [authorization]);
 
   useEffect(() => {
-    if (!toQL || !authorization?.trim()) {
+    if (!toQL) {
       setListVeTinh([]);
       setVeTinh('');
       setCardOlt('');
@@ -177,7 +168,7 @@ export default function TraCuuSP2Page() {
 
   // Chọn Vệ tinh → chỉ load danh sách Thiết bị OLT
   useEffect(() => {
-    if (!veTinh || !authorization?.trim()) {
+    if (!veTinh) {
       setListThietBiOlt([]);
       setThietBiOlt('');
       setListCardOlt([]);
@@ -205,7 +196,7 @@ export default function TraCuuSP2Page() {
 
   // Chọn Thiết bị OLT → load danh sách Card OLT (body { id: THIETBI_ID })
   useEffect(() => {
-    if (!thietBiOlt || !authorization?.trim()) {
+    if (!thietBiOlt) {
       setListCardOlt([]);
       setCardOlt('');
       return;
@@ -229,7 +220,7 @@ export default function TraCuuSP2Page() {
 
   // Chọn Card OLT → load danh sách Port OLT (body { id: cardOlt })
   useEffect(() => {
-    if (!cardOlt || !authorization?.trim()) {
+    if (!cardOlt) {
       setListPortOlt([]);
       setPortOlt('');
       return;
@@ -272,16 +263,36 @@ export default function TraCuuSP2Page() {
     if (typeof window !== 'undefined') localStorage.setItem(STORAGE_AUTH, value);
   };
 
+  const handleSaveToServer = async (e) => {
+    e.preventDefault();
+    setSaveToServerStatus('saving');
+    setSaveToServerMessage('');
+    try {
+      const res = await fetch('/api/admin/set-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPasswordForServer, authorization: authorization?.trim() || '' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setSaveToServerStatus('ok');
+        setSaveToServerMessage(data.message || 'Đã lưu token lên server.');
+        setAdminPasswordForServer('');
+      } else {
+        setSaveToServerStatus('error');
+        setSaveToServerMessage(data.message || 'Không lưu được.');
+      }
+    } catch (err) {
+      setSaveToServerStatus('error');
+      setSaveToServerMessage(err.message || 'Lỗi kết nối.');
+    }
+  };
+
   const handleTraCuu = async (e) => {
     e.preventDefault();
     setLoi(null);
     setKetQua(null);
     setLoading(true);
-    if (!authorization?.trim()) {
-      setLoi('Vui lòng nhập Authorization trong Cài đặt rồi thử lại.');
-      setLoading(false);
-      return;
-    }
     if (!ttvt?.trim() && useTtvt) {
       setLoi('Vui lòng chọn TTVT.');
       setLoading(false);
@@ -301,7 +312,7 @@ export default function TraCuuSP2Page() {
     if (usePortOlt && portOlt !== '') body.portOlt = portOlt;
     LOG('Tra cứu', 'Request body', body);
     try {
-      const headers = { 'Content-Type': 'application/json', Authorization: authorization.trim() };
+      const headers = { 'Content-Type': 'application/json', Authorization: (authorization && authorization.trim()) || '' };
       const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({}));
       LOG('Tra cứu', 'Response', { status: res.status, ok: res.ok, data });
@@ -411,6 +422,25 @@ export default function TraCuuSP2Page() {
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 text-base sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px]"
                   />
                   <p className="text-xs text-slate-500 mt-1">API mặc định: api-onebss.vnpt.vn. Khi token đổi, sửa ở đây.</p>
+                  <p className="text-xs text-amber-600 mt-1">Token được lưu trên trình duyệt này. Mở bằng trình duyệt khác cần nhập lại token.</p>
+                  <p className="text-xs text-slate-600 mt-1 font-medium">Quản trị — đổi token ngay trên web (không cần vào Vercel):</p>
+                  <form onSubmit={handleSaveToServer} className="mt-2 space-y-2">
+                    <label className="block text-xs text-slate-600">Mật khẩu quản trị (ADMIN_PASSWORD trên server)</label>
+                    <div className="flex gap-2 flex-wrap items-center">
+                      <input
+                        type="password"
+                        value={adminPasswordForServer}
+                        onChange={(e) => { setAdminPasswordForServer(e.target.value); setSaveToServerStatus(''); }}
+                        placeholder="Mật khẩu quản trị"
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-48 max-w-full"
+                      />
+                      <button type="submit" disabled={saveToServerStatus === 'saving' || !authorization?.trim()} className="rounded-lg bg-violet-600 text-white px-4 py-2 text-sm font-medium hover:bg-violet-700 disabled:opacity-50">
+                        {saveToServerStatus === 'saving' ? 'Đang lưu...' : 'Lưu token lên server'}
+                      </button>
+                    </div>
+                    {saveToServerMessage && <p className={`text-xs ${saveToServerStatus === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{saveToServerMessage}</p>}
+                  </form>
+                  <p className="text-xs text-slate-500 mt-2">Cần cấu hình Supabase (bảng app_config) + ADMIN_PASSWORD trên Vercel (xem VERCEL-SETUP.md). Sau khi lưu, mọi người dùng app sẽ dùng token này.</p>
                 </div>
               )}
             </div>

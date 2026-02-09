@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getStoredAuth } from '../../../lib/auth-store';
 
 /** URL mặc định API tra cứu splitter theo port OLT - OneBSS VNPT */
 const DEFAULT_BACKEND_URL = 'https://api-onebss.vnpt.vn/web-ecms/tracuu/ds_splitter_theo_port_olt';
@@ -28,8 +29,9 @@ export async function POST(request) {
     };
 
     const backendUrl = process.env.BACKEND_URL || process.env.TRACUU_BACKEND_URL || body.backendUrl || DEFAULT_BACKEND_URL;
-    const authFromHeader = request.headers.get('Authorization') || request.headers.get('authorization');
-    const authorization = authFromHeader || body.authorization || process.env.AUTHORIZATION || process.env.TRACUU_AUTHORIZATION || '';
+    const authFromHeader = (request.headers.get('Authorization') || request.headers.get('authorization') || '').trim();
+    const authRedis = await getStoredAuth();
+    const authorization = authFromHeader || body.authorization || process.env.ONE_BSS_AUTHORIZATION || process.env.AUTHORIZATION || process.env.TRACUU_AUTHORIZATION || authRedis || '';
 
     const url = backendUrl.startsWith('http') ? backendUrl : DEFAULT_BACKEND_URL;
     console.log('[TracuuSP2 API tracuu] Request', { url, payload: Object.keys(payload), hasAuth: !!authorization });

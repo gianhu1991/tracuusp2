@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getStoredAuth } from '../../../lib/auth-store';
 
 const BASE_ECMS = 'https://api-onebss.vnpt.vn/web-ecms';
 /** Tổ kỹ thuật + Vệ tinh (chọn Tổ QL và Vệ tinh). */
@@ -97,11 +98,18 @@ export async function GET(request) {
     const olt = searchParams.get('olt') || searchParams.get('thietBiOlt') || '';
     const cardOlt = searchParams.get('cardOlt') || '';
 
-    const auth = request.headers.get('Authorization') || request.headers.get('authorization') || '';
+    // Token: client gửi → env → Redis (quản trị đổi token trên web)
+    const authHeader = (request.headers.get('Authorization') || request.headers.get('authorization') || '').trim();
+    const authEnv = process.env.ONE_BSS_AUTHORIZATION || process.env.AUTHORIZATION || '';
+    const authRedis = await getStoredAuth();
+    const auth = authHeader || authEnv || authRedis || '';
 
-    if (!loai || !auth) {
+    if (!loai) {
+      return NextResponse.json({ message: 'Thiếu loai' }, { status: 400 });
+    }
+    if (!auth) {
       return NextResponse.json(
-        { message: 'Thiếu loai hoặc Authorization' },
+        { message: 'Thiếu Authorization. Nhập token trong Cài đặt hoặc nhờ quản trị cấu hình ONE_BSS_AUTHORIZATION trên server.' },
         { status: 400 }
       );
     }
