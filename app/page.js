@@ -46,6 +46,7 @@ export default function TraCuuSP2Page() {
   const [loadingPortOlt, setLoadingPortOlt] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [listError, setListError] = useState('');
+  const [showCopyToast, setShowCopyToast] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -340,13 +341,13 @@ export default function TraCuuSP2Page() {
 
   function DropRow({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
     return (
-      <div className="flex items-center gap-2 py-1.5">
-        <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
-        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider shrink-0 min-w-[100px] sm:min-w-[90px]">{label}{required && '*'}</label>
+      <div className="flex items-center gap-1.5 sm:gap-2 py-1 sm:py-1.5">
+        <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0 w-4 h-4 sm:w-auto sm:h-auto" />
+        <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider shrink-0 min-w-[70px] sm:min-w-[90px]">{label}{required && '*'}</label>
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-700 text-sm focus:ring-2 focus:ring-indigo-500 min-h-[40px]"
+          className="flex-1 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1.5 sm:px-3 sm:py-2 text-slate-700 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 min-h-[36px] sm:min-h-[40px]"
         >
           <option value="">{PLACEHOLDER}</option>
           {(options || []).map((item, i) => {
@@ -362,32 +363,33 @@ export default function TraCuuSP2Page() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-r from-indigo-50/80 via-slate-50 to-violet-50/80 py-4 sm:py-6 px-3 sm:px-4 lg:px-6">
-      <div className="w-full max-w-[1600px] mx-auto min-h-[calc(100vh-2rem)] flex flex-col">
-        {/* Card chính - dài full chiều cao có thể */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200/80 overflow-hidden flex-1 flex flex-col min-h-[85vh] sm:min-h-[80vh]">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-4 sm:px-8 py-5 sm:py-6 shrink-0">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h1 className="text-lg sm:text-2xl font-bold text-white tracking-tight">
+    <main className="min-h-screen bg-gradient-to-r from-indigo-50/80 via-slate-50 to-violet-50/80 py-2 px-2 sm:py-6 sm:px-4 lg:px-6">
+      <div className="w-full max-w-[1600px] mx-auto min-h-0 flex flex-col sm:min-h-[calc(100vh-2rem)]">
+        {/* Card chính - vừa màn hình mobile */}
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-slate-200/80 overflow-hidden flex-1 flex flex-col min-h-0 sm:min-h-[80vh]">
+          {/* Header - gọn trên mobile */}
+          <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-3 sm:px-8 sm:py-6 shrink-0">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-base sm:text-2xl font-bold text-white tracking-tight truncate">
                   Module tra cứu Spliter cấp 2
                 </h1>
-                <p className="text-indigo-100 text-xs sm:text-sm mt-1">
+                <p className="text-indigo-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1 hidden sm:block">
                   Hệ thống tra cứu thông tin Spliter cấp 2 theo OLT, Slot và Port
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowSettings(!showSettings)}
-                className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-sm border border-white/40 min-h-[44px] touch-manipulation"
+                className="shrink-0 inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
                 aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt Authorization'}
               >
-                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
-                <span>{showSettings ? 'Ẩn cài đặt' : 'Cài đặt / Đổi Authorization'}</span>
-                <svg className={`w-4 h-4 shrink-0 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span>{showSettings ? 'Ẩn cài đặt' : 'Cài đặt'}</span>
+                <span className="hidden sm:inline">{showSettings ? '' : ' / Đổi Authorization'}</span>
+                <svg className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -396,7 +398,7 @@ export default function TraCuuSP2Page() {
 
           {/* Cài đặt Authorization - bảo vệ bằng mật khẩu */}
           {showSettings && (
-            <div className="border-b border-slate-100 bg-slate-50/80 px-4 sm:px-8 py-4 shrink-0">
+            <div className="border-b border-slate-100 bg-slate-50/80 px-3 sm:px-8 py-3 sm:py-4 shrink-0">
               {!authUnlocked ? (
                 <form onSubmit={handleUnlockAuth} className="space-y-3 max-w-xs">
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nhập mật khẩu để xem / đổi Authorization</label>
@@ -453,10 +455,10 @@ export default function TraCuuSP2Page() {
           )}
 
           {/* Form tra cứu - Tìm kiếm thông tin Splitter */}
-          <div className="px-4 sm:px-8 py-4 sm:py-6 shrink-0">
-            <h2 className="text-base font-semibold text-slate-800 border-b-2 border-indigo-500 pb-1.5 mb-4">Tìm kiếm thông tin Splitter</h2>
-            <form onSubmit={handleTraCuu} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
+          <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0">
+            <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-indigo-500 pb-1 mb-3 sm:mb-4">Tìm kiếm thông tin Splitter</h2>
+            <form onSubmit={handleTraCuu} className="space-y-3 sm:space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-8">
                 <div className="space-y-0 order-1 sm:order-1">
                   <DropRow label="TTVT" required checked={useTtvt} onCheck={setUseTtvt} value={ttvt} onChange={setTtvt} options={listTtvt} />
                   <DropRow label="Tổ QL" required checked={useToQL} onCheck={setUseToQL} value={toQL} onChange={setToQL} options={listToQL} />
@@ -467,20 +469,19 @@ export default function TraCuuSP2Page() {
                   <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={listCardOlt} optionValue={(item) => { if (typeof item === 'string') return item; const keyVal = item?.KEY; const idFromKey = (typeof keyVal === 'string' && keyVal.includes('#')) ? (keyVal.split('#')[1]?.trim() || keyVal) : null; const v = idFromKey ?? item?.CARD_ID ?? item?.THIETBI_ID ?? item?.SLOT_ID ?? item?.PORTVL_ID ?? item?.VITRI ?? item?.TEN_TB ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} />
                   <div>
                     <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={listPortOlt} optionValue={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const v = item?.PORTVL_ID ?? item?.VITRI ?? item?.id ?? item?.value ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} optionLabel={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const vitri = item?.VITRI; if (vitri !== undefined && vitri !== null) return String(vitri); return item?.PORTVL_ID != null ? String(item.PORTVL_ID) : (item?.TEN_TB ?? optionLabel(item) ?? ''); }} />
-                    {loadingPortOlt && <p className="text-xs text-slate-500 mt-0.5 -mb-1">Đang tải Port theo Card...</p>}
                     {cardOlt && !loadingPortOlt && listPortOlt.length === 0 && <p className="text-xs text-amber-600 mt-0.5 -mb-1">Chưa có Port. Kiểm tra Card đã chọn hoặc API.</p>}
                   </div>
                 </div>
               </div>
-              <div className="pt-2">
+              <div className="pt-1 sm:pt-2">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-6 py-2.5 rounded-lg font-semibold text-white text-sm bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed min-h-[44px]"
+                  className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-2.5 rounded-lg font-semibold text-white text-xs sm:text-sm bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed min-h-[40px] sm:min-h-[44px]"
                 >
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
-                <p className="text-xs text-slate-500 mt-2">Dữ liệu lấy từ API. Nếu quản trị đã <strong>Lưu token lên server</strong> (trong Cài đặt), mọi người dùng được mà không cần nhập token. Nếu không tải được: nhập token trong Cài đặt (chỉ máy bạn) hoặc nhờ quản trị <strong>Lưu token lên server</strong>.</p>
+                <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">Dữ liệu lấy từ API. Nếu quản trị đã <strong>Lưu token lên server</strong>, mọi người dùng được. Không tải được: nhập token trong Cài đặt hoặc nhờ quản trị lưu token.</p>
               </div>
             </form>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -492,32 +493,32 @@ export default function TraCuuSP2Page() {
             </div>
           </div>
 
-            {/* Khu vực kết quả - dài ra chiếm phần còn lại */}
-            <div className="mt-4 sm:mt-6 mx-4 sm:mx-8 mb-4 sm:mb-6 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 flex-1 min-h-[280px] sm:min-h-[320px] p-4 sm:p-6 flex flex-col">
+            {/* Khu vực kết quả - vừa màn hình mobile */}
+            <div className="mt-2 sm:mt-6 mx-2 sm:mx-8 mb-2 sm:mb-6 rounded-lg sm:rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 flex-1 min-h-[140px] sm:min-h-[320px] p-3 sm:p-6 flex flex-col overflow-hidden">
               {chuaTraCuu && (
-                <p className="text-slate-500 text-center text-sm sm:text-base py-12 sm:py-16 flex-1 flex items-center justify-center">
+                <p className="text-slate-500 text-center text-xs sm:text-base py-6 sm:py-16 flex-1 flex items-center justify-center">
                   Chọn các mục và bấm Tra cứu để xem kết quả
                 </p>
               )}
               {loading && (
-                <p className="text-indigo-600 font-medium text-sm sm:text-base py-12 text-center flex-1 flex items-center justify-center">Đang tra cứu...</p>
+                <p className="text-indigo-600 font-medium text-xs sm:text-base py-6 sm:py-12 text-center flex-1 flex items-center justify-center">Đang tra cứu...</p>
               )}
               {loi && (
-                <p className="text-red-600 text-center text-sm sm:text-base max-w-md py-6">{loi}</p>
+                <p className="text-red-600 text-center text-xs sm:text-base max-w-md py-4 sm:py-6">{loi}</p>
               )}
               {ketQua != null && !loi && (
-                <div className="w-full overflow-x-auto flex-1 min-h-0 -mx-2 sm:mx-0">
-                  <h3 className="text-slate-800 font-bold text-base sm:text-lg mb-3">
+                <div className="w-full overflow-x-auto flex-1 min-h-0 -mx-1 sm:mx-0">
+                  <h3 className="text-slate-800 font-bold text-sm sm:text-base mb-2 sm:mb-3">
                     Kết quả tra cứu ({Array.isArray(ketQua.data) ? ketQua.data.length : 0} Spliter cấp 2)
                   </h3>
-                  {ketQua.message && <p className="text-slate-600 text-sm mb-3">{ketQua.message}</p>}
+                  {ketQua.message && <p className="text-slate-600 text-xs sm:text-sm mb-2 sm:mb-3">{ketQua.message}</p>}
                   {Array.isArray(ketQua.data) && ketQua.data.length > 0 ? (
                     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-0">
-                        <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-4 sm:px-6 py-3 text-white font-semibold text-sm uppercase tracking-wide">
+                      <div className="grid grid-cols-[1fr_auto] gap-0">
+                        <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-2 sm:px-6 sm:py-3 text-white font-semibold text-xs sm:text-sm uppercase tracking-wide min-w-0">
                           Danh sách S2 tìm thấy
                         </div>
-                        <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-4 sm:px-6 py-3 text-white font-semibold text-sm uppercase tracking-wide text-right sm:text-left">
+                        <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-2 sm:px-6 sm:py-3 text-white font-semibold text-xs sm:text-sm uppercase tracking-wide text-right shrink-0">
                           Hành động
                         </div>
                       </div>
@@ -525,21 +526,23 @@ export default function TraCuuSP2Page() {
                         const tenS2 = row?.TEN_KC ?? row?.KYHIEU ?? row?.ten ?? row?.name ?? '';
                         const copyText = String(tenS2 || '');
                         return (
-                          <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-0 border-t border-slate-100 hover:bg-slate-50/50">
-                            <div className="px-4 sm:px-6 py-3 text-slate-800 text-sm font-medium">
+                          <div key={i} className="grid grid-cols-[1fr_auto] gap-0 border-t border-slate-100 hover:bg-slate-50/50 min-w-0">
+                            <div className="px-3 py-2 sm:px-6 sm:py-3 text-slate-800 text-xs sm:text-sm font-medium min-w-0 truncate sm:truncate" title={copyText || undefined}>
                               {copyText || '—'}
                             </div>
-                            <div className="px-4 sm:px-6 py-3 flex items-center">
+                            <div className="px-3 py-2 sm:px-6 sm:py-3 flex items-center justify-end shrink-0">
                               <button
                                 type="button"
                                 onClick={() => {
                                   if (copyText && typeof navigator?.clipboard?.writeText === 'function') {
                                     navigator.clipboard.writeText(copyText);
+                                    setShowCopyToast(true);
+                                    setTimeout(() => setShowCopyToast(false), 2000);
                                   }
                                 }}
-                                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 text-xs font-medium"
+                                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-medium shadow-sm"
                               >
-                                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                                 Copy
                               </button>
                             </div>
@@ -548,13 +551,20 @@ export default function TraCuuSP2Page() {
                       })}
                     </div>
                   ) : (
-                    <p className="text-slate-500 text-center text-sm py-8">Không có bản ghi Splitter cấp 2.</p>
+                    <p className="text-slate-500 text-center text-xs sm:text-sm py-6 sm:py-8">Không có bản ghi Splitter cấp 2.</p>
                   )}
                 </div>
               )}
             </div>
         </div>
       </div>
+    {showCopyToast && (
+        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
+          <div className="bg-indigo-600/90 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium">
+            Đã copy!
+          </div>
+        </div>
+      )}
     </main>
   );
 }
