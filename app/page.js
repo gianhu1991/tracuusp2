@@ -147,11 +147,11 @@ export default function TraCuuSP2Page() {
                   <button
                     type="button"
                     onClick={handleLamMoiOlt}
-                    className="rounded-lg bg-indigo-500 text-white p-3 sm:p-2.5 hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-300 shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation"
+                    className="rounded-md bg-indigo-500 text-white p-1.5 hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-300 shrink-0 flex items-center justify-center h-8 w-8"
                     title="Làm mới OLT"
                     aria-label="Làm mới OLT"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   </button>

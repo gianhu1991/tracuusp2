@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "tracuu": "node src/cli.js"
+    "tracuu": "node src/cli.js",
+    "push": "node scripts/push.js"
   },
   "dependencies": {
     "next": "^14.2.0",
