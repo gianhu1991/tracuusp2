@@ -17,64 +17,29 @@ function log(tag, ...args) {
 async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) {
   const headers = { Authorization: auth, 'Content-Type': 'application/json' };
 
-  // Port OLT: gọi URL riêng layDsPortOltTheoCardOlt (cần cardOlt)
+  // Port OLT: OneBSS layDsPortOltTheoCardOlt — body { id: number } = Card OLT id đã chọn
   if (loai === 'port_olt') {
     const url = process.env.URL_PORT_OLT_THEO_CARD_OLT || URL_PORT_OLT_THEO_CARD_OLT;
-    const q = new URLSearchParams();
-    if (cardOlt) q.set('cardOlt', cardOlt);
-    if (tramBts) q.set('veTinh', tramBts);
-    if (tramBts) q.set('tramBts', tramBts);
-    if (toKyThuat) q.set('toKyThuat', toKyThuat);
-    if (olt) q.set('olt', olt);
-    const query = q.toString();
-    const body = { cardOlt: cardOlt || undefined, veTinh: tramBts || undefined, tramBts: tramBts || undefined, toKyThuat: toKyThuat || undefined, olt: olt || undefined };
-    const urlGet = query ? `${url}?${query}` : url;
-    log('PortOlt GET', urlGet);
-    let res = await fetch(urlGet, { method: 'GET', headers: { Authorization: auth } });
-    const txtGet = await res.clone().text().catch(() => '');
-    if (res.ok) {
-      log('PortOlt GET OK', res.status, 'body sample', txtGet?.slice(0, 500));
-      return res;
-    }
-    log('PortOlt GET FAIL', res.status, txtGet?.slice(0, 300));
-    log('PortOlt POST', url, body);
-    res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-    const txtPost = await res.clone().text().catch(() => '');
-    if (res.ok) {
-      log('PortOlt POST OK', res.status, txtPost?.slice(0, 500));
-      return res;
-    }
-    log('PortOlt POST FAIL', res.status, txtPost?.slice(0, 300));
+    const idNum = cardOlt === '' || cardOlt == null ? null : Number(cardOlt);
+    const body = idNum !== null && !Number.isNaN(idNum) ? { id: idNum } : {};
+    log('layDsPortOltTheoCardOlt POST', url, body);
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    const txt = await res.clone().text().catch(() => '');
+    if (res.ok) log('PortOlt POST OK', res.status);
+    else log('PortOlt POST FAIL', res.status, txt?.slice(0, 300));
     return res;
   }
 
-  // Card OLT: gọi URL riêng layDsCardOltTheoOlt (cần tramBts, có thể cần olt)
+  // Card OLT: OneBSS layDsCardOltTheoOlt — body { id: number } = THIETBI_ID (Thiết bị OLT đã chọn)
   if (loai === 'card_olt') {
     const url = process.env.URL_CARD_OLT_THEO_OLT || URL_CARD_OLT_THEO_OLT;
-    const q = new URLSearchParams();
-    if (tramBts) q.set('veTinh', tramBts);
-    if (tramBts) q.set('tramBts', tramBts);
-    if (toKyThuat) q.set('toKyThuat', toKyThuat);
-    if (olt) q.set('olt', olt);
-    const query = q.toString();
-    const body = { veTinh: tramBts || undefined, tramBts: tramBts || undefined, toKyThuat: toKyThuat || undefined, olt: olt || undefined };
-    const urlGet = query ? `${url}?${query}` : url;
-    log('CardOlt GET', urlGet);
-    let res = await fetch(urlGet, { method: 'GET', headers: { Authorization: auth } });
-    const txtGet = await res.clone().text().catch(() => '');
-    if (res.ok) {
-      log('CardOlt GET OK', res.status, 'body sample', txtGet?.slice(0, 500));
-      return res;
-    }
-    log('CardOlt GET FAIL', res.status, txtGet?.slice(0, 300));
-    log('CardOlt POST', url, body);
-    res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-    const txtPost = await res.clone().text().catch(() => '');
-    if (res.ok) {
-      log('CardOlt POST OK', res.status, txtPost?.slice(0, 500));
-      return res;
-    }
-    log('CardOlt POST FAIL', res.status, txtPost?.slice(0, 300));
+    const idNum = olt === '' || olt == null ? null : Number(olt);
+    const body = idNum !== null && !Number.isNaN(idNum) ? { id: idNum } : {};
+    log('layDsCardOltTheoOlt POST', url, body);
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    const txt = await res.clone().text().catch(() => '');
+    if (res.ok) log('CardOlt POST OK', res.status);
+    else log('CardOlt POST FAIL', res.status, txt?.slice(0, 300));
     return res;
   }
 

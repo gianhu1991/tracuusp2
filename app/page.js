@@ -68,12 +68,15 @@ export default function TraCuuSP2Page() {
 
   function optionValue(item) {
     if (typeof item === 'string') return item;
-    // Tổ QL: donviId; Vệ tinh: DONVI_ID; Thiết bị OLT: THIETBI_ID
-    const v = item?.donviId ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
+    // Tổ QL: donviId; Vệ tinh: DONVI_ID; OLT: THIETBI_ID; Card/Port OLT: PORTVL_ID
+    const v = item?.donviId ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? item?.PORTVL_ID ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
     return v !== undefined && v !== null ? String(v) : '';
   }
   function optionLabel(item) {
     if (typeof item === 'string') return item;
+    // Port/Card OLT: VITRI (slot) hoặc TEN_TB
+    const vitri = item?.VITRI;
+    if (vitri !== undefined && vitri !== null) return `Slot ${vitri}`;
     return item?.TEN_TB ?? item?.TEN_DV ?? item?.TEN_OLT ?? item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(optionValue(item) || '');
   }
 
@@ -171,40 +174,59 @@ export default function TraCuuSP2Page() {
       .catch((e) => { LOG('VeTinh error', e); setListError(e.message || 'Lỗi tải danh sách Vệ tinh.'); setListVeTinh([]); });
   }, [toQL, authorization]);
 
+  // Chọn Vệ tinh → chỉ load danh sách Thiết bị OLT
   useEffect(() => {
     if (!veTinh || !authorization?.trim()) {
-      setListCardOlt([]);
       setListThietBiOlt([]);
-      setCardOlt('');
       setThietBiOlt('');
+      setListCardOlt([]);
+      setCardOlt('');
+      return;
+    }
+    setThietBiOlt('');
+    setListCardOlt([]);
+    setCardOlt('');
+    const auth = localStorage.getItem(STORAGE_AUTH);
+    if (!auth?.trim()) return;
+    const url = `/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
+    LOG('OLT request', url, 'veTinh (DONVI_ID)', veTinh);
+    fetch(url, { headers: { Authorization: auth.trim() } })
+      .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        const listOlt = normaliseList(data);
+        LOG('OLT data', { ok, len: listOlt.length });
+        if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Thiết bị OLT.');
+        else if (ok && listOlt.length === 0) setListError('Không có thiết bị OLT cho vệ tinh này.');
+        if (data?.message && !Array.isArray(data) && !data?.data) { setListThietBiOlt([]); } else { setListThietBiOlt(listOlt); }
+      })
+      .catch((e) => { LOG('OLT error', e); setListError(e.message || 'Lỗi tải OLT.'); setListThietBiOlt([]); });
+  }, [veTinh, toQL, authorization]);
+
+  // Chọn Thiết bị OLT → load danh sách Card OLT (body { id: THIETBI_ID })
+  useEffect(() => {
+    if (!thietBiOlt || !authorization?.trim()) {
+      setListCardOlt([]);
+      setCardOlt('');
       return;
     }
     setCardOlt('');
-    setThietBiOlt('');
     const auth = localStorage.getItem(STORAGE_AUTH);
     if (!auth?.trim()) return;
-    const h = { Authorization: auth.trim() };
-    const q = `toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
-    const u1 = `/api/danh-sach?loai=card_olt&${q}`;
-    const u2 = `/api/danh-sach?loai=olt&${q}`;
-    LOG('Card OLT + OLT request', u1, u2, 'veTinh (DONVI_ID)', veTinh);
-    Promise.all([
-      fetch(u1, { headers: h }),
-      fetch(u2, { headers: h }),
-    ])
-      .then(([r1, r2]) => Promise.all([r1.json().catch(() => ({})), r2.json().catch(() => ({}))]).then(([d1, d2]) => ({ ok1: r1.ok, ok2: r2.ok, d1, d2 })))
-      .then(({ ok1, ok2, d1, d2 }) => {
-        const listOlt = normaliseList(d2);
-        LOG('Card OLT + OLT data', { ok1, ok2, len1: normaliseList(d1).length, len2: listOlt.length, d2Keys: d2 ? Object.keys(d2) : [] });
-        if (!ok1 && d1?.message) setListError(d1.message || 'Không tải được danh sách Card OLT.');
-        else if (!ok2 && d2?.message) setListError(d2?.message || 'Không tải được danh sách Thiết bị OLT.');
-        else if (ok2 && listOlt.length === 0) setListError('Không có thiết bị OLT cho vệ tinh này. Kiểm tra Authorization hoặc thử vệ tinh khác.');
-        if (d1?.message && !Array.isArray(d1) && !d1?.data) { setListCardOlt([]); } else { setListCardOlt(normaliseList(d1)); }
-        if (d2?.message && !Array.isArray(d2) && !d2?.data) { setListThietBiOlt([]); } else { setListThietBiOlt(listOlt); }
+    const url = `/api/danh-sach?loai=card_olt&olt=${encodeURIComponent(thietBiOlt)}`;
+    LOG('Card OLT request', url, 'thietBiOlt (THIETBI_ID)', thietBiOlt);
+    fetch(url, { headers: { Authorization: auth.trim() } })
+      .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        const list = normaliseList(data);
+        LOG('Card OLT data', { ok, len: list.length });
+        if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Card OLT.');
+        else if (ok && list.length === 0) setListError('Không có Card OLT cho thiết bị này.');
+        if (data?.message && !Array.isArray(data) && !data?.data) { setListCardOlt([]); } else { setListCardOlt(list); }
       })
-      .catch((e) => { LOG('Card OLT + OLT error', e); setListError(e.message || 'Lỗi tải OLT/Card OLT.'); setListCardOlt([]); setListThietBiOlt([]); });
-  }, [veTinh, toQL, authorization]);
+      .catch((e) => { LOG('Card OLT error', e); setListError(e.message || 'Lỗi tải Card OLT.'); setListCardOlt([]); });
+  }, [thietBiOlt, authorization]);
 
+  // Chọn Card OLT → load danh sách Port OLT (body { id: cardOlt })
   useEffect(() => {
     if (!cardOlt || !authorization?.trim()) {
       setListPortOlt([]);
@@ -214,21 +236,18 @@ export default function TraCuuSP2Page() {
     setPortOlt('');
     const auth = localStorage.getItem(STORAGE_AUTH);
     if (!auth?.trim()) return;
-    const q = `toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}&cardOlt=${encodeURIComponent(cardOlt)}`;
-    const url = `/api/danh-sach?loai=port_olt&${q}`;
+    const url = `/api/danh-sach?loai=port_olt&cardOlt=${encodeURIComponent(cardOlt)}`;
     LOG('Port OLT request', url);
     fetch(url, { headers: { Authorization: auth.trim() } })
-      .then((r) => {
-        LOG('Port OLT response', r.status, r.ok);
-        return r.json().catch(() => ({}));
+      .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        const list = normaliseList(data);
+        LOG('Port OLT data', { ok, len: list.length });
+        if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Port OLT.');
+        if (data?.message && !Array.isArray(data) && !data?.data) { setListPortOlt([]); } else { setListPortOlt(list); }
       })
-      .then((data) => {
-        LOG('Port OLT data', data, 'list length', normaliseList(data).length);
-        if (data?.message && !Array.isArray(data) && !data?.data) return;
-        setListPortOlt(normaliseList(data));
-      })
-      .catch((e) => { LOG('Port OLT error', e); setListPortOlt([]); });
-  }, [cardOlt, toQL, veTinh, authorization]);
+      .catch((e) => { LOG('Port OLT error', e); setListError(e.message || 'Lỗi tải Port OLT.'); setListPortOlt([]); });
+  }, [cardOlt, authorization]);
 
   const handleUnlockAuth = (e) => {
     e.preventDefault();
