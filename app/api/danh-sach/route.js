@@ -78,7 +78,7 @@ async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) 
     return res;
   }
 
-  // OLT: OneBSS layDsOltTheoVeTinh có thể nhận body { id: number } (DONVI_ID của Vệ tinh đã chọn)
+  // OLT: OneBSS layDsOltTheoVeTinh — body { id: number } = DONVI_ID của Vệ tinh đã chọn
   if (loai === 'olt') {
     const url = process.env.URL_OLT_THEO_VE_TINH || URL_OLT_THEO_VE_TINH;
     const idNum = tramBts === '' || tramBts == null ? null : Number(tramBts);
@@ -172,8 +172,10 @@ export async function GET(request) {
         list = data.listToKyThuat ?? data.toKyThuat ?? data.danhSachToKyThuat ?? data.data ?? data.result ?? data.list ?? data.danhSach;
       } else if (loaiKey === 'tram_bts') {
         list = data.listVeTinh ?? data.veTinh ?? data.danhSachVeTinh ?? data.tramBts ?? data.data ?? data.result ?? data.list ?? data.danhSach;
+      } else if (loaiKey === 'olt') {
+        list = data.listOlt ?? data.olt ?? data.danhSachOlt ?? data.data ?? data.result ?? data.list ?? data.danhSach;
       } else {
-        list = data.data ?? data.result ?? data.list ?? data.listToKyThuat ?? data.toKyThuat ?? data.listVeTinh ?? data.veTinh ?? data.danhSach;
+        list = data.data ?? data.result ?? data.list ?? data.listOlt ?? data.olt ?? data.listToKyThuat ?? data.toKyThuat ?? data.listVeTinh ?? data.veTinh ?? data.danhSach;
       }
     }
     if (!Array.isArray(list)) list = [];

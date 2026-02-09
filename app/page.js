@@ -56,6 +56,8 @@ export default function TraCuuSP2Page() {
     if (res?.data && Array.isArray(res.data)) return res.data;
     if (res?.result && Array.isArray(res.result)) return res.result;
     if (res?.list && Array.isArray(res.list)) return res.list;
+    if (res?.listOlt && Array.isArray(res.listOlt)) return res.listOlt;
+    if (res?.olt && Array.isArray(res.olt)) return res.olt;
     if (res?.listToKyThuat && Array.isArray(res.listToKyThuat)) return res.listToKyThuat;
     if (res?.toKyThuat && Array.isArray(res.toKyThuat)) return res.toKyThuat;
     if (res?.listVeTinh && Array.isArray(res.listVeTinh)) return res.listVeTinh;
@@ -66,13 +68,13 @@ export default function TraCuuSP2Page() {
 
   function optionValue(item) {
     if (typeof item === 'string') return item;
-    // Tổ QL: dùng donviId (số) để gọi layDsVeTinh body { id }
-    const v = item?.donviId ?? item?.DONVI_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
+    // Tổ QL: donviId; Vệ tinh/OLT: DONVI_ID, OLT_ID
+    const v = item?.donviId ?? item?.DONVI_ID ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
     return v !== undefined && v !== null ? String(v) : '';
   }
   function optionLabel(item) {
     if (typeof item === 'string') return item;
-    return item?.TEN_DV ?? item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(optionValue(item) || '');
+    return item?.TEN_DV ?? item?.TEN_OLT ?? item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(optionValue(item) || '');
   }
 
   const LOG = (tag, ...args) => { try { console.log('[TracuuSP2]', tag, ...args); } catch (_) {} };
