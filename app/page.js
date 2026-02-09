@@ -534,7 +534,7 @@ export default function TraCuuSP2Page() {
                         const copyText = String(tenS2 || '');
                         return (
                           <div key={i} className="grid grid-cols-[1fr_auto] gap-0 border-t border-slate-100 hover:bg-slate-50/50 min-w-0">
-                            <div className="px-3 py-2 sm:px-6 sm:py-3 text-slate-800 text-xs sm:text-sm font-medium min-w-0 truncate sm:truncate" title={copyText || undefined}>
+                            <div className="px-3 py-2 sm:px-6 sm:py-3 text-slate-800 text-xs sm:text-sm font-medium min-w-0 break-words" title={copyText || undefined}>
                               {copyText || '—'}
                             </div>
                             <div className="px-3 py-2 sm:px-6 sm:py-3 flex items-center justify-end shrink-0">
