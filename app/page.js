@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const PLACEHOLDER_TONG = '-- Chọn Tổ kỹ thuật --';
 const PLACEHOLDER_OLT = '-- Chọn OLT --';
+
+const STORAGE_AUTH = 'tracuu_sp2_authorization';
 
 export default function TraCuuSP2Page() {
   const [toKyThuat, setToKyThuat] = useState('');
@@ -14,15 +16,31 @@ export default function TraCuuSP2Page() {
   const [ketQua, setKetQua] = useState(null);
   const [loi, setLoi] = useState(null);
 
+  const [authorization, setAuthorization] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setAuthorization(localStorage.getItem(STORAGE_AUTH) || '');
+    }
+  }, []);
+
+  const saveAuth = (value) => {
+    setAuthorization(value);
+    if (typeof window !== 'undefined') localStorage.setItem(STORAGE_AUTH, value);
+  };
+
   const handleTraCuu = async (e) => {
     e.preventDefault();
     setLoi(null);
     setKetQua(null);
     setLoading(true);
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (authorization.trim()) headers['Authorization'] = authorization.trim();
       const res = await fetch('/api/tracuu', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           toKyThuat: toKyThuat || undefined,
           olt: olt || undefined,
@@ -43,40 +61,61 @@ export default function TraCuuSP2Page() {
     }
   };
 
-  const handleLamMoiOlt = () => {
-    setOlt('');
-    // Có thể gọi API lấy danh sách OLT mới tùy backend
-  };
-
+  const handleLamMoiOlt = () => setOlt('');
   const chuaTraCuu = !ketQua && !loi && !loading;
 
   return (
-    <main className="min-h-screen bg-gradient-subtle py-8 px-4 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-slate-50 py-6 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        {/* Card trắng bo góc */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {/* Tiêu đề */}
-          <div className="pt-8 pb-2 px-6 sm:px-8">
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+        {/* Card chính */}
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200/80 overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 sm:px-8 py-6">
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
               Module tra cứu Spliter cấp 2
             </h1>
-            <p className="text-gray-500 text-sm sm:text-base mt-1">
+            <p className="text-indigo-100 text-sm mt-1">
               Hệ thống tra cứu thông tin Spliter cấp 2 theo OLT, Slot và Port
             </p>
+            <button
+              type="button"
+              onClick={() => setShowSettings(!showSettings)}
+              className="mt-3 inline-flex items-center gap-1.5 text-indigo-100 hover:text-white text-sm font-medium"
+            >
+              {showSettings ? 'Ẩn cài đặt' : 'Cài đặt (Authorization)'}
+              <svg className={`w-4 h-4 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
           </div>
 
-          {/* Khu vực nhập liệu */}
-          <div className="px-6 sm:px-8 pb-6">
-            <form onSubmit={handleTraCuu} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 sm:p-6 space-y-4">
+          {/* Cài đặt Authorization - chỉ cần đổi token */}
+          {showSettings && (
+            <div className="border-b border-slate-100 bg-slate-50/80 px-6 sm:px-8 py-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Authorization (Bearer token)</label>
+                <input
+                  type="password"
+                  value={authorization}
+                  onChange={(e) => saveAuth(e.target.value)}
+                  placeholder="Bearer eyJhbGci... hoặc token của bạn"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 placeholder-slate-400 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <p className="text-xs text-slate-500 mt-1">API mặc định: api-onebss.vnpt.vn. Khi token đổi, sửa ở đây.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Form tra cứu */}
+          <div className="px-6 sm:px-8 py-6">
+            <form onSubmit={handleTraCuu} className="space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                    Tổ kỹ thuật
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Tổ kỹ thuật</label>
                   <select
                     value={toKyThuat}
                     onChange={(e) => setToKyThuat(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-700 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
                     <option value="">{PLACEHOLDER_TONG}</option>
                     <option value="to1">Tổ Kỹ thuật 1</option>
@@ -84,16 +123,13 @@ export default function TraCuuSP2Page() {
                     <option value="to3">Tổ Kỹ thuật Địa bàn Nho Quan</option>
                   </select>
                 </div>
-
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                      OLT
-                    </label>
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">OLT</label>
                     <select
                       value={olt}
                       onChange={(e) => setOlt(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-700 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     >
                       <option value="">{PLACEHOLDER_OLT}</option>
                       <option value="olt1">OLT Y Na 1</option>
@@ -111,38 +147,31 @@ export default function TraCuuSP2Page() {
                     </svg>
                   </button>
                 </div>
-
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                    Slot
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Slot</label>
                   <input
                     type="text"
                     value={slot}
                     onChange={(e) => setSlot(e.target.value)}
-                    placeholder="Nhập Slot (ví dụ: 3)"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Ví dụ: 3"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-700 placeholder-slate-400 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                    Port
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Port</label>
                   <input
                     type="text"
                     value={port}
                     onChange={(e) => setPort(e.target.value)}
-                    placeholder="Nhập Port (ví dụ: 0)"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Ví dụ: 0"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-700 placeholder-slate-400 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
-
                 <div className="sm:flex sm:justify-end">
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full sm:w-auto px-6 py-3 rounded-lg font-semibold text-white uppercase tracking-wide bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-lg font-semibold text-white text-sm bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                   </button>
@@ -150,43 +179,43 @@ export default function TraCuuSP2Page() {
               </div>
             </form>
 
-            {/* Khu vực hiển thị kết quả */}
-            <div className="mt-6 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 min-h-[200px] p-6 flex flex-col items-center justify-center">
+            {/* Khu vực kết quả */}
+            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/50 min-h-[200px] p-6">
               {chuaTraCuu && (
-                <p className="text-gray-500 text-center">
+                <p className="text-slate-500 text-center text-sm py-8">
                   Nhập thông tin OLT, Slot và Port để tra cứu
                 </p>
               )}
               {loading && (
-                <p className="text-indigo-600 font-medium">Đang tra cứu...</p>
+                <p className="text-indigo-600 font-medium text-sm py-8 text-center">Đang tra cứu...</p>
               )}
               {loi && (
-                <p className="text-red-600 text-center max-w-md">{loi}</p>
+                <p className="text-red-600 text-center text-sm max-w-md py-4">{loi}</p>
               )}
               {ketQua != null && !loi && (
                 <div className="w-full overflow-x-auto">
-                  {ketQua.message && <p className="text-gray-600 text-center mb-2">{ketQua.message}</p>}
+                  {ketQua.message && <p className="text-slate-600 text-sm mb-3">{ketQua.message}</p>}
                   {Array.isArray(ketQua.data) && ketQua.data.length > 0 ? (
-                    <table className="w-full text-sm text-left text-gray-700 border border-gray-200 rounded-lg overflow-hidden">
-                      <thead className="bg-indigo-50 text-gray-700 uppercase">
+                    <table className="w-full text-sm text-left text-slate-700 border border-slate-200 rounded-lg overflow-hidden bg-white">
+                      <thead className="bg-slate-100 text-slate-700 font-semibold">
                         <tr>
                           {Object.keys(ketQua.data[0]).map((k) => (
-                            <th key={k} className="px-4 py-2 font-semibold">{k}</th>
+                            <th key={k} className="px-4 py-3 border-b border-slate-200">{k}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {ketQua.data.map((row, i) => (
-                          <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                          <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
                             {Object.values(row).map((v, j) => (
-                              <td key={j} className="px-4 py-2">{String(v)}</td>
+                              <td key={j} className="px-4 py-3">{String(v)}</td>
                             ))}
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   ) : (
-                    <p className="text-gray-500 text-center">Không có bản ghi nào.</p>
+                    <p className="text-slate-500 text-center text-sm py-6">Không có bản ghi nào.</p>
                   )}
                 </div>
               )}
