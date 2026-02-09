@@ -107,8 +107,18 @@ async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) 
     return res;
   }
 
-  // Tổ QL (to_ky_thuat) và Vệ tinh (tram_bts): gọi layDsVeTinh (không tham số = Tổ QL, có toKyThuat = Vệ tinh)
-  if (loai === 'to_ky_thuat' || loai === 'tram_bts') {
+  // Tổ QL (to_ky_thuat): 2 tổ kỹ thuật có sẵn, mỗi tổ có 1 ID (request gửi ID)
+  if (loai === 'to_ky_thuat') {
+    const fixedToQL = [
+      { id: 'd4febad9-f7b4-41a4-85ab-1e8fc1fd754a', ma: 'd4febad9-f7b4-41a4-85ab-1e8fc1fd754a', ten: 'Tổ Kỹ thuật Địa bàn Gia Viễn' },
+      { id: '5f0ad13b-53ee-4869-a66f-4023cba821a7', ma: '5f0ad13b-53ee-4869-a66f-4023cba821a7', ten: 'Tổ Kỹ thuật Địa bàn Nho Quan' },
+    ];
+    log('to_ky_thuat fixed', fixedToQL.length);
+    return new Response(JSON.stringify(fixedToQL), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  // Vệ tinh (tram_bts): gọi layDsVeTinh với toKyThuat (Tổ QL đã chọn)
+  if (loai === 'tram_bts') {
     const url = process.env.URL_LAY_DS_VE_TINH || URL_LAY_DS_VE_TINH;
     const q = new URLSearchParams();
     if (toKyThuat) q.set('toKyThuat', toKyThuat);
@@ -179,9 +189,20 @@ export async function GET(request) {
         { status: res.status }
       );
     }
-    const list = Array.isArray(data) ? data : (data?.data ?? data?.result ?? data?.list ?? []);
-    log('Kết quả OK', { loai: loaiKey, dataKeys: Object.keys(data), isArray: Array.isArray(data), listLength: Array.isArray(list) ? list.length : '-', dataSample: JSON.stringify(data).slice(0, 400) });
-    return NextResponse.json(data);
+    // Chuẩn hóa list: layDsVeTinh có thể trả listToKyThuat (Tổ QL), listVeTinh (Vệ tinh), hoặc data/result/list
+    let list = Array.isArray(data) ? data : null;
+    if (!list && data && typeof data === 'object') {
+      if (loaiKey === 'to_ky_thuat') {
+        list = data.listToKyThuat ?? data.toKyThuat ?? data.danhSachToKyThuat ?? data.data ?? data.result ?? data.list ?? data.danhSach;
+      } else if (loaiKey === 'tram_bts') {
+        list = data.listVeTinh ?? data.veTinh ?? data.danhSachVeTinh ?? data.tramBts ?? data.data ?? data.result ?? data.list ?? data.danhSach;
+      } else {
+        list = data.data ?? data.result ?? data.list ?? data.listToKyThuat ?? data.toKyThuat ?? data.listVeTinh ?? data.veTinh ?? data.danhSach;
+      }
+    }
+    if (!Array.isArray(list)) list = [];
+    log('Kết quả OK', { loai: loaiKey, dataKeys: Object.keys(data || {}), listLength: list.length, dataSample: JSON.stringify(data).slice(0, 400) });
+    return NextResponse.json(Array.isArray(data) ? data : { data: list });
   } catch (err) {
     log('Exception', err?.message, err);
     return NextResponse.json(

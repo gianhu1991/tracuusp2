@@ -56,6 +56,11 @@ export default function TraCuuSP2Page() {
     if (res?.data && Array.isArray(res.data)) return res.data;
     if (res?.result && Array.isArray(res.result)) return res.result;
     if (res?.list && Array.isArray(res.list)) return res.list;
+    if (res?.listToKyThuat && Array.isArray(res.listToKyThuat)) return res.listToKyThuat;
+    if (res?.toKyThuat && Array.isArray(res.toKyThuat)) return res.toKyThuat;
+    if (res?.listVeTinh && Array.isArray(res.listVeTinh)) return res.listVeTinh;
+    if (res?.veTinh && Array.isArray(res.veTinh)) return res.veTinh;
+    if (res?.danhSach && Array.isArray(res.danhSach)) return res.danhSach;
     return [];
   }
 
