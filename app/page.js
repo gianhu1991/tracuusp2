@@ -278,6 +278,7 @@ export default function TraCuuSP2Page() {
         setSaveToServerStatus('ok');
         setSaveToServerMessage(data.message || 'Đã lưu token lên server.');
         setAdminPasswordForServer('');
+        setShowSettings(false);
       } else {
         setSaveToServerStatus('error');
         setSaveToServerMessage(data.message || 'Không lưu được.');
