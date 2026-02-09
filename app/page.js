@@ -71,7 +71,7 @@ export default function TraCuuSP2Page() {
   async function loadDanhSach() {
     const auth = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '';
     if (!auth?.trim()) {
-      setListError('Chưa có Authorization. Vào Cài đặt, nhập mật khẩu 1234 và thêm token.');
+      setListError('Chưa có Authorization. Vào Cài đặt, nhập mật khẩu và thêm token.');
       return;
     }
     setLoadingList(true);
@@ -93,7 +93,7 @@ export default function TraCuuSP2Page() {
         const is404 = resTtvt.status === 404 || resToQL.status === 404;
         const is502 = resTtvt.status === 502 || resToQL.status === 502;
         setListError(msg || (is404 || is502
-          ? 'API danh sách OneBSS không trả về dữ liệu (404/502). Cấu hình LIST_API_BASE hoặc LIST_API_URL trong Vercel (Environment Variables) nếu bạn có đường dẫn API lấy danh sách.'
+          ? 'Không tải được danh sách. Liên hệ quản trị để kiểm tra cấu hình.'
           : 'Không tải được danh sách. Kiểm tra Authorization và API danh sách OneBSS.'));
       }
     } catch (e) {
@@ -194,7 +194,7 @@ export default function TraCuuSP2Page() {
     setKetQua(null);
     setLoading(true);
     if (!authorization?.trim()) {
-      setLoi('Vui lòng nhập Authorization trong Cài đặt (mật khẩu 1234) rồi thử lại.');
+      setLoi('Vui lòng nhập Authorization trong Cài đặt rồi thử lại.');
       setLoading(false);
       return;
     }
@@ -290,7 +290,7 @@ export default function TraCuuSP2Page() {
             </div>
           </div>
 
-          {/* Cài đặt Authorization - bảo vệ bằng mật khẩu 1234 */}
+          {/* Cài đặt Authorization - bảo vệ bằng mật khẩu */}
           {showSettings && (
             <div className="border-b border-slate-100 bg-slate-50/80 px-4 sm:px-8 py-4 shrink-0">
               {!authUnlocked ? (
@@ -356,7 +356,7 @@ export default function TraCuuSP2Page() {
                 >
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
-                <p className="text-xs text-slate-500 mt-2">Dữ liệu dropdown lấy từ API OneBSS (online). Cần nhập Authorization trong Cài đặt (mật khẩu 1234). Nếu báo Not found: cấu hình LIST_API_BASE trên server (Vercel env) với đúng URL API danh sách.</p>
+                <p className="text-xs text-slate-500 mt-2">Dữ liệu dropdown lấy từ API. Cần nhập Authorization trong Cài đặt. Nếu không tải được danh sách, liên hệ quản trị.</p>
               </div>
             </form>
             <div className="mt-2 flex flex-wrap items-center gap-2">
