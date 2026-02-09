@@ -1,0 +1,6 @@
+node_modules/
+config.js
+.next
+.env
+.env.local
+.env*.local
