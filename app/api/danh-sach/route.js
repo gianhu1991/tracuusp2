@@ -158,6 +158,9 @@ export async function GET(request) {
             list = list.flatMap((item) => item?.cards ?? item?.listCard ?? item?.danhSach ?? item?.data ?? [item]);
           }
         }
+      } else if (loaiKey === 'port_olt') {
+        // OneBSS layDsPortOltTheoCardOlt trả data: [ { PORTVL_ID, VITRI }, ... ]
+        list = data.listPortOlt ?? data.listPort ?? data.portOlt ?? data.data ?? data.result ?? data.list ?? data.danhSach;
       } else {
         list = data.data ?? data.result ?? data.list ?? data.listOlt ?? data.olt ?? data.listToKyThuat ?? data.toKyThuat ?? data.listVeTinh ?? data.veTinh ?? data.danhSach;
       }

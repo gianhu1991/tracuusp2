@@ -61,6 +61,8 @@ export default function TraCuuSP2Page() {
     if (res?.list && Array.isArray(res.list)) return res.list;
     if (res?.listCardOlt && Array.isArray(res.listCardOlt)) return res.listCardOlt;
     if (res?.listCard && Array.isArray(res.listCard)) return res.listCard;
+    if (res?.listPortOlt && Array.isArray(res.listPortOlt)) return res.listPortOlt;
+    if (res?.listPort && Array.isArray(res.listPort)) return res.listPort;
     if (res?.listOlt && Array.isArray(res.listOlt)) return res.listOlt;
     if (res?.olt && Array.isArray(res.olt)) return res.olt;
     if (res?.listToKyThuat && Array.isArray(res.listToKyThuat)) return res.listToKyThuat;
@@ -466,7 +468,7 @@ export default function TraCuuSP2Page() {
                 <div className="space-y-0 order-2 sm:order-2">
                   <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} />
                   <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={listCardOlt} optionValue={(item) => { if (typeof item === 'string') return item; const v = item?.CARD_ID ?? item?.SLOT_ID ?? item?.PORTVL_ID ?? item?.VITRI ?? item?.TEN_TB ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} />
-                  <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={listPortOlt.length > 0 ? listPortOlt : PORT_OLT_OPTIONS} optionValue={(v) => typeof v === 'number' ? String(v) : optionValue(v)} optionLabel={(v) => typeof v === 'number' ? String(v) : optionLabel(v)} />
+                  <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={listPortOlt.length > 0 ? listPortOlt : PORT_OLT_OPTIONS} optionValue={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const v = item?.PORTVL_ID ?? item?.VITRI ?? item?.id ?? item?.value ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} optionLabel={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const vitri = item?.VITRI; if (vitri !== undefined && vitri !== null) return String(vitri); return item?.PORTVL_ID != null ? String(item.PORTVL_ID) : (item?.TEN_TB ?? optionLabel(item) ?? ''); }} />
                 </div>
               </div>
               <div className="pt-2">
