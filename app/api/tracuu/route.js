@@ -44,10 +44,20 @@ export async function POST(request) {
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
-    let list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result);
+    let list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? data?.danhSach);
     if (!Array.isArray(list)) list = [];
-    // Chỉ lấy Splitter cấp 2: Cap_Sp = 2
-    const listCap2 = list.filter((item) => item?.CAP_SP === 2 || item?.CAP_SP === '2');
+    // Chỉ lấy Splitter cấp 2: Cap_Sp = 2 (chấp nhận CAP_SP, cap_sp, kiểu số hoặc chuỗi)
+    const isCap2 = (item) => {
+      const cap = item?.CAP_SP ?? item?.cap_sp ?? item?.Cap_Sp;
+      if (cap === undefined || cap === null) return false;
+      return cap === 2 || cap === '2' || Number(cap) === 2 || String(cap).trim() === '2';
+    };
+    let listCap2 = list.filter(isCap2);
+    // Nếu lọc ra 0 nhưng có dữ liệu gốc → trả hết (có thể OneBSS đặt tên field khác), frontend vẫn ưu tiên hiển thị
+    if (listCap2.length === 0 && list.length > 0) {
+      listCap2 = list;
+      console.log('[TracuuSP2 API tracuu] listCap2=0, trả full list; sample keys:', Object.keys(list[0] || {}));
+    }
     const bodySample = JSON.stringify(data).slice(0, 500);
     console.log('[TracuuSP2 API tracuu] Response', { status: res.status, ok: res.ok, listLength: list.length, listCap2Length: listCap2.length, bodySample });
     if (!res.ok) {
@@ -56,7 +66,7 @@ export async function POST(request) {
         { status: res.status }
       );
     }
-    return NextResponse.json(Array.isArray(data) ? data : { ...data, data: listCap2 });
+    return NextResponse.json(Array.isArray(data) ? listCap2 : { ...data, data: listCap2 });
   } catch (err) {
     console.log('[TracuuSP2 API tracuu] Exception', err?.message, err);
     return NextResponse.json(
