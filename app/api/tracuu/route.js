@@ -16,11 +16,13 @@ export async function POST(request) {
       toKyThuat, olt, slot, port,
     } = body;
 
+    const toQLVal = toQL ?? toKyThuat ?? body.toQL ?? body.toKyThuat;
     const payload = {
       ttvt: ttvt ?? body.ttvt,
       veTinh: veTinh ?? body.veTinh,
       cardOlt: cardOlt ?? body.cardOlt,
-      toQL: toQL ?? toKyThuat ?? body.toQL ?? body.toKyThuat,
+      toQL: toQLVal,
+      toKyThuat: toQLVal,
       thietBiOlt: thietBiOlt ?? olt ?? body.thietBiOlt ?? body.olt,
       portOlt: portOlt ?? port ?? body.portOlt ?? body.port,
     };
@@ -40,14 +42,15 @@ export async function POST(request) {
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
-    console.log('[TracuuSP2 API tracuu] Response', { status: res.status, ok: res.ok, dataKeys: Object.keys(data || {}), isArray: Array.isArray(data), length: Array.isArray(data) ? data.length : (data?.data?.length ?? '-') });
+    const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result);
+    console.log('[TracuuSP2 API tracuu] Response', { status: res.status, ok: res.ok, payloadKeys: Object.keys(payload), dataKeys: Object.keys(data || {}), listLength: Array.isArray(list) ? list.length : (list ? 'n/a' : '-') });
     if (!res.ok) {
       return NextResponse.json(
         { message: data.message || data.error || 'API lỗi' },
         { status: res.status }
       );
     }
-    return NextResponse.json(Array.isArray(data) ? { data } : data);
+    return NextResponse.json(Array.isArray(data) ? data : { ...data, data: Array.isArray(list) ? list : (data.data ?? []) });
   } catch (err) {
     console.log('[TracuuSP2 API tracuu] Exception', err?.message, err);
     return NextResponse.json(
