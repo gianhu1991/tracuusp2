@@ -7,6 +7,10 @@ const BASE = 'https://api-onebss.vnpt.vn/web-ecms/tracuu';
  * Dữ liệu dropdown bắt buộc lấy từ API, không nhập tay.
  * Thử GET trước, nếu 404 thì thử POST với body.
  */
+function log(tag, ...args) {
+  try { console.log('[TracuuSP2 API danh-sach]', tag, ...args); } catch (_) {}
+}
+
 async function callOneBssList({ auth, loai, toKyThuat, tramBts }) {
   const paths = {
     to_ky_thuat: ['/danh_sach_to_ky_thuat', '/ds_to_ky_thuat', '/to_ky_thuat'],
@@ -23,18 +27,27 @@ async function callOneBssList({ auth, loai, toKyThuat, tramBts }) {
   const urlGet = `${BASE}${path}${query ? '?' + query : ''}`;
   const body = { loai, toKyThuat: toKyThuat || undefined, tramBts: tramBts || undefined };
 
+  log('callOneBssList', { loai, toKyThuat, tramBts, urlGet });
+
   let res = await fetch(urlGet, { method: 'GET', headers: { Authorization: auth } });
-  if (res.ok) return res;
+  if (res.ok) { log('GET OK', urlGet); return res; }
+  const text = await res.clone().text().catch(() => '');
+  log('GET FAIL', urlGet, 'status', res.status, 'body', text?.slice(0, 400));
+
   res = await fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: auth },
     body: JSON.stringify(body),
   });
-  if (res.ok) return res;
+  if (res.ok) { log('POST OK', BASE + path); return res; }
+  const text2 = await res.clone().text().catch(() => '');
+  log('POST FAIL', BASE + path, 'status', res.status, 'body', text2?.slice(0, 400));
+
   for (let i = 1; i < list.length; i++) {
     const u = `${BASE}${list[i]}${query ? '?' + query : ''}`;
     res = await fetch(u, { method: 'GET', headers: { Authorization: auth } });
-    if (res.ok) return res;
+    if (res.ok) { log('GET alt OK', u); return res; }
+    log('GET alt FAIL', u, 'status', res.status);
   }
   return res;
 }
@@ -65,13 +78,16 @@ export async function GET(request) {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
+      log('Kết quả lỗi', { loai: loaiKey, status: res.status, data });
       return NextResponse.json(
         { message: data.message || data.error || 'API lỗi' },
         { status: res.status }
       );
     }
+    log('Kết quả OK', { loai: loaiKey, dataKeys: Object.keys(data), isArray: Array.isArray(data) });
     return NextResponse.json(data);
   } catch (err) {
+    log('Exception', err?.message, err);
     return NextResponse.json(
       { message: err.message || 'Lỗi server' },
       { status: 500 }

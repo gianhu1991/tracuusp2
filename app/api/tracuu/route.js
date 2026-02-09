@@ -30,6 +30,7 @@ export async function POST(request) {
     const authorization = authFromHeader || body.authorization || process.env.AUTHORIZATION || process.env.TRACUU_AUTHORIZATION || '';
 
     const url = backendUrl.startsWith('http') ? backendUrl : DEFAULT_BACKEND_URL;
+    console.log('[TracuuSP2 API tracuu] Request', { url, payload: Object.keys(payload), hasAuth: !!authorization });
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -39,6 +40,7 @@ export async function POST(request) {
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
+    console.log('[TracuuSP2 API tracuu] Response', { status: res.status, ok: res.ok, dataKeys: Object.keys(data || {}), isArray: Array.isArray(data), length: Array.isArray(data) ? data.length : (data?.data?.length ?? '-') });
     if (!res.ok) {
       return NextResponse.json(
         { message: data.message || data.error || 'API lỗi' },
@@ -47,6 +49,7 @@ export async function POST(request) {
     }
     return NextResponse.json(Array.isArray(data) ? { data } : data);
   } catch (err) {
+    console.log('[TracuuSP2 API tracuu] Exception', err?.message, err);
     return NextResponse.json(
       { message: err.message || 'Lỗi server' },
       { status: 500 }

@@ -65,14 +65,18 @@ export default function TraCuuSP2Page() {
     return item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(optionValue(item) || '');
   }
 
+  const LOG = (tag, ...args) => { try { console.log('[TracuuSP2]', tag, ...args); } catch (_) {} };
+
   async function loadDanhSach() {
     const auth = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '';
     if (!auth?.trim()) {
+      LOG('loadDanhSach', 'Lỗi: Chưa có Authorization');
       setListError('Chưa có Authorization. Vào Cài đặt, nhập mật khẩu 1234 và thêm token.');
       return;
     }
     setLoadingList(true);
     setListError('');
+    LOG('loadDanhSach', 'Bắt đầu gọi API danh sách ttvt và to_ky_thuat');
     try {
       const headers = { Authorization: auth.trim() };
       const [resTtvt, resToQL] = await Promise.all([
@@ -81,12 +85,17 @@ export default function TraCuuSP2Page() {
       ]);
       const dataTtvt = await resTtvt.json().catch(() => ({}));
       const dataToQL = await resToQL.json().catch(() => ({}));
+      LOG('loadDanhSach', 'TTVT', { status: resTtvt.status, ok: resTtvt.ok, data: dataTtvt });
+      LOG('loadDanhSach', 'Tổ QL', { status: resToQL.status, ok: resToQL.ok, data: dataToQL });
+      if (!resTtvt.ok) LOG('loadDanhSach LỖI TTVT', resTtvt.status, dataTtvt?.message || dataTtvt?.error || JSON.stringify(dataTtvt)?.slice(0, 300));
+      if (!resToQL.ok) LOG('loadDanhSach LỖI TỔ QL', resToQL.status, dataToQL?.message || dataToQL?.error || JSON.stringify(dataToQL)?.slice(0, 300));
       if (resTtvt.ok) setListTtvt(normaliseList(dataTtvt));
       else setListTtvt([]);
       if (resToQL.ok) setListToQL(normaliseList(dataToQL));
       else setListToQL([]);
       if (!resTtvt.ok && !resToQL.ok) setListError(dataTtvt?.message || dataToQL?.message || 'Dữ liệu dropdown bắt buộc lấy từ API. Kiểm tra Authorization và đường dẫn API OneBSS.');
     } catch (e) {
+      LOG('loadDanhSach', 'Lỗi', e);
       setListError(e.message || 'Dữ liệu bắt buộc lấy từ API. Không thể nhập tay.');
       setListTtvt([]);
       setListToQL([]);
@@ -119,10 +128,23 @@ export default function TraCuuSP2Page() {
     setThietBiOlt('');
     const auth = localStorage.getItem(STORAGE_AUTH);
     if (!auth?.trim()) return;
-    fetch(`/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`, { headers: { Authorization: auth.trim() } })
-      .then((r) => r.json().catch(() => ({})))
-      .then((data) => { if (data?.message && !Array.isArray(data) && !data?.data) return; setListVeTinh(normaliseList(data)); })
-      .catch(() => setListVeTinh([]));
+    const url = `/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`;
+    LOG('Vệ tinh', 'Gọi', url);
+    fetch(url, { headers: { Authorization: auth.trim() } })
+      .then((r) => {
+        if (!r.ok) LOG('Vệ tinh LỖI', r.status, r.statusText);
+        return r.json().catch(() => ({}));
+      })
+      .then((data) => {
+        LOG('Vệ tinh', 'Response', { status: 'ok', data });
+        if (data?.message && !Array.isArray(data) && !data?.data) {
+          LOG('Vệ tinh LỖI body', data?.message || data?.error || JSON.stringify(data)?.slice(0, 300));
+          setListVeTinh([]);
+          return;
+        }
+        setListVeTinh(normaliseList(data));
+      })
+      .catch((e) => { LOG('Vệ tinh', 'Lỗi', e); setListVeTinh([]); });
   }, [toQL]);
 
   useEffect(() => {
@@ -138,16 +160,23 @@ export default function TraCuuSP2Page() {
     const auth = localStorage.getItem(STORAGE_AUTH);
     if (!auth?.trim()) return;
     const h = { Authorization: auth.trim() };
-    Promise.all([
-      fetch(`/api/danh-sach?loai=card_olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`, { headers: h }),
-      fetch(`/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`, { headers: h }),
-    ])
-      .then(([r1, r2]) => Promise.all([r1.json().catch(() => ({})), r2.json().catch(() => ({}))]))
+    const u1 = `/api/danh-sach?loai=card_olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
+    const u2 = `/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
+    LOG('Card OLT + OLT', 'Gọi', u1, u2);
+    Promise.all([fetch(u1, { headers: h }), fetch(u2, { headers: h })])
+      .then(([r1, r2]) => {
+        if (!r1.ok) LOG('Card OLT LỖI', r1.status, r1.statusText);
+        if (!r2.ok) LOG('OLT LỖI', r2.status, r2.statusText);
+        return Promise.all([r1.json().catch(() => ({})), r2.json().catch(() => ({}))]);
+      })
       .then(([d1, d2]) => {
+        LOG('Card OLT + OLT', 'Response', { cardOlt: d1, olt: d2 });
+        if (d1?.message && !Array.isArray(d1) && !d1?.data) LOG('Card OLT LỖI body', d1?.message || JSON.stringify(d1)?.slice(0, 200));
+        if (d2?.message && !Array.isArray(d2) && !d2?.data) LOG('OLT LỖI body', d2?.message || JSON.stringify(d2)?.slice(0, 200));
         setListCardOlt(normaliseList(d1));
         setListThietBiOlt(normaliseList(d2));
       })
-      .catch(() => { setListCardOlt([]); setListThietBiOlt([]); });
+      .catch((e) => { LOG('Card OLT + OLT', 'Lỗi', e); setListCardOlt([]); setListThietBiOlt([]); });
   }, [veTinh, toQL]);
 
   const handleUnlockAuth = (e) => {
@@ -177,24 +206,27 @@ export default function TraCuuSP2Page() {
     setLoi(null);
     setKetQua(null);
     setLoading(true);
+    const body = {};
+    if (useTtvt && ttvt) body.ttvt = ttvt;
+    if (useVeTinh && veTinh) body.veTinh = veTinh;
+    if (useCardOlt && cardOlt) body.cardOlt = cardOlt;
+    if (useToQL && toQL) body.toQL = toQL;
+    if (useThietBiOlt && thietBiOlt) body.thietBiOlt = thietBiOlt;
+    if (usePortOlt && portOlt !== '') body.portOlt = portOlt;
+    LOG('Tra cứu', 'Request body', body);
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (authorization.trim()) headers['Authorization'] = authorization.trim();
-      const body = {};
-      if (useTtvt && ttvt) body.ttvt = ttvt;
-      if (useVeTinh && veTinh) body.veTinh = veTinh;
-      if (useCardOlt && cardOlt) body.cardOlt = cardOlt;
-      if (useToQL && toQL) body.toQL = toQL;
-      if (useThietBiOlt && thietBiOlt) body.thietBiOlt = thietBiOlt;
-      if (usePortOlt && portOlt !== '') body.portOlt = portOlt;
       const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({}));
+      LOG('Tra cứu', 'Response', { status: res.status, ok: res.ok, data });
       if (!res.ok) {
         setLoi(data.message || data.error || 'Có lỗi khi tra cứu.');
         return;
       }
       setKetQua(Array.isArray(data) ? { data: data } : { data: data.data || [], message: data.message });
     } catch (err) {
+      LOG('Tra cứu', 'Lỗi', err);
       setLoi(err.message || 'Lỗi kết nối.');
     } finally {
       setLoading(false);
