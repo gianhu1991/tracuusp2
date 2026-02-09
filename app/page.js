@@ -519,28 +519,48 @@ export default function TraCuuSP2Page() {
               )}
               {ketQua != null && !loi && (
                 <div className="w-full overflow-x-auto flex-1 min-h-0 -mx-2 sm:mx-0">
+                  <h3 className="text-slate-800 font-bold text-base sm:text-lg mb-3">
+                    Kết quả tra cứu ({Array.isArray(ketQua.data) ? ketQua.data.length : 0} Spliter cấp 2)
+                  </h3>
                   {ketQua.message && <p className="text-slate-600 text-sm mb-3">{ketQua.message}</p>}
                   {Array.isArray(ketQua.data) && ketQua.data.length > 0 ? (
-                    <table className="w-full text-xs sm:text-sm text-left text-slate-700 border border-slate-200 rounded-lg overflow-hidden bg-white">
-                      <thead className="bg-slate-100 text-slate-700 font-semibold">
-                        <tr>
-                          {Object.keys(ketQua.data[0]).map((k) => (
-                            <th key={k} className="px-2 sm:px-4 py-2 sm:py-3 border-b border-slate-200 whitespace-nowrap">{k}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {ketQua.data.map((row, i) => (
-                          <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
-                            {Object.values(row).map((v, j) => (
-                              <td key={j} className="px-2 sm:px-4 py-2 sm:py-3">{String(v)}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-0">
+                        <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-4 sm:px-6 py-3 text-white font-semibold text-sm uppercase tracking-wide">
+                          Danh sách S2 tìm thấy
+                        </div>
+                        <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-4 sm:px-6 py-3 text-white font-semibold text-sm uppercase tracking-wide text-right sm:text-left">
+                          Hành động
+                        </div>
+                      </div>
+                      {ketQua.data.map((row, i) => {
+                        const tenS2 = row?.TEN_KC ?? row?.KYHIEU ?? row?.ten ?? row?.name ?? '';
+                        const copyText = String(tenS2 || '');
+                        return (
+                          <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-0 border-t border-slate-100 hover:bg-slate-50/50">
+                            <div className="px-4 sm:px-6 py-3 text-slate-800 text-sm font-medium">
+                              {copyText || '—'}
+                            </div>
+                            <div className="px-4 sm:px-6 py-3 flex items-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (copyText && typeof navigator?.clipboard?.writeText === 'function') {
+                                    navigator.clipboard.writeText(copyText);
+                                  }
+                                }}
+                                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 text-xs font-medium"
+                              >
+                                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                Copy
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   ) : (
-                    <p className="text-slate-500 text-center text-sm py-8">Không có bản ghi nào.</p>
+                    <p className="text-slate-500 text-center text-sm py-8">Không có bản ghi Splitter cấp 2.</p>
                   )}
                 </div>
               )}

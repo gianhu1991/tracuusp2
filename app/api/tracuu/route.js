@@ -44,16 +44,19 @@ export async function POST(request) {
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
-    const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result);
+    let list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result);
+    if (!Array.isArray(list)) list = [];
+    // Chỉ lấy Splitter cấp 2: Cap_Sp = 2
+    const listCap2 = list.filter((item) => item?.CAP_SP === 2 || item?.CAP_SP === '2');
     const bodySample = JSON.stringify(data).slice(0, 500);
-    console.log('[TracuuSP2 API tracuu] Response', { status: res.status, ok: res.ok, payloadKeys: Object.keys(payload), dataKeys: Object.keys(data || {}), listLength: Array.isArray(list) ? list.length : (list ? 'n/a' : '-'), bodySample });
+    console.log('[TracuuSP2 API tracuu] Response', { status: res.status, ok: res.ok, listLength: list.length, listCap2Length: listCap2.length, bodySample });
     if (!res.ok) {
       return NextResponse.json(
         { message: data.message || data.error || 'API lỗi' },
         { status: res.status }
       );
     }
-    return NextResponse.json(Array.isArray(data) ? data : { ...data, data: Array.isArray(list) ? list : (data.data ?? []) });
+    return NextResponse.json(Array.isArray(data) ? data : { ...data, data: listCap2 });
   } catch (err) {
     console.log('[TracuuSP2 API tracuu] Exception', err?.message, err);
     return NextResponse.json(
