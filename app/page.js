@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 
 const PLACEHOLDER = '-- Chọn --';
-const PORT_OLT_OPTIONS = Array.from({ length: 33 }, (_, i) => i);
 
 /** TTVT mặc định theo OneBSS (trang tra cứu splitter theo port OLT). */
 const TTVT_MAC_DINH = 'Trung tâm viễn thông Nho Quan';
@@ -44,6 +43,7 @@ export default function TraCuuSP2Page() {
   const [listCardOlt, setListCardOlt] = useState([]);
   const [listThietBiOlt, setListThietBiOlt] = useState([]);
   const [listPortOlt, setListPortOlt] = useState([]);
+  const [loadingPortOlt, setLoadingPortOlt] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [listError, setListError] = useState('');
 
@@ -222,16 +222,22 @@ export default function TraCuuSP2Page() {
       .catch((e) => { LOG('Card OLT error', e); setListError(e.message || 'Lỗi tải Card OLT.'); setListCardOlt([]); });
   }, [thietBiOlt, authorization]);
 
-  // Chọn Card OLT → load danh sách Port OLT (body { id: cardOlt })
+  // Chọn Card OLT → load danh sách Port OLT từ API (layDsPortOltTheoCardOlt), không dùng danh sách cố định
   useEffect(() => {
     if (!cardOlt) {
       setListPortOlt([]);
       setPortOlt('');
+      setLoadingPortOlt(false);
       return;
     }
     setPortOlt('');
+    setLoadingPortOlt(true);
+    setListPortOlt([]);
     const auth = localStorage.getItem(STORAGE_AUTH);
-    if (!auth?.trim()) return;
+    if (!auth?.trim()) {
+      setLoadingPortOlt(false);
+      return;
+    }
     const url = `/api/danh-sach?loai=port_olt&cardOlt=${encodeURIComponent(cardOlt)}`;
     LOG('Port OLT request', url);
     fetch(url, { headers: { Authorization: auth.trim() } })
@@ -242,7 +248,8 @@ export default function TraCuuSP2Page() {
         if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Port OLT.');
         if (data?.message && !Array.isArray(data) && !data?.data) { setListPortOlt([]); } else { setListPortOlt(list); }
       })
-      .catch((e) => { LOG('Port OLT error', e); setListError(e.message || 'Lỗi tải Port OLT.'); setListPortOlt([]); });
+      .catch((e) => { LOG('Port OLT error', e); setListError(e.message || 'Lỗi tải Port OLT.'); setListPortOlt([]); })
+      .finally(() => setLoadingPortOlt(false));
   }, [cardOlt, authorization]);
 
   const handleUnlockAuth = (e) => {
@@ -468,7 +475,11 @@ export default function TraCuuSP2Page() {
                 <div className="space-y-0 order-2 sm:order-2">
                   <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} />
                   <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={listCardOlt} optionValue={(item) => { if (typeof item === 'string') return item; const v = item?.CARD_ID ?? item?.SLOT_ID ?? item?.PORTVL_ID ?? item?.VITRI ?? item?.TEN_TB ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} />
-                  <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={listPortOlt.length > 0 ? listPortOlt : PORT_OLT_OPTIONS} optionValue={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const v = item?.PORTVL_ID ?? item?.VITRI ?? item?.id ?? item?.value ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} optionLabel={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const vitri = item?.VITRI; if (vitri !== undefined && vitri !== null) return String(vitri); return item?.PORTVL_ID != null ? String(item.PORTVL_ID) : (item?.TEN_TB ?? optionLabel(item) ?? ''); }} />
+                  <div>
+                    <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={listPortOlt} optionValue={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const v = item?.PORTVL_ID ?? item?.VITRI ?? item?.id ?? item?.value ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} optionLabel={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const vitri = item?.VITRI; if (vitri !== undefined && vitri !== null) return String(vitri); return item?.PORTVL_ID != null ? String(item.PORTVL_ID) : (item?.TEN_TB ?? optionLabel(item) ?? ''); }} />
+                    {loadingPortOlt && <p className="text-xs text-slate-500 mt-0.5 -mb-1">Đang tải Port theo Card...</p>}
+                    {cardOlt && !loadingPortOlt && listPortOlt.length === 0 && <p className="text-xs text-amber-600 mt-0.5 -mb-1">Chưa có Port. Kiểm tra Card đã chọn hoặc API.</p>}
+                  </div>
                 </div>
               </div>
               <div className="pt-2">

@@ -18,12 +18,12 @@ function log(tag, ...args) {
 async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) {
   const headers = { Authorization: auth, 'Content-Type': 'application/json' };
 
-  // Port OLT: OneBSS layDsPortOltTheoCardOlt — body { id: number } = Card OLT id đã chọn
+  // Port OLT: OneBSS layDsPortOltTheoCardOlt — body { id: number | string } = Card OLT id đã chọn
   if (loai === 'port_olt') {
     const url = process.env.URL_PORT_OLT_THEO_CARD_OLT || URL_PORT_OLT_THEO_CARD_OLT;
     const idNum = cardOlt === '' || cardOlt == null ? null : Number(cardOlt);
-    const body = idNum !== null && !Number.isNaN(idNum) ? { id: idNum } : {};
-    log('layDsPortOltTheoCardOlt POST', url, body);
+    const body = idNum !== null && !Number.isNaN(idNum) ? { id: idNum } : (cardOlt !== '' && cardOlt != null ? { id: String(cardOlt) } : {});
+    log('layDsPortOltTheoCardOlt POST', url, 'cardOlt=', cardOlt, body);
     const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
     const txt = await res.clone().text().catch(() => '');
     if (res.ok) log('PortOlt POST OK', res.status);
