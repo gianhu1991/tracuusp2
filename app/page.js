@@ -68,16 +68,17 @@ export default function TraCuuSP2Page() {
 
   function optionValue(item) {
     if (typeof item === 'string') return item;
-    // Tổ QL: donviId; Vệ tinh: DONVI_ID; OLT: THIETBI_ID; Card/Port OLT: PORTVL_ID
-    const v = item?.donviId ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? item?.PORTVL_ID ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
+    // Tổ QL: donviId; Vệ tinh: DONVI_ID; OLT: THIETBI_ID; Card/Port OLT: PORTVL_ID hoặc VITRI (để luôn có value chọn được)
+    const v = item?.donviId ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? item?.PORTVL_ID ?? item?.VITRI ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
     return v !== undefined && v !== null ? String(v) : '';
   }
   function optionLabel(item) {
     if (typeof item === 'string') return item;
-    // Port/Card OLT: VITRI (slot) hoặc TEN_TB
+    // Card OLT: ưu tiên TEN_TB (#01 NGLT-C...), không có thì dùng Slot VITRI
+    if (item?.TEN_TB != null && item.TEN_TB !== '') return item.TEN_TB;
     const vitri = item?.VITRI;
     if (vitri !== undefined && vitri !== null) return `Slot ${vitri}`;
-    return item?.TEN_TB ?? item?.TEN_DV ?? item?.TEN_OLT ?? item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(optionValue(item) || '');
+    return item?.TEN_DV ?? item?.TEN_OLT ?? item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(optionValue(item) || '');
   }
 
   const LOG = (tag, ...args) => { try { console.log('[TracuuSP2]', tag, ...args); } catch (_) {} };
