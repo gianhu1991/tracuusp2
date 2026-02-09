@@ -2,18 +2,27 @@
 
 import { useState, useEffect } from 'react';
 
-const PLACEHOLDER_TONG = '-- Chọn Tổ kỹ thuật --';
-const PLACEHOLDER_OLT = '-- Chọn OLT --';
+const PLACEHOLDER = '-- Chọn --';
+const PORT_OLT_OPTIONS = Array.from({ length: 33 }, (_, i) => i);
 
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_PASSWORD = '1234';
 
 export default function TraCuuSP2Page() {
-  const [toKyThuat, setToKyThuat] = useState('');
-  const [olt, setOlt] = useState('');
-  const [slot, setSlot] = useState('');
-  const [port, setPort] = useState('');
+  const [ttvt, setTtvt] = useState('');
+  const [veTinh, setVeTinh] = useState('');
+  const [cardOlt, setCardOlt] = useState('');
+  const [toQL, setToQL] = useState('');
+  const [thietBiOlt, setThietBiOlt] = useState('');
+  const [portOlt, setPortOlt] = useState('');
+  const [useTtvt, setUseTtvt] = useState(true);
+  const [useVeTinh, setUseVeTinh] = useState(true);
+  const [useCardOlt, setUseCardOlt] = useState(true);
+  const [useToQL, setUseToQL] = useState(true);
+  const [useThietBiOlt, setUseThietBiOlt] = useState(true);
+  const [usePortOlt, setUsePortOlt] = useState(true);
+
   const [loading, setLoading] = useState(false);
   const [ketQua, setKetQua] = useState(null);
   const [loi, setLoi] = useState(null);
@@ -24,8 +33,11 @@ export default function TraCuuSP2Page() {
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authPasswordError, setAuthPasswordError] = useState('');
 
-  const [listToKyThuat, setListToKyThuat] = useState([]);
-  const [listOlt, setListOlt] = useState([]);
+  const [listTtvt, setListTtvt] = useState([]);
+  const [listVeTinh, setListVeTinh] = useState([]);
+  const [listCardOlt, setListCardOlt] = useState([]);
+  const [listToQL, setListToQL] = useState([]);
+  const [listThietBiOlt, setListThietBiOlt] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
   const [listError, setListError] = useState('');
 
@@ -63,21 +75,21 @@ export default function TraCuuSP2Page() {
     setListError('');
     try {
       const headers = { Authorization: auth.trim() };
-      const [resTong, resOlt] = await Promise.all([
+      const [resTtvt, resToQL] = await Promise.all([
+        fetch('/api/danh-sach?loai=ttvt', { headers }),
         fetch('/api/danh-sach?loai=to_ky_thuat', { headers }),
-        fetch('/api/danh-sach?loai=olt', { headers }),
       ]);
-      const dataTong = await resTong.json().catch(() => ({}));
-      const dataOlt = await resOlt.json().catch(() => ({}));
-      if (resTong.ok) setListToKyThuat(normaliseList(dataTong));
-      else setListToKyThuat([]);
-      if (resOlt.ok) setListOlt(normaliseList(dataOlt));
-      else setListOlt([]);
-      if (!resTong.ok && !resOlt.ok) setListError(dataTong?.message || dataOlt?.message || 'Không tải được danh sách. Kiểm tra token hoặc đường dẫn API.');
+      const dataTtvt = await resTtvt.json().catch(() => ({}));
+      const dataToQL = await resToQL.json().catch(() => ({}));
+      if (resTtvt.ok) setListTtvt(normaliseList(dataTtvt));
+      else setListTtvt([]);
+      if (resToQL.ok) setListToQL(normaliseList(dataToQL));
+      else setListToQL([]);
+      if (!resTtvt.ok && !resToQL.ok) setListError(dataTtvt?.message || dataToQL?.message || 'Không tải được danh sách. Kiểm tra token hoặc đường dẫn API.');
     } catch (e) {
       setListError(e.message || 'Lỗi tải danh sách.');
-      setListToKyThuat([]);
-      setListOlt([]);
+      setListTtvt([]);
+      setListToQL([]);
     } finally {
       setLoadingList(false);
     }
@@ -86,20 +98,57 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     if (authorization?.trim()) loadDanhSach();
     else {
-      setListToKyThuat([]);
-      setListOlt([]);
+      setListTtvt([]);
+      setListToQL([]);
+      setListVeTinh([]);
+      setListCardOlt([]);
+      setListThietBiOlt([]);
     }
   }, [authorization]);
 
   useEffect(() => {
-    if (!toKyThuat || !authorization?.trim()) return;
+    if (!toQL || !authorization?.trim()) {
+      setListVeTinh([]);
+      setVeTinh('');
+      setCardOlt('');
+      setThietBiOlt('');
+      return;
+    }
+    setVeTinh('');
+    setCardOlt('');
+    setThietBiOlt('');
     const auth = localStorage.getItem(STORAGE_AUTH);
     if (!auth?.trim()) return;
-    fetch(`/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toKyThuat)}`, { headers: { Authorization: auth.trim() } })
+    fetch(`/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`, { headers: { Authorization: auth.trim() } })
       .then((r) => r.json().catch(() => ({})))
-      .then((data) => { if (data?.message && !Array.isArray(data) && !data?.data) return; setListOlt(normaliseList(data)); })
-      .catch(() => {});
-  }, [toKyThuat]);
+      .then((data) => { if (data?.message && !Array.isArray(data) && !data?.data) return; setListVeTinh(normaliseList(data)); })
+      .catch(() => setListVeTinh([]));
+  }, [toQL]);
+
+  useEffect(() => {
+    if (!veTinh || !authorization?.trim()) {
+      setListCardOlt([]);
+      setListThietBiOlt([]);
+      setCardOlt('');
+      setThietBiOlt('');
+      return;
+    }
+    setCardOlt('');
+    setThietBiOlt('');
+    const auth = localStorage.getItem(STORAGE_AUTH);
+    if (!auth?.trim()) return;
+    const h = { Authorization: auth.trim() };
+    Promise.all([
+      fetch(`/api/danh-sach?loai=card_olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`, { headers: h }),
+      fetch(`/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`, { headers: h }),
+    ])
+      .then(([r1, r2]) => Promise.all([r1.json().catch(() => ({})), r2.json().catch(() => ({}))]))
+      .then(([d1, d2]) => {
+        setListCardOlt(normaliseList(d1));
+        setListThietBiOlt(normaliseList(d2));
+      })
+      .catch(() => { setListCardOlt([]); setListThietBiOlt([]); });
+  }, [veTinh, toQL]);
 
   const handleUnlockAuth = (e) => {
     e.preventDefault();
@@ -131,16 +180,14 @@ export default function TraCuuSP2Page() {
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (authorization.trim()) headers['Authorization'] = authorization.trim();
-      const res = await fetch('/api/tracuu', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          toKyThuat: toKyThuat || undefined,
-          olt: olt || undefined,
-          slot: slot || undefined,
-          port: port || undefined,
-        }),
-      });
+      const body = {};
+      if (useTtvt && ttvt) body.ttvt = ttvt;
+      if (useVeTinh && veTinh) body.veTinh = veTinh;
+      if (useCardOlt && cardOlt) body.cardOlt = cardOlt;
+      if (useToQL && toQL) body.toQL = toQL;
+      if (useThietBiOlt && thietBiOlt) body.thietBiOlt = thietBiOlt;
+      if (usePortOlt && portOlt !== '') body.portOlt = portOlt;
+      const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setLoi(data.message || data.error || 'Có lỗi khi tra cứu.');
@@ -154,18 +201,26 @@ export default function TraCuuSP2Page() {
     }
   };
 
-  const handleLamMoiOlt = () => {
-    setOlt('');
-    if (authorization?.trim() && toKyThuat) {
-      fetch(`/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toKyThuat)}`, {
-        headers: { Authorization: authorization.trim() },
-      })
-        .then((r) => r.json().catch(() => ({})))
-        .then((data) => setListOlt(normaliseList(data)))
-        .catch(() => {});
-    }
-  };
   const chuaTraCuu = !ketQua && !loi && !loading;
+
+  function DropRow({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
+    return (
+      <div className="flex items-center gap-2 py-1.5">
+        <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider shrink-0 min-w-[100px] sm:min-w-[90px]">{label}{required && '*'}</label>
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-700 text-sm focus:ring-2 focus:ring-indigo-500 min-h-[40px]"
+        >
+          <option value="">{PLACEHOLDER}</option>
+          {(options || []).map((item, i) => (
+            <option key={i} value={ov ? ov(item) : optionValue(item)}>{ol ? ol(item) : optionLabel(item)}</option>
+          ))}
+        </select>
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-r from-indigo-50/80 via-slate-50 to-violet-50/80 py-4 sm:py-6 px-3 sm:px-4 lg:px-6">
@@ -242,83 +297,33 @@ export default function TraCuuSP2Page() {
             </div>
           )}
 
-          {/* Form tra cứu - mobile: xếp dọc, desktop: hàng ngang */}
+          {/* Form tra cứu - Tìm kiếm thông tin Splitter */}
           <div className="px-4 sm:px-8 py-4 sm:py-6 shrink-0">
+            <h2 className="text-base font-semibold text-slate-800 border-b-2 border-indigo-500 pb-1.5 mb-4">Tìm kiếm thông tin Splitter</h2>
             <form onSubmit={handleTraCuu} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-4 items-stretch sm:items-end">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Tổ kỹ thuật</label>
-                  <select
-                    value={toKyThuat}
-                    onChange={(e) => setToKyThuat(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-700 text-base sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px] touch-manipulation"
-                  >
-                    <option value="">{PLACEHOLDER_TONG}</option>
-                    {listToKyThuat.map((item, i) => (
-                      <option key={i} value={optionValue(item)}>{optionLabel(item)}</option>
-                    ))}
-                  </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
+                <div className="space-y-0">
+                  <DropRow label="TTVT" required checked={useTtvt} onCheck={setUseTtvt} value={ttvt} onChange={setTtvt} options={listTtvt} />
+                  <DropRow label="Vệ tinh" checked={useVeTinh} onCheck={setUseVeTinh} value={veTinh} onChange={setVeTinh} options={listVeTinh} />
+                  <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={listCardOlt} />
                 </div>
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1 min-w-0">
-                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">OLT</label>
-                    <select
-                      value={olt}
-                      onChange={(e) => setOlt(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-700 text-base sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px] touch-manipulation"
-                    >
-                      <option value="">{PLACEHOLDER_OLT}</option>
-                      {listOlt.map((item, i) => (
-                        <option key={i} value={optionValue(item)}>{optionLabel(item)}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleLamMoiOlt}
-                    className="rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-300 shrink-0 flex items-center justify-center h-[44px] w-[44px]"
-                    title="Làm mới OLT"
-                    aria-label="Làm mới OLT"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </button>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Slot</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={slot}
-                    onChange={(e) => setSlot(e.target.value)}
-                    placeholder="Ví dụ: 3"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-700 placeholder-slate-400 text-base sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px] touch-manipulation"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Port</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={port}
-                    onChange={(e) => setPort(e.target.value)}
-                    placeholder="Ví dụ: 0"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-700 placeholder-slate-400 text-base sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[44px] touch-manipulation"
-                  />
-                </div>
-                <div className="sm:flex sm:justify-end">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full sm:w-auto px-5 py-3 sm:py-2.5 rounded-lg font-semibold text-white text-base sm:text-sm bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed min-h-[48px] touch-manipulation"
-                  >
-                    {loading ? 'Đang tra cứu...' : 'Tra cứu'}
-                  </button>
+                <div className="space-y-0">
+                  <DropRow label="Tổ QL" required checked={useToQL} onCheck={setUseToQL} value={toQL} onChange={setToQL} options={listToQL} />
+                  <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} />
+                  <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={PORT_OLT_OPTIONS} optionValue={(v) => String(v)} optionLabel={(v) => String(v)} />
                 </div>
               </div>
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-2.5 rounded-lg font-semibold text-white text-sm bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed min-h-[44px]"
+                >
+                  {loading ? 'Đang tra cứu...' : 'Tra cứu'}
+                </button>
+              </div>
             </form>
-            {(listError || loadingList || listToKyThuat.length > 0) && (
+            {(listError || loadingList || listTtvt.length > 0 || listToQL.length > 0) && (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {loadingList && <span className="text-xs text-slate-500">Đang tải danh sách...</span>}
                 {listError && <span className="text-xs text-red-600">{listError}</span>}
@@ -335,7 +340,7 @@ export default function TraCuuSP2Page() {
             <div className="mt-4 sm:mt-6 mx-4 sm:mx-8 mb-4 sm:mb-6 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 flex-1 min-h-[280px] sm:min-h-[320px] p-4 sm:p-6 flex flex-col">
               {chuaTraCuu && (
                 <p className="text-slate-500 text-center text-sm sm:text-base py-12 sm:py-16 flex-1 flex items-center justify-center">
-                  Nhập thông tin OLT, Slot và Port để tra cứu
+                  Chọn các mục và bấm Tra cứu để xem kết quả
                 </p>
               )}
               {loading && (

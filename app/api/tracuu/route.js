@@ -6,12 +6,24 @@ const DEFAULT_BACKEND_URL = 'https://api-onebss.vnpt.vn/web-ecms/tracuu/ds_split
 /**
  * API tra cứu SP2.
  * Gọi API OneBSS (URL mặc định cứng). Chỉ cần gửi Authorization (header hoặc body).
- * Request body: { toKyThuat?, olt?, slot?, port? }
+ * Request body: { ttvt?, veTinh?, cardOlt?, toQL?, thietBiOlt?, portOlt? } hoặc { toKyThuat?, olt?, slot?, port? }
  */
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { toKyThuat, olt, slot, port } = body;
+    const {
+      ttvt, veTinh, cardOlt, toQL, thietBiOlt, portOlt,
+      toKyThuat, olt, slot, port,
+    } = body;
+
+    const payload = {
+      ttvt: ttvt ?? body.ttvt,
+      veTinh: veTinh ?? body.veTinh,
+      cardOlt: cardOlt ?? body.cardOlt,
+      toQL: toQL ?? toKyThuat ?? body.toQL ?? body.toKyThuat,
+      thietBiOlt: thietBiOlt ?? olt ?? body.thietBiOlt ?? body.olt,
+      portOlt: portOlt ?? port ?? body.portOlt ?? body.port,
+    };
 
     const backendUrl = process.env.BACKEND_URL || process.env.TRACUU_BACKEND_URL || body.backendUrl || DEFAULT_BACKEND_URL;
     const authFromHeader = request.headers.get('Authorization') || request.headers.get('authorization');
@@ -24,7 +36,7 @@ export async function POST(request) {
         'Content-Type': 'application/json',
         ...(authorization ? { Authorization: authorization } : {}),
       },
-      body: JSON.stringify({ toKyThuat, olt, slot, port }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
