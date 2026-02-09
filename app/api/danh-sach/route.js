@@ -117,32 +117,31 @@ async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) 
     return new Response(JSON.stringify(fixedToQL), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Vệ tinh (tram_bts): gọi layDsVeTinh với toKyThuat (Tổ QL đã chọn)
+  // Vệ tinh (tram_bts): gọi layDsVeTinh với toKyThuat = ID tổ KT (UUID)
   if (loai === 'tram_bts') {
     const url = process.env.URL_LAY_DS_VE_TINH || URL_LAY_DS_VE_TINH;
-    const q = new URLSearchParams();
-    if (toKyThuat) q.set('toKyThuat', toKyThuat);
-    if (tramBts) q.set('tramBts', tramBts);
-    if (tramBts) q.set('veTinh', tramBts);
-    const query = q.toString();
-    const body = { toKyThuat: toKyThuat || undefined, tramBts: tramBts || undefined, veTinh: tramBts || undefined };
-    const urlGet = query ? `${url}?${query}` : url;
-    log('layDsVeTinh GET', urlGet);
-    let res = await fetch(urlGet, { method: 'GET', headers: { Authorization: auth } });
-    const txtGet = await res.clone().text().catch(() => '');
-    if (res.ok) {
-      log('layDsVeTinh GET OK', res.status, 'body sample', txtGet?.slice(0, 500));
-      return res;
-    }
-    log('layDsVeTinh GET FAIL', res.status, txtGet?.slice(0, 300));
+    const body = {};
+    if (toKyThuat) body.toKyThuat = toKyThuat;
+    if (tramBts) body.tramBts = tramBts;
+    if (tramBts) body.veTinh = tramBts;
     log('layDsVeTinh POST', url, body);
-    res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    let res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
     const txtPost = await res.clone().text().catch(() => '');
     if (res.ok) {
-      log('layDsVeTinh POST OK', res.status, txtPost?.slice(0, 500));
+      log('layDsVeTinh POST OK', res.status, 'body sample', txtPost?.slice(0, 500));
       return res;
     }
     log('layDsVeTinh POST FAIL', res.status, txtPost?.slice(0, 300));
+    // Thử GET với query toKyThuat (một số API hỗ trợ GET)
+    const q = new URLSearchParams();
+    if (toKyThuat) q.set('toKyThuat', toKyThuat);
+    if (tramBts) q.set('tramBts', tramBts);
+    const urlGet = q.toString() ? `${url}?${q.toString()}` : url;
+    log('layDsVeTinh GET', urlGet);
+    res = await fetch(urlGet, { method: 'GET', headers: { Authorization: auth } });
+    const txtGet = await res.clone().text().catch(() => '');
+    if (res.ok) log('layDsVeTinh GET OK', res.status);
+    else log('layDsVeTinh GET FAIL', res.status, txtGet?.slice(0, 300));
     return res;
   }
 
@@ -189,7 +188,15 @@ export async function GET(request) {
         { status: res.status }
       );
     }
-    // Chuẩn hóa list: layDsVeTinh có thể trả listToKyThuat (Tổ QL), listVeTinh (Vệ tinh), hoặc data/result/list
+    // OneBSS trả success khi error === "200", data trong data.data
+    if (data && data.error !== undefined && data.error !== '200') {
+      log('OneBSS lỗi', { loai: loaiKey, error: data.error, message: data.message });
+      return NextResponse.json(
+        { message: data.message || data.message_detail || 'Lỗi OneBSS' },
+        { status: 400 }
+      );
+    }
+    // Chuẩn hóa list: OneBSS Vệ tinh trả data[], mỗi item có DONVI_ID, TEN_DV
     let list = Array.isArray(data) ? data : null;
     if (!list && data && typeof data === 'object') {
       if (loaiKey === 'to_ky_thuat') {

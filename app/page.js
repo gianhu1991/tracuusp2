@@ -66,11 +66,12 @@ export default function TraCuuSP2Page() {
 
   function optionValue(item) {
     if (typeof item === 'string') return item;
-    return item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
+    const v = item?.DONVI_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
+    return v !== undefined && v !== null ? String(v) : '';
   }
   function optionLabel(item) {
     if (typeof item === 'string') return item;
-    return item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(optionValue(item) || '');
+    return item?.TEN_DV ?? item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(optionValue(item) || '');
   }
 
   const LOG = (tag, ...args) => { try { console.log('[TracuuSP2]', tag, ...args); } catch (_) {} };
@@ -144,18 +145,27 @@ export default function TraCuuSP2Page() {
     const auth = localStorage.getItem(STORAGE_AUTH);
     if (!auth?.trim()) return;
     const url = `/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`;
-    LOG('VeTinh request', url);
+    LOG('VeTinh request', url, 'toQL', toQL);
     fetch(url, { headers: { Authorization: auth.trim() } })
       .then((r) => {
         LOG('VeTinh response', r.status, r.ok);
-        return r.json().catch(() => ({}));
+        return r.json().catch(() => ({})).then((data) => ({ ok: r.ok, status: r.status, data }));
       })
-      .then((data) => {
+      .then(({ ok, status, data }) => {
         LOG('VeTinh data', data, 'list length', normaliseList(data).length);
-        if (data?.message && !Array.isArray(data) && !data?.data) return;
+        if (!ok) {
+          setListError(data?.message || data?.error || `Không tải được danh sách Vệ tinh (${status}). Kiểm tra Authorization hoặc thử tổ QL khác.`);
+          setListVeTinh([]);
+          return;
+        }
+        if (data?.message && !Array.isArray(data) && !data?.data) {
+          setListError(data.message || 'Không có dữ liệu Vệ tinh.');
+          setListVeTinh([]);
+          return;
+        }
         setListVeTinh(normaliseList(data));
       })
-      .catch((e) => { LOG('VeTinh error', e); setListVeTinh([]); });
+      .catch((e) => { LOG('VeTinh error', e); setListError(e.message || 'Lỗi tải danh sách Vệ tinh.'); setListVeTinh([]); });
   }, [toQL, authorization]);
 
   useEffect(() => {
