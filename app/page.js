@@ -88,7 +88,14 @@ export default function TraCuuSP2Page() {
       else setListTtvt([]);
       if (resToQL.ok) setListToQL(normaliseList(dataToQL));
       else setListToQL([]);
-      if (!resTtvt.ok && !resToQL.ok) setListError(dataTtvt?.message || dataToQL?.message || 'Không tải được danh sách. Kiểm tra Authorization và API danh sách OneBSS.');
+      if (!resTtvt.ok && !resToQL.ok) {
+        const msg = dataTtvt?.message || dataToQL?.message;
+        const is404 = resTtvt.status === 404 || resToQL.status === 404;
+        const is502 = resTtvt.status === 502 || resToQL.status === 502;
+        setListError(msg || (is404 || is502
+          ? 'API danh sách OneBSS không trả về dữ liệu (404/502). Cấu hình LIST_API_BASE hoặc LIST_API_URL trong Vercel (Environment Variables) nếu bạn có đường dẫn API lấy danh sách.'
+          : 'Không tải được danh sách. Kiểm tra Authorization và API danh sách OneBSS.'));
+      }
     } catch (e) {
       setListError(e.message || 'Lỗi tải danh sách.');
       setListTtvt([]);
@@ -349,7 +356,7 @@ export default function TraCuuSP2Page() {
                 >
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
-                <p className="text-xs text-slate-500 mt-2">Dữ liệu dropdown lấy từ API OneBSS (online). Cần nhập Authorization trong Cài đặt (mật khẩu 1234).</p>
+                <p className="text-xs text-slate-500 mt-2">Dữ liệu dropdown lấy từ API OneBSS (online). Cần nhập Authorization trong Cài đặt (mật khẩu 1234). Nếu báo Not found: cấu hình LIST_API_BASE trên server (Vercel env) với đúng URL API danh sách.</p>
               </div>
             </form>
             <div className="mt-2 flex flex-wrap items-center gap-2">
