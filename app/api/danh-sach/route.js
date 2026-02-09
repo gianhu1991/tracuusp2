@@ -157,8 +157,9 @@ export async function GET(request) {
         { status: res.status }
       );
     }
-    // OneBSS trả success khi error === "200", data trong data.data
-    if (data && data.error !== undefined && data.error !== '200') {
+    // OneBSS trả success khi error === "200" hoặc 200 (số), data trong data.data
+    const okError = data?.error === '200' || data?.error === 200;
+    if (data && data.error !== undefined && !okError) {
       log('OneBSS lỗi', { loai: loaiKey, error: data.error, message: data.message });
       return NextResponse.json(
         { message: data.message || data.message_detail || 'Lỗi OneBSS' },
