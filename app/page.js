@@ -198,7 +198,6 @@ export default function TraCuuSP2Page() {
         const listOlt = normaliseList(data);
         LOG('OLT data', { ok, len: listOlt.length });
         if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Thiết bị OLT.');
-        else if (ok && listOlt.length === 0) setListError('Không có thiết bị OLT cho vệ tinh này.');
         if (data?.message && !Array.isArray(data) && !data?.data) { setListThietBiOlt([]); } else { setListThietBiOlt(listOlt); }
       })
       .catch((e) => { LOG('OLT error', e); setListError(e.message || 'Lỗi tải OLT.'); setListThietBiOlt([]); });
