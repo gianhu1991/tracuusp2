@@ -514,6 +514,15 @@ export default function TraCuuSP2Page() {
 
   const chuaTraCuu = !ketQua && !loi && !loading;
 
+  const syncPhaseLabel =
+    syncProgress?.phase === 'scan'
+      ? 'Đang quét danh mục (Tổ KT → … → Port)'
+      : 'Đang tra cứu S2 từng port';
+  const syncPct =
+    syncProgress && syncProgress.total > 0
+      ? Math.min(100, Math.round((syncProgress.done / syncProgress.total) * 100))
+      : null;
+
   function DropRow({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
     return (
       <div className="flex items-center gap-1.5 sm:gap-2 py-1 sm:py-1.5">
@@ -539,7 +548,55 @@ export default function TraCuuSP2Page() {
 
   return (
     <main className="min-h-screen bg-gradient-to-r from-sky-50/80 via-slate-50 to-blue-50/80 py-2 px-2 sm:py-6 sm:px-4 lg:px-6">
-      <div className="w-full max-w-[1600px] mx-auto min-h-0 flex flex-col sm:min-h-[calc(100vh-2rem)]">
+      {/* Tiến độ đồng bộ S2 — cố định đầu màn hình để cuộn trang vẫn theo dõi được */}
+      {syncRunning && syncProgress && (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-label="Tiến độ đồng bộ S2"
+          className="fixed inset-x-0 top-0 z-[100] border-b border-indigo-900/30 bg-gradient-to-r from-indigo-800 via-violet-800 to-indigo-800 text-white shadow-lg"
+        >
+          <div className="max-w-[1600px] mx-auto px-3 py-2.5 sm:px-6 sm:py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-indigo-100">{syncPhaseLabel}</p>
+              {syncProgress.phase === 'tracuu' && (
+                <p className="text-sm sm:text-base font-bold text-amber-200 tabular-nums">
+                  Đã gom được <span className="text-white">{syncProgress.s2Count ?? 0}</span> Spliter cấp 2
+                </p>
+              )}
+              <p className="text-xs sm:text-sm font-medium truncate" title={syncProgress.label}>{syncProgress.label}</p>
+              <div className="h-2.5 sm:h-3 rounded-full bg-black/25 overflow-hidden">
+                {syncPct != null ? (
+                  <div
+                    className="h-full bg-amber-300 transition-[width] duration-300 ease-out"
+                    style={{ width: `${syncPct}%` }}
+                  />
+                ) : (
+                  <div className="h-full w-full bg-indigo-400/50 animate-pulse" />
+                )}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-center sm:text-right">
+              {syncProgress.total > 0 ? (
+                <p className="text-sm sm:text-base font-bold tabular-nums whitespace-nowrap">
+                  {syncProgress.done}/{syncProgress.total}
+                  <span className="text-indigo-200 font-semibold ml-1.5">({syncPct}%)</span>
+                </p>
+              ) : (
+                <p className="text-xs text-indigo-200 whitespace-nowrap">Đang tính số port…</p>
+              )}
+              <button
+                type="button"
+                onClick={handleHuyDongBo}
+                className="rounded-lg bg-white/15 hover:bg-white/25 border border-white/30 px-3 py-1.5 text-xs font-semibold"
+              >
+                Hủy đồng bộ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className={`w-full max-w-[1600px] mx-auto min-h-0 flex flex-col sm:min-h-[calc(100vh-2rem)] ${syncRunning && syncProgress ? 'pt-[88px] sm:pt-[100px]' : ''}`}>
         {/* Card chính - vừa màn hình mobile */}
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-slate-200/80 overflow-hidden flex-1 flex flex-col min-h-0 sm:min-h-[80vh]">
           {/* Header - gọn trên mobile */}
@@ -557,13 +614,13 @@ export default function TraCuuSP2Page() {
                 type="button"
                 onClick={() => setShowSettings(!showSettings)}
                 className="shrink-0 inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
-                aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt Authorization'}
+                aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt — token và đồng bộ'}
               >
                 <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
                 <span>{showSettings ? 'Ẩn cài đặt' : 'Cài đặt'}</span>
-                <span className="hidden sm:inline">{showSettings ? '' : ' / Đổi Authorization'}</span>
+                <span className="hidden sm:inline">{showSettings ? '' : ' / Token & đồng bộ'}</span>
                 <svg className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -571,12 +628,12 @@ export default function TraCuuSP2Page() {
             </div>
           </div>
 
-          {/* Cài đặt Authorization - bảo vệ bằng mật khẩu */}
+          {/* Cài đặt: token, lưu server, đồng bộ S2, cache — bảo vệ bằng mật khẩu */}
           {showSettings && (
             <div className="border-b border-slate-100 bg-slate-50/80 px-3 sm:px-8 py-3 sm:py-4 shrink-0">
               {!authUnlocked ? (
                 <form onSubmit={handleUnlockAuth} className="space-y-3 max-w-xs">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nhập mật khẩu để xem / đổi Authorization</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nhập mật khẩu để mở cài đặt (token, lưu server, đồng bộ S2, cache)</label>
                   <div className="flex gap-2">
                     <input
                       type="password"
@@ -624,6 +681,101 @@ export default function TraCuuSP2Page() {
                     {saveToServerMessage && <p className={`text-xs ${saveToServerStatus === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{saveToServerMessage}</p>}
                   </form>
                   <p className="text-xs text-slate-500 mt-2">Cần cấu hình Supabase (bảng app_config) + ADMIN_PASSWORD trên Vercel (xem VERCEL-SETUP.md). Sau khi lưu, mọi người dùng app sẽ dùng token này.</p>
+
+                  <div className="mt-5 pt-5 border-t border-slate-200 space-y-3">
+                    <p className="text-xs font-semibold text-slate-700">Đồng bộ toàn bộ S2 &amp; cache tra cứu</p>
+                    <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
+                      Quét Tổ KT → Trạm → OLT → Card → Port và gọi tra cứu từng port. Nhập <strong>mật khẩu quản trị</strong> (cùng «Lưu token lên server») rồi đồng bộ để lưu lên <strong>Supabase</strong> cho mọi người dùng. Để trống mật khẩu thì chỉ lưu trên trình duyệt này. Cần bảng <code className="text-indigo-700 bg-white px-1 rounded">sp2_port_cache</code> (xem VERCEL-SETUP.md).
+                    </p>
+                    <div className="max-w-lg">
+                      <label className="block text-[11px] sm:text-xs text-slate-600">
+                        Mật khẩu quản trị (để lưu cache chung)
+                        <input
+                          type="password"
+                          value={adminPasswordForSync}
+                          onChange={(e) => setAdminPasswordForSync(e.target.value)}
+                          placeholder="Trống = chỉ lưu trên máy này"
+                          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+                          autoComplete="off"
+                        />
+                      </label>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleDongBoToanBo}
+                        disabled={syncRunning}
+                        className="rounded-lg bg-indigo-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 min-h-[40px]"
+                      >
+                        {syncRunning ? 'Đang đồng bộ…' : 'Đồng bộ toàn bộ S2'}
+                      </button>
+                      {syncRunning && (
+                        <button type="button" onClick={handleHuyDongBo} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]">
+                          Hủy
+                        </button>
+                      )}
+                    </div>
+                    {syncRunning && syncProgress && (
+                      <p className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-1.5">
+                        <span className="font-semibold">Tiến độ</span> trên <strong>đầu trang</strong>
+                        {syncProgress.phase === 'tracuu' && (
+                          <> — hiện <strong>{syncProgress.s2Count ?? 0}</strong> Spliter cấp 2 đã gom</>
+                        )}
+                        .
+                      </p>
+                    )}
+                    {serverSyncMeta?.lastSyncAt != null && (
+                      <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5">
+                        <span className="font-semibold">Cache chung (Supabase):</span>{' '}
+                        {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
+                        {serverSyncMeta.lastSyncTotal != null && ` — ${serverSyncMeta.lastSyncTotal} port`}
+                        {serverSyncMeta.lastSyncS2Total != null && (
+                          <> — <span className="font-semibold">{serverSyncMeta.lastSyncS2Total}</span> Spliter cấp 2 đã gom</>
+                        )}
+                        {serverSyncMeta.lastSyncErrors > 0 && ` — ${serverSyncMeta.lastSyncErrors} lỗi`}
+                        {serverSyncMeta.lastSyncAborted && ' — đã dừng giữa chừng'}
+                      </p>
+                    )}
+                    {lastSyncInfo?.lastSyncAt && (
+                      <p className="text-[11px] text-slate-500">
+                        Đồng bộ cục bộ (trình duyệt này):{' '}
+                        {new Date(lastSyncInfo.lastSyncAt).toLocaleString('vi-VN')}
+                        {lastSyncInfo.lastSyncTotal != null && ` — ${lastSyncInfo.lastSyncTotal} port`}
+                        {lastSyncInfo.lastSyncS2Total != null && (
+                          <> — {lastSyncInfo.lastSyncS2Total} Spliter cấp 2 đã gom</>
+                        )}
+                        {lastSyncInfo.lastSyncErrors > 0 && ` — ${lastSyncInfo.lastSyncErrors} lỗi`}
+                      </p>
+                    )}
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 pt-1">
+                      <label className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={chiTrongCache}
+                          onChange={(e) => {
+                            const v = e.target.checked;
+                            setChiTrongCache(v);
+                            if (v) setBoQuaCache(false);
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        Chỉ tra cứu từ cache (Supabase + trình duyệt, không gọi API)
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={boQuaCache}
+                          onChange={(e) => {
+                            const v = e.target.checked;
+                            setBoQuaCache(v);
+                            if (v) setChiTrongCache(false);
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        Luôn gọi API (bỏ qua bộ nhớ)
+                      </label>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -656,104 +808,9 @@ export default function TraCuuSP2Page() {
                 >
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
-                <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">Dữ liệu lấy từ API. Nếu quản trị đã <strong>Lưu token lên server</strong>, mọi người dùng được. Không tải được: nhập token trong Cài đặt hoặc nhờ quản trị lưu token.</p>
-                <div className="mt-3 sm:mt-4 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3 space-y-2">
-                  <p className="text-xs font-semibold text-slate-700">Đồng bộ toàn bộ S2</p>
-                  <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                    Quét Tổ KT → Trạm → OLT → Card → Port và gọi tra cứu từng port. Nhập <strong>mật khẩu quản trị</strong> (cùng mật khẩu «Lưu token lên server») rồi đồng bộ để lưu kết quả lên <strong>Supabase</strong> — mọi người mở app đều tra cứu chung được. Để trống mật khẩu thì chỉ lưu trên trình duyệt này (IndexedDB). Cần tạo bảng <code className="text-indigo-700 bg-white px-1 rounded">sp2_port_cache</code> trên Supabase (xem VERCEL-SETUP.md).
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:items-end max-w-lg">
-                    <label className="flex-1 block text-[11px] sm:text-xs text-slate-600">
-                      Mật khẩu quản trị (để lưu cache chung)
-                      <input
-                        type="password"
-                        value={adminPasswordForSync}
-                        onChange={(e) => setAdminPasswordForSync(e.target.value)}
-                        placeholder="Trống = chỉ lưu trên máy này"
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
-                        autoComplete="off"
-                      />
-                    </label>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleDongBoToanBo}
-                      disabled={syncRunning}
-                      className="rounded-lg bg-indigo-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 min-h-[40px]"
-                    >
-                      {syncRunning ? 'Đang đồng bộ…' : 'Đồng bộ toàn bộ S2'}
-                    </button>
-                    {syncRunning && (
-                      <button type="button" onClick={handleHuyDongBo} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]">
-                        Hủy
-                      </button>
-                    )}
-                  </div>
-                  {syncProgress && (
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[11px] text-slate-600">
-                        <span className="truncate pr-2" title={syncProgress.label}>{syncProgress.label}</span>
-                        {syncProgress.total > 0 && (
-                          <span className="shrink-0">{syncProgress.done}/{syncProgress.total}</span>
-                        )}
-                      </div>
-                      {syncProgress.total > 0 && (
-                        <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
-                          <div
-                            className="h-full bg-indigo-500 transition-[width] duration-300"
-                            style={{ width: `${Math.min(100, Math.round((syncProgress.done / syncProgress.total) * 100))}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {serverSyncMeta?.lastSyncAt != null && (
-                    <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5">
-                      <span className="font-semibold">Cache chung (Supabase):</span>{' '}
-                      {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
-                      {serverSyncMeta.lastSyncTotal != null && ` — ${serverSyncMeta.lastSyncTotal} port`}
-                      {serverSyncMeta.lastSyncErrors > 0 && ` — ${serverSyncMeta.lastSyncErrors} lỗi`}
-                      {serverSyncMeta.lastSyncAborted && ' — đã dừng giữa chừng'}
-                    </p>
-                  )}
-                  {lastSyncInfo?.lastSyncAt && (
-                    <p className="text-[11px] text-slate-500">
-                      Đồng bộ cục bộ (trình duyệt này, đúng token đang nhập):{' '}
-                      {new Date(lastSyncInfo.lastSyncAt).toLocaleString('vi-VN')}
-                      {lastSyncInfo.lastSyncTotal != null && ` — ${lastSyncInfo.lastSyncTotal} port`}
-                      {lastSyncInfo.lastSyncErrors > 0 && ` — ${lastSyncInfo.lastSyncErrors} lỗi`}
-                    </p>
-                  )}
-                  <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 pt-1">
-                    <label className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={chiTrongCache}
-                        onChange={(e) => {
-                          const v = e.target.checked;
-                          setChiTrongCache(v);
-                          if (v) setBoQuaCache(false);
-                        }}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      Chỉ tra cứu từ cache (Supabase + trình duyệt, không gọi API)
-                    </label>
-                    <label className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={boQuaCache}
-                        onChange={(e) => {
-                          const v = e.target.checked;
-                          setBoQuaCache(v);
-                          if (v) setChiTrongCache(false);
-                        }}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      Luôn gọi API (bỏ qua bộ nhớ)
-                    </label>
-                  </div>
-                </div>
+                <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">
+                  Dữ liệu lấy từ API hoặc cache. Quản trị: <strong>Cài đặt</strong> (mật khẩu) để token, <strong>đồng bộ S2</strong> và tùy chọn cache. Mọi người dùng được nếu đã <strong>Lưu token lên server</strong>.
+                </p>
               </div>
             </form>
             <div className="mt-2 flex flex-wrap items-center gap-2">
