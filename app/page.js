@@ -48,6 +48,9 @@ export default function TraCuuSP2Page() {
   const [loadingPortOlt, setLoadingPortOlt] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [listError, setListError] = useState('');
+  /** Snapshot danh mục từ server (lưu lúc đồng bộ S2) — dùng khi API OneBSS / token lỗi. */
+  const [browseSnapshot, setBrowseSnapshot] = useState(null);
+  const browseSnapshotRef = useRef(null);
   const [showCopyToast, setShowCopyToast] = useState(false);
 
   const [syncRunning, setSyncRunning] = useState(false);
@@ -99,6 +102,43 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     refreshServerMeta();
   }, []);
+
+  useEffect(() => {
+    browseSnapshotRef.current = browseSnapshot;
+  }, [browseSnapshot]);
+
+  async function refreshBrowseSnapshot() {
+    try {
+      const res = await fetch('/api/sp2-cache?browse=1');
+      const j = await res.json().catch(() => ({}));
+      if (res.status === 503 || !j.ok) {
+        setBrowseSnapshot(null);
+        return;
+      }
+      if (j.snapshot && j.snapshot.v === 1) setBrowseSnapshot(j.snapshot);
+      else setBrowseSnapshot(null);
+    } catch {
+      setBrowseSnapshot(null);
+    }
+  }
+
+  useEffect(() => {
+    refreshBrowseSnapshot();
+  }, []);
+
+  /** Khi chưa có danh sách Tổ KT từ API (vd. thiếu token) nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
+  useEffect(() => {
+    if (!browseSnapshot?.toKyThuat?.length) return;
+    if (listToQL.length > 0) return;
+    const list = browseSnapshot.toKyThuat;
+    setListToQL(list);
+    setListError('');
+    const nhoQuan = list.find((item) => {
+      const label = optionLabel(item);
+      return label && String(label).toLowerCase().includes('nho quan');
+    });
+    if (nhoQuan != null) setToQL(optionValue(nhoQuan));
+  }, [browseSnapshot, listToQL.length]);
 
   /** @returns {Promise<undefined | null | unknown[]>} undefined=không dùng được server; null=chưa có dòng; mảng=đã cache */
   async function fetchServerPortCache(keyBody) {
@@ -205,6 +245,7 @@ export default function TraCuuSP2Page() {
 
   useEffect(() => {
     loadDanhSach();
+    refreshBrowseSnapshot();
   }, [authorization]);
 
   useEffect(() => {
@@ -228,19 +269,37 @@ export default function TraCuuSP2Page() {
       })
       .then(({ ok, status, data }) => {
         LOG('VeTinh data', data, 'list length', normaliseList(data).length);
+        const list = normaliseList(data);
+        const badPayload = data?.message && !Array.isArray(data) && !data?.data;
+        if (ok && !badPayload) {
+          setListError('');
+          setListVeTinh(list);
+          return;
+        }
+        const fromBrowse = browseSnapshotRef.current?.tramByTo?.[toQL];
+        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+          setListError('');
+          setListVeTinh(fromBrowse);
+          return;
+        }
         if (!ok) {
           setListError(data?.message || data?.error || `Không tải được danh sách Trạm BTS (${status}). Kiểm tra Authorization hoặc thử tổ KT khác.`);
-          setListVeTinh([]);
-          return;
+        } else {
+          setListError(data?.message || 'Không có dữ liệu Trạm BTS.');
         }
-        if (data?.message && !Array.isArray(data) && !data?.data) {
-          setListError(data.message || 'Không có dữ liệu Trạm BTS.');
-          setListVeTinh([]);
-          return;
-        }
-        setListVeTinh(normaliseList(data));
+        setListVeTinh([]);
       })
-      .catch((e) => { LOG('VeTinh error', e); setListError(e.message || 'Lỗi tải danh sách Trạm BTS.'); setListVeTinh([]); });
+      .catch((e) => {
+        const fromBrowse = browseSnapshotRef.current?.tramByTo?.[toQL];
+        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+          setListError('');
+          setListVeTinh(fromBrowse);
+          return;
+        }
+        LOG('VeTinh error', e);
+        setListError(e.message || 'Lỗi tải danh sách Trạm BTS.');
+        setListVeTinh([]);
+      });
   }, [toQL, authorization]);
 
   // Chọn Trạm BTS → chỉ load danh sách Thiết bị OLT
@@ -263,10 +322,34 @@ export default function TraCuuSP2Page() {
       .then(({ ok, data }) => {
         const listOlt = normaliseList(data);
         LOG('OLT data', { ok, len: listOlt.length });
+        const badPayload = data?.message && !Array.isArray(data) && !data?.data;
+        if (ok && !badPayload) {
+          setListError('');
+          setListThietBiOlt(listOlt);
+          return;
+        }
+        const key = `${toQL}|${veTinh}`;
+        const fromBrowse = browseSnapshotRef.current?.oltByTram?.[key];
+        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+          setListError('');
+          setListThietBiOlt(fromBrowse);
+          return;
+        }
         if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Thiết bị OLT.');
-        if (data?.message && !Array.isArray(data) && !data?.data) { setListThietBiOlt([]); } else { setListThietBiOlt(listOlt); }
+        setListThietBiOlt([]);
       })
-      .catch((e) => { LOG('OLT error', e); setListError(e.message || 'Lỗi tải OLT.'); setListThietBiOlt([]); });
+      .catch((e) => {
+        const key = `${toQL}|${veTinh}`;
+        const fromBrowse = browseSnapshotRef.current?.oltByTram?.[key];
+        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+          setListError('');
+          setListThietBiOlt(fromBrowse);
+          return;
+        }
+        LOG('OLT error', e);
+        setListError(e.message || 'Lỗi tải OLT.');
+        setListThietBiOlt([]);
+      });
   }, [veTinh, toQL, authorization]);
 
   // Chọn Thiết bị OLT → load danh sách Card OLT (body { id: THIETBI_ID })
@@ -285,11 +368,34 @@ export default function TraCuuSP2Page() {
       .then(({ ok, data }) => {
         const list = normaliseList(data);
         LOG('Card OLT data', { ok, len: list.length });
+        const badPayload = data?.message && !Array.isArray(data) && !data?.data;
+        if (ok && !badPayload) {
+          if (list.length === 0) setListError('Không có Card OLT cho thiết bị này.');
+          else setListError('');
+          setListCardOlt(list);
+          return;
+        }
+        const fromBrowse = browseSnapshotRef.current?.cardByOlt?.[thietBiOlt];
+        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+          setListError('');
+          setListCardOlt(fromBrowse);
+          return;
+        }
         if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Card OLT.');
         else if (ok && list.length === 0) setListError('Không có Card OLT cho thiết bị này.');
-        if (data?.message && !Array.isArray(data) && !data?.data) { setListCardOlt([]); } else { setListCardOlt(list); }
+        setListCardOlt([]);
       })
-      .catch((e) => { LOG('Card OLT error', e); setListError(e.message || 'Lỗi tải Card OLT.'); setListCardOlt([]); });
+      .catch((e) => {
+        const fromBrowse = browseSnapshotRef.current?.cardByOlt?.[thietBiOlt];
+        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+          setListError('');
+          setListCardOlt(fromBrowse);
+          return;
+        }
+        LOG('Card OLT error', e);
+        setListError(e.message || 'Lỗi tải Card OLT.');
+        setListCardOlt([]);
+      });
   }, [thietBiOlt, authorization]);
 
   // Chọn Card OLT → load danh sách Port OLT từ API (layDsPortOltTheoCardOlt), không dùng danh sách cố định
@@ -311,12 +417,75 @@ export default function TraCuuSP2Page() {
       .then(({ ok, data }) => {
         const list = normaliseList(data);
         LOG('Port OLT data', { ok, len: list.length });
+        const badPayload = data?.message && !Array.isArray(data) && !data?.data;
+        if (ok && !badPayload) {
+          setListError('');
+          setListPortOlt(list);
+          return;
+        }
+        const fromBrowse = browseSnapshotRef.current?.portByCard?.[cardOlt];
+        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+          setListError('');
+          setListPortOlt(fromBrowse);
+          return;
+        }
         if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Port OLT.');
-        if (data?.message && !Array.isArray(data) && !data?.data) { setListPortOlt([]); } else { setListPortOlt(list); }
+        setListPortOlt([]);
       })
-      .catch((e) => { LOG('Port OLT error', e); setListError(e.message || 'Lỗi tải Port OLT.'); setListPortOlt([]); })
+      .catch((e) => {
+        const fromBrowse = browseSnapshotRef.current?.portByCard?.[cardOlt];
+        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+          setListError('');
+          setListPortOlt(fromBrowse);
+          return;
+        }
+        LOG('Port OLT error', e);
+        setListError(e.message || 'Lỗi tải Port OLT.');
+        setListPortOlt([]);
+      })
       .finally(() => setLoadingPortOlt(false));
   }, [cardOlt, authorization]);
+
+  useEffect(() => {
+    const snap = browseSnapshot;
+    if (!snap?.tramByTo || !toQL) return;
+    setListVeTinh((prev) => {
+      if (prev.length > 0) return prev;
+      const from = snap.tramByTo[toQL];
+      return Array.isArray(from) && from.length ? from : prev;
+    });
+  }, [browseSnapshot, toQL]);
+
+  useEffect(() => {
+    const snap = browseSnapshot;
+    if (!snap?.oltByTram || !toQL || !veTinh) return;
+    const key = `${toQL}|${veTinh}`;
+    setListThietBiOlt((prev) => {
+      if (prev.length > 0) return prev;
+      const from = snap.oltByTram[key];
+      return Array.isArray(from) && from.length ? from : prev;
+    });
+  }, [browseSnapshot, toQL, veTinh]);
+
+  useEffect(() => {
+    const snap = browseSnapshot;
+    if (!snap?.cardByOlt || !thietBiOlt) return;
+    setListCardOlt((prev) => {
+      if (prev.length > 0) return prev;
+      const from = snap.cardByOlt[thietBiOlt];
+      return Array.isArray(from) && from.length ? from : prev;
+    });
+  }, [browseSnapshot, thietBiOlt]);
+
+  useEffect(() => {
+    const snap = browseSnapshot;
+    if (!snap?.portByCard || !cardOlt) return;
+    setListPortOlt((prev) => {
+      if (prev.length > 0) return prev;
+      const from = snap.portByCard[cardOlt];
+      return Array.isArray(from) && from.length ? from : prev;
+    });
+  }, [browseSnapshot, cardOlt]);
 
   const handleUnlockAuth = (e) => {
     e.preventDefault();
@@ -363,6 +532,7 @@ export default function TraCuuSP2Page() {
         server: pwd ? { adminPassword: pwd, batchSize: 25 } : null,
       });
       await refreshServerMeta();
+      await refreshBrowseSnapshot();
       if (!result.server) {
         const meta = await getSyncMeta();
         const fp = await authFingerprint(auth);
@@ -810,7 +980,7 @@ export default function TraCuuSP2Page() {
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">
-                  Dữ liệu lấy từ API hoặc cache. Quản trị: <strong>Cài đặt</strong> (mật khẩu) để token, <strong>đồng bộ S2</strong> và tùy chọn cache. Mọi người dùng được nếu đã <strong>Lưu token lên server</strong>.
+                  Dữ liệu lấy từ API hoặc cache. Sau <strong>đồng bộ S2</strong> lên server, danh mục (dropdown) và kết quả có thể dùng từ snapshot/cache khi token OneBSS hết hạn. Quản trị: <strong>Cài đặt</strong> (mật khẩu) để token, đồng bộ và tùy chọn cache.
                 </p>
               </div>
             </form>

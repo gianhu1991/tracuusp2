@@ -6,6 +6,8 @@ import {
   sp2ServerSetMeta,
   sp2ServerTruncate,
   sp2ServerUpsertBatch,
+  sp2ServerGetBrowseSnapshot,
+  sp2ServerSetBrowseSnapshot,
 } from '../../../lib/sp2-server-cache';
 import { sp2CacheKey } from '../../../lib/sp2-cache-key';
 
@@ -24,6 +26,18 @@ export async function GET(request) {
         return NextResponse.json({ ok: false, message: 'Supabase chưa cấu hình.' }, { status: 503 });
       }
       return NextResponse.json({ ok: true, meta });
+    }
+
+    if (searchParams.get('browse') === '1') {
+      const configured = await sp2ServerConfigured();
+      if (!configured) {
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', snapshot: null }, { status: 503 });
+      }
+      const { ok, snapshot } = await sp2ServerGetBrowseSnapshot();
+      if (!ok) {
+        return NextResponse.json({ ok: false, message: 'Lỗi đọc snapshot danh mục.', snapshot: null }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, snapshot });
     }
 
     const keyBody = {
@@ -58,7 +72,7 @@ export async function GET(request) {
 
 /**
  * POST: quản trị — body JSON
- * { password, action: 'clear' | 'batch' | 'meta', batch?: [{ key, data }], meta?: object }
+ * { password, action: 'clear' | 'batch' | 'meta' | 'set_browse', batch?: [{ key, data }], meta?: object, snapshot?: object }
  */
 export async function POST(request) {
   try {
@@ -113,6 +127,18 @@ export async function POST(request) {
       const ok = await sp2ServerSetMeta(body.meta ?? {});
       if (!ok) {
         return NextResponse.json({ ok: false, message: 'Không lưu được meta.' }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'set_browse') {
+      const snap = body.snapshot;
+      if (!snap || typeof snap !== 'object' || snap.v !== 1) {
+        return NextResponse.json({ ok: false, message: 'snapshot không hợp lệ (cần v: 1).' }, { status: 400 });
+      }
+      const ok = await sp2ServerSetBrowseSnapshot(snap);
+      if (!ok) {
+        return NextResponse.json({ ok: false, message: 'Không lưu được snapshot danh mục.' }, { status: 500 });
       }
       return NextResponse.json({ ok: true });
     }
