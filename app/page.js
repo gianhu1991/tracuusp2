@@ -358,7 +358,8 @@ export default function TraCuuSP2Page() {
         auth,
         signal: syncAbortRef.current.signal,
         onProgress: (p) => setSyncProgress(p),
-        delayMs: 120,
+        delayMs: 35,
+        concurrency: 5,
         server: pwd ? { adminPassword: pwd, batchSize: 25 } : null,
       });
       await refreshServerMeta();
@@ -685,7 +686,7 @@ export default function TraCuuSP2Page() {
                   <div className="mt-5 pt-5 border-t border-slate-200 space-y-3">
                     <p className="text-xs font-semibold text-slate-700">Đồng bộ toàn bộ S2 &amp; cache tra cứu</p>
                     <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                      Quét Tổ KT → Trạm → OLT → Card → Port và gọi tra cứu từng port. Nhập <strong>mật khẩu quản trị</strong> (cùng «Lưu token lên server») rồi đồng bộ để lưu lên <strong>Supabase</strong> cho mọi người dùng. Để trống mật khẩu thì chỉ lưu trên trình duyệt này. Cần bảng <code className="text-indigo-700 bg-white px-1 rounded">sp2_port_cache</code> (xem VERCEL-SETUP.md).
+                      Quét Tổ KT → Trạm → OLT → Card → Port và gọi tra cứu theo lô (vài port song song) để nhanh hơn. Nhập <strong>mật khẩu quản trị</strong> (cùng «Lưu token lên server») để lưu lên <strong>Supabase</strong>. Để trống mật khẩu thì chỉ lưu trên trình duyệt này. Cần bảng <code className="text-indigo-700 bg-white px-1 rounded">sp2_port_cache</code> (xem VERCEL-SETUP.md). Số port lớn vẫn có thể mất nhiều phút.
                     </p>
                     <div className="max-w-lg">
                       <label className="block text-[11px] sm:text-xs text-slate-600">
