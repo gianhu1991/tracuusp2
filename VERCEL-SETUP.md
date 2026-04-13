@@ -23,7 +23,26 @@ create table if not exists app_config (
   key text primary key,
   value text
 );
+
+-- Cache tra cứu S2 theo port (dùng chung cho mọi người dùng app, sau khi quản trị «Đồng bộ toàn bộ S2» có mật khẩu)
+create table if not exists sp2_port_cache (
+  cache_key text primary key,
+  data jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+-- (Tuỳ chọn) Xóa toàn bộ cache port một lệnh — API sẽ gọi RPC này khi bắt đầu đồng bộ
+create or replace function public.truncate_sp2_port_cache()
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  truncate table sp2_port_cache;
+$$;
 ```
+
+Meta lần đồng bộ ghi vào `app_config` với key `sp2_sync_meta` (JSON), không cần tạo bảng thêm.
 
 3. Vào **Project Settings** → **API**:
    - Copy **Project URL** (dùng làm `NEXT_PUBLIC_SUPABASE_URL`).

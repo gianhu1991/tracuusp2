@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { authFingerprint, getPortCache, getSyncMeta, sp2CacheKey } from '../lib/sp2-local-cache';
+import { runFullSp2Sync } from '../lib/sp2-full-sync';
 
 const PLACEHOLDER = '-- Chọn --';
 
@@ -48,12 +50,76 @@ export default function TraCuuSP2Page() {
   const [listError, setListError] = useState('');
   const [showCopyToast, setShowCopyToast] = useState(false);
 
+  const [syncRunning, setSyncRunning] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(null);
+  const [lastSyncInfo, setLastSyncInfo] = useState(null);
+  const [chiTrongCache, setChiTrongCache] = useState(false);
+  const [boQuaCache, setBoQuaCache] = useState(false);
+  const [adminPasswordForSync, setAdminPasswordForSync] = useState('');
+  const [serverSyncMeta, setServerSyncMeta] = useState(null);
+  const syncAbortRef = useRef(null);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setAuthorization(localStorage.getItem(STORAGE_AUTH) || '');
       setAuthUnlocked(sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) === '1');
     }
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const meta = await getSyncMeta();
+        const fp = await authFingerprint(authorization || '');
+        if (cancelled) return;
+        if (meta?.authFingerprint && fp && meta.authFingerprint === fp) {
+          setLastSyncInfo(meta);
+        } else {
+          setLastSyncInfo(null);
+        }
+      } catch {
+        if (!cancelled) setLastSyncInfo(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authorization]);
+
+  async function refreshServerMeta() {
+    try {
+      const res = await fetch('/api/sp2-cache?meta=1');
+      const j = await res.json().catch(() => ({}));
+      if (j.ok) setServerSyncMeta(j.meta ?? null);
+      else setServerSyncMeta(null);
+    } catch {
+      setServerSyncMeta(null);
+    }
+  }
+
+  useEffect(() => {
+    refreshServerMeta();
+  }, []);
+
+  /** @returns {Promise<undefined | null | unknown[]>} undefined=không dùng được server; null=chưa có dòng; mảng=đã cache */
+  async function fetchServerPortCache(keyBody) {
+    try {
+      const q = new URLSearchParams({
+        toQL: keyBody.toQL || '',
+        veTinh: keyBody.veTinh || '',
+        thietBiOlt: keyBody.thietBiOlt || '',
+        cardOlt: keyBody.cardOlt || '',
+        portOlt: keyBody.portOlt || '',
+      });
+      const res = await fetch(`/api/sp2-cache?${q}`);
+      if (res.status === 503) return undefined;
+      const j = await res.json().catch(() => ({}));
+      if (!j.ok) return undefined;
+      if (!j.hit) return null;
+      return Array.isArray(j.data) ? j.data : [];
+    } catch {
+      return undefined;
+    }
+  }
 
   function normaliseList(res) {
     if (Array.isArray(res)) return res;
@@ -274,6 +340,50 @@ export default function TraCuuSP2Page() {
     if (typeof window !== 'undefined') localStorage.setItem(STORAGE_AUTH, value);
   };
 
+  const handleHuyDongBo = () => {
+    try {
+      syncAbortRef.current?.abort();
+    } catch (_) {}
+  };
+
+  const handleDongBoToanBo = async () => {
+    const auth = (authorization && authorization.trim()) || '';
+    setListError('');
+    syncAbortRef.current = new AbortController();
+    setSyncRunning(true);
+    setSyncProgress({ phase: 'scan', done: 0, total: 0, label: 'Đang chuẩn bị…' });
+    try {
+      const pwd = adminPasswordForSync.trim();
+      const result = await runFullSp2Sync({
+        auth,
+        signal: syncAbortRef.current.signal,
+        onProgress: (p) => setSyncProgress(p),
+        delayMs: 120,
+        server: pwd ? { adminPassword: pwd, batchSize: 25 } : null,
+      });
+      await refreshServerMeta();
+      if (!result.server) {
+        const meta = await getSyncMeta();
+        const fp = await authFingerprint(auth);
+        if (meta?.authFingerprint === fp) setLastSyncInfo(meta);
+      } else {
+        setLastSyncInfo(null);
+      }
+      if (result.aborted) {
+        setListError(`Đã dừng đồng bộ. Đã xử lý ${result.completed ?? 0}/${result.total ?? '—'} port.`);
+      } else if (result.errors > 0) {
+        setListError(`Đồng bộ xong với ${result.errors} lỗi (tra cứu API) trên ${result.total} port. Kiểm tra token hoặc chạy lại.`);
+      }
+    } catch (err) {
+      LOG('Đồng bộ toàn bộ', err);
+      setListError(err.message || 'Lỗi đồng bộ toàn bộ.');
+    } finally {
+      setSyncRunning(false);
+      syncAbortRef.current = null;
+      setSyncProgress(null);
+    }
+  };
+
   const handleSaveToServer = async (e) => {
     e.preventDefault();
     setSaveToServerStatus('saving');
@@ -323,8 +433,67 @@ export default function TraCuuSP2Page() {
     if (useThietBiOlt && thietBiOlt) body.thietBiOlt = thietBiOlt;
     if (usePortOlt && portOlt !== '') body.portOlt = portOlt;
     LOG('Tra cứu', 'Request body', body);
+
+    const authTrim = (authorization && authorization.trim()) || '';
+    const keyBody = {
+      toQL: body.toQL ?? '',
+      veTinh: body.veTinh ?? '',
+      thietBiOlt: body.thietBiOlt ?? '',
+      cardOlt: body.cardOlt ?? '',
+      portOlt: body.portOlt !== undefined && body.portOlt !== null ? String(body.portOlt) : '',
+    };
+    const cacheKey = sp2CacheKey(keyBody);
+
     try {
-      const headers = { 'Content-Type': 'application/json', Authorization: (authorization && authorization.trim()) || '' };
+      const fp = await authFingerprint(authTrim);
+
+      if (chiTrongCache) {
+        const srv = await fetchServerPortCache(keyBody);
+        if (srv !== undefined && srv !== null) {
+          const message =
+            srv.length === 0
+              ? 'Không có bản ghi trong cache chung (Supabase) cho port đã chọn.'
+              : null;
+          setKetQua({ data: srv, message, fromCache: 'server' });
+          return;
+        }
+        const cached = await getPortCache(cacheKey, fp);
+        if (cached === null) {
+          setLoi(
+            'Chưa có dữ liệu đồng bộ cho bộ lọc này. Quản trị chạy «Đồng bộ toàn bộ S2» kèm mật khẩu (lưu cache chung Supabase), hoặc tắt «Chỉ tra cứu từ cache».'
+          );
+          return;
+        }
+        const message =
+          cached.length === 0
+            ? 'Không có bản ghi trong bộ nhớ trình duyệt cho port đã chọn.'
+            : null;
+        setKetQua({ data: cached, message, fromCache: 'local' });
+        return;
+      }
+
+      if (!boQuaCache) {
+        const srv = await fetchServerPortCache(keyBody);
+        if (srv !== undefined && srv !== null) {
+          const message =
+            srv.length === 0
+              ? 'Không có bản ghi trong cache chung. Bật «Luôn gọi API» để hỏi lại OneBSS.'
+              : null;
+          setKetQua({ data: srv, message, fromCache: 'server' });
+          return;
+        }
+        const cached = await getPortCache(cacheKey, fp);
+        if (cached !== null) {
+          const message =
+            cached.length === 0
+              ? 'Không có bản ghi trong bộ nhớ trình duyệt. Bật «Luôn gọi API» để hỏi lại server.'
+              : null;
+          setKetQua({ data: cached, message, fromCache: 'local' });
+          return;
+        }
+      }
+
+      const headers = { 'Content-Type': 'application/json', Authorization: authTrim };
       const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({}));
       LOG('Tra cứu', 'Response', { status: res.status, ok: res.ok, data });
@@ -334,7 +503,7 @@ export default function TraCuuSP2Page() {
       }
       const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? []);
       const message = data?.message || (list.length === 0 ? 'Không có bản ghi nào. Thử chọn đủ Tổ KT, Trạm BTS, Thiết bị OLT, Port OLT và kiểm tra Authorization.' : null);
-      setKetQua({ data: Array.isArray(list) ? list : [], message });
+      setKetQua({ data: Array.isArray(list) ? list : [], message, fromCache: 'api' });
     } catch (err) {
       LOG('Tra cứu', 'Lỗi', err);
       setLoi(err.message || 'Lỗi kết nối.');
@@ -488,6 +657,103 @@ export default function TraCuuSP2Page() {
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">Dữ liệu lấy từ API. Nếu quản trị đã <strong>Lưu token lên server</strong>, mọi người dùng được. Không tải được: nhập token trong Cài đặt hoặc nhờ quản trị lưu token.</p>
+                <div className="mt-3 sm:mt-4 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3 space-y-2">
+                  <p className="text-xs font-semibold text-slate-700">Đồng bộ toàn bộ S2</p>
+                  <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
+                    Quét Tổ KT → Trạm → OLT → Card → Port và gọi tra cứu từng port. Nhập <strong>mật khẩu quản trị</strong> (cùng mật khẩu «Lưu token lên server») rồi đồng bộ để lưu kết quả lên <strong>Supabase</strong> — mọi người mở app đều tra cứu chung được. Để trống mật khẩu thì chỉ lưu trên trình duyệt này (IndexedDB). Cần tạo bảng <code className="text-indigo-700 bg-white px-1 rounded">sp2_port_cache</code> trên Supabase (xem VERCEL-SETUP.md).
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-end max-w-lg">
+                    <label className="flex-1 block text-[11px] sm:text-xs text-slate-600">
+                      Mật khẩu quản trị (để lưu cache chung)
+                      <input
+                        type="password"
+                        value={adminPasswordForSync}
+                        onChange={(e) => setAdminPasswordForSync(e.target.value)}
+                        placeholder="Trống = chỉ lưu trên máy này"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+                        autoComplete="off"
+                      />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDongBoToanBo}
+                      disabled={syncRunning}
+                      className="rounded-lg bg-indigo-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 min-h-[40px]"
+                    >
+                      {syncRunning ? 'Đang đồng bộ…' : 'Đồng bộ toàn bộ S2'}
+                    </button>
+                    {syncRunning && (
+                      <button type="button" onClick={handleHuyDongBo} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]">
+                        Hủy
+                      </button>
+                    )}
+                  </div>
+                  {syncProgress && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] text-slate-600">
+                        <span className="truncate pr-2" title={syncProgress.label}>{syncProgress.label}</span>
+                        {syncProgress.total > 0 && (
+                          <span className="shrink-0">{syncProgress.done}/{syncProgress.total}</span>
+                        )}
+                      </div>
+                      {syncProgress.total > 0 && (
+                        <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+                          <div
+                            className="h-full bg-indigo-500 transition-[width] duration-300"
+                            style={{ width: `${Math.min(100, Math.round((syncProgress.done / syncProgress.total) * 100))}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {serverSyncMeta?.lastSyncAt != null && (
+                    <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5">
+                      <span className="font-semibold">Cache chung (Supabase):</span>{' '}
+                      {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
+                      {serverSyncMeta.lastSyncTotal != null && ` — ${serverSyncMeta.lastSyncTotal} port`}
+                      {serverSyncMeta.lastSyncErrors > 0 && ` — ${serverSyncMeta.lastSyncErrors} lỗi`}
+                      {serverSyncMeta.lastSyncAborted && ' — đã dừng giữa chừng'}
+                    </p>
+                  )}
+                  {lastSyncInfo?.lastSyncAt && (
+                    <p className="text-[11px] text-slate-500">
+                      Đồng bộ cục bộ (trình duyệt này, đúng token đang nhập):{' '}
+                      {new Date(lastSyncInfo.lastSyncAt).toLocaleString('vi-VN')}
+                      {lastSyncInfo.lastSyncTotal != null && ` — ${lastSyncInfo.lastSyncTotal} port`}
+                      {lastSyncInfo.lastSyncErrors > 0 && ` — ${lastSyncInfo.lastSyncErrors} lỗi`}
+                    </p>
+                  )}
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 pt-1">
+                    <label className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={chiTrongCache}
+                        onChange={(e) => {
+                          const v = e.target.checked;
+                          setChiTrongCache(v);
+                          if (v) setBoQuaCache(false);
+                        }}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      Chỉ tra cứu từ cache (Supabase + trình duyệt, không gọi API)
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={boQuaCache}
+                        onChange={(e) => {
+                          const v = e.target.checked;
+                          setBoQuaCache(v);
+                          if (v) setChiTrongCache(false);
+                        }}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      Luôn gọi API (bỏ qua bộ nhớ)
+                    </label>
+                  </div>
+                </div>
               </div>
             </form>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -514,8 +780,20 @@ export default function TraCuuSP2Page() {
               )}
               {ketQua != null && !loi && (
                 <div className="w-full overflow-x-auto flex-1 min-h-0 -mx-1 sm:mx-0">
-                  <h3 className="text-slate-800 font-bold text-sm sm:text-base mb-2 sm:mb-3">
-                    Kết quả tra cứu ({Array.isArray(ketQua.data) ? ketQua.data.length : 0} Spliter cấp 2)
+                  <h3 className="text-slate-800 font-bold text-sm sm:text-base mb-2 sm:mb-3 flex flex-wrap items-center gap-2">
+                    <span>
+                      Kết quả tra cứu ({Array.isArray(ketQua.data) ? ketQua.data.length : 0} Spliter cấp 2)
+                    </span>
+                    {ketQua.fromCache === 'server' && (
+                      <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200">
+                        Cache chung (Supabase)
+                      </span>
+                    )}
+                    {ketQua.fromCache === 'local' && (
+                      <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        Trình duyệt này
+                      </span>
+                    )}
                   </h3>
                   {ketQua.message && <p className="text-slate-600 text-xs sm:text-sm mb-2 sm:mb-3">{ketQua.message}</p>}
                   {Array.isArray(ketQua.data) && ketQua.data.length > 0 ? (
