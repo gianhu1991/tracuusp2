@@ -63,6 +63,8 @@ export default function TraCuuSP2Page() {
   const [ponOneSp2Stats, setPonOneSp2Stats] = useState([]);
   const [ponStatsLoading, setPonStatsLoading] = useState(false);
   const [ponStatsError, setPonStatsError] = useState('');
+  const [ponExporting, setPonExporting] = useState(false);
+  const [ponExportToQl, setPonExportToQl] = useState('');
   const syncAbortRef = useRef(null);
 
   useEffect(() => {
@@ -149,9 +151,45 @@ export default function TraCuuSP2Page() {
     }
   }
 
+  const handleExportPonOneSp2Excel = async () => {
+    setPonExporting(true);
+    setPonStatsError('');
+    try {
+      const q = new URLSearchParams({ stats: 'one_sp2_excel' });
+      if (ponExportToQl) q.set('toQL', ponExportToQl);
+      const res = await fetch(`/api/sp2-cache?${q.toString()}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.message || `Không xuất được Excel (${res.status}).`);
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get('content-disposition') || '';
+      const m = dispo.match(/filename="([^"]+)"/i);
+      const filename = m?.[1] || `pon_1sp2_chi_tiet_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setPonStatsError(e?.message || 'Lỗi xuất Excel.');
+    } finally {
+      setPonExporting(false);
+    }
+  };
+
   useEffect(() => {
     refreshPonOneSp2Stats();
   }, []);
+
+  useEffect(() => {
+    if (!ponExportToQl) return;
+    const exists = ponOneSp2Stats.some((r) => String(r?.toQL || '') === ponExportToQl);
+    if (!exists) setPonExportToQl('');
+  }, [ponOneSp2Stats, ponExportToQl]);
 
   /** Khi chưa có danh sách Tổ KT từ API (vd. thiếu token) nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
   useEffect(() => {
@@ -953,14 +991,41 @@ export default function TraCuuSP2Page() {
                         <p className="text-[11px] font-semibold text-slate-700">
                           Tỷ lệ cổng PON có đúng 1 SP2 theo Tổ KT
                         </p>
-                        <button
-                          type="button"
-                          onClick={refreshPonOneSp2Stats}
-                          disabled={ponStatsLoading}
-                          className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          {ponStatsLoading ? 'Đang tải…' : 'Làm mới'}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={ponExportToQl}
+                            onChange={(e) => setPonExportToQl(e.target.value)}
+                            className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                            title="Lọc theo Tổ KT để xuất Excel"
+                          >
+                            <option value="">Tất cả Tổ KT</option>
+                            {ponOneSp2Stats.map((row) => {
+                              const key = String(row?.toQL || '');
+                              if (!key) return null;
+                              return (
+                                <option key={key} value={key}>
+                                  {toQlDisplayName(key)}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={handleExportPonOneSp2Excel}
+                            disabled={ponExporting}
+                            className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                          >
+                            {ponExporting ? 'Đang xuất…' : (ponExportToQl ? 'Xuất Excel theo tổ' : 'Xuất Excel 1 SP2')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={refreshPonOneSp2Stats}
+                            disabled={ponStatsLoading}
+                            className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {ponStatsLoading ? 'Đang tải…' : 'Làm mới'}
+                          </button>
+                        </div>
                       </div>
                       <p className="text-[10px] text-slate-500 mb-2">
                         Công thức: <strong>số cổng có đúng 1 SP2 / tổng số cổng đã cache</strong>.

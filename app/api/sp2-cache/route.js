@@ -9,6 +9,7 @@ import {
   sp2ServerGetBrowseSnapshot,
   sp2ServerSetBrowseSnapshot,
   sp2ServerGetPonOneSp2StatsByToQL,
+  sp2ServerGetPonOneSp2DetailRows,
 } from '../../../lib/sp2-server-cache';
 import { sp2CacheKey } from '../../../lib/sp2-cache-key';
 
@@ -51,6 +52,51 @@ export async function GET(request) {
         return NextResponse.json({ ok: false, message: resStats.message || 'Lỗi đọc thống kê.', rows: [] }, { status: 500 });
       }
       return NextResponse.json({ ok: true, rows: resStats.rows ?? [] });
+    }
+
+    if (searchParams.get('stats') === 'one_sp2_excel') {
+      const configured = await sp2ServerConfigured();
+      if (!configured) {
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+      }
+      const toQlFilter = (searchParams.get('toQL') || '').trim();
+      const detailRes = await sp2ServerGetPonOneSp2DetailRows();
+      if (!detailRes.ok) {
+        return NextResponse.json({ ok: false, message: detailRes.message || 'Lỗi xuất dữ liệu.' }, { status: 500 });
+      }
+
+      const xlsx = await import('xlsx');
+      const now = new Date();
+      const datePart = now.toISOString().slice(0, 10);
+      const rowsSrc = Array.isArray(detailRes.rows) ? detailRes.rows : [];
+      const filteredRows = toQlFilter ? rowsSrc.filter((r) => String(r?.toQL || '') === toQlFilter) : rowsSrc;
+      const safeToQl = toQlFilter ? toQlFilter.replace(/[^a-zA-Z0-9_-]+/g, '_') : '';
+      const filename = toQlFilter
+        ? `pon_1sp2_chi_tiet_toql_${safeToQl || 'loc'}_${datePart}.xlsx`
+        : `pon_1sp2_chi_tiet_${datePart}.xlsx`;
+      const excelRows = filteredRows.map((r, idx) => ({
+        STT: idx + 1,
+        TO_KT_ID: r.toQL || '',
+        TRAM_BTS_ID: r.veTinh || '',
+        OLT_ID: r.thietBiOlt || '',
+        CARD_OLT_ID: r.cardOlt || '',
+        PORT_OLT_ID: r.portOlt || '',
+        TEN_SP2: r.tenSp2 || '',
+        CACHE_KEY: r.cacheKey || '',
+      }));
+      const ws = xlsx.utils.json_to_sheet(excelRows);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, 'PON_1_SP2');
+      const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
     }
 
     const keyBody = {
