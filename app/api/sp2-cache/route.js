@@ -18,6 +18,71 @@ function adminPasswordOk(password) {
   return adminPassword && password === adminPassword;
 }
 
+function pickFirst(...vals) {
+  for (const v of vals) {
+    if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+  }
+  return '';
+}
+
+function toQlId(item) {
+  if (!item || typeof item !== 'object') return '';
+  return pickFirst(item.donviId, item.DONVI_ID, item.id, item.ma, item.value, item.code);
+}
+
+function tramId(item) {
+  if (!item || typeof item !== 'object') return '';
+  return pickFirst(item.DONVI_ID, item.donviId, item.id, item.ma, item.value, item.code);
+}
+
+function oltId(item) {
+  if (!item || typeof item !== 'object') return '';
+  return pickFirst(item.THIETBI_ID, item.OLT_ID, item.id, item.ma, item.value, item.code);
+}
+
+function cardId(item) {
+  if (!item || typeof item !== 'object') return '';
+  const keyVal = typeof item.KEY === 'string' ? item.KEY : '';
+  const fromKey = keyVal.includes('#') ? keyVal.split('#')[1]?.trim() || '' : '';
+  return pickFirst(fromKey, item.CARD_ID, item.THIETBI_ID, item.SLOT_ID, item.PORTVL_ID, item.VITRI, item.id, item.ma, item.value, item.code);
+}
+
+function portId(item) {
+  if (!item || typeof item !== 'object') return '';
+  return pickFirst(item.PORTVL_ID, item.VITRI, item.id, item.value, item.code);
+}
+
+function toQlName(item, fallback = '') {
+  if (!item || typeof item !== 'object') return fallback;
+  return pickFirst(item.ten, item.TEN_DV, item.name, item.label, item.title, fallback);
+}
+
+function tramName(item, fallback = '') {
+  if (!item || typeof item !== 'object') return fallback;
+  return pickFirst(item.TEN_DV, item.ten, item.name, item.label, item.title, fallback);
+}
+
+function oltName(item, fallback = '') {
+  if (!item || typeof item !== 'object') return fallback;
+  return pickFirst(item.TEN_OLT, item.TEN_TB, item.ten, item.name, item.label, item.title, fallback);
+}
+
+function cardName(item, fallback = '') {
+  if (!item || typeof item !== 'object') return fallback;
+  const vitri = item.VITRI !== undefined && item.VITRI !== null ? `Slot ${item.VITRI}` : '';
+  return pickFirst(item.TEN_TB, vitri, item.ten, item.name, item.label, item.title, fallback);
+}
+
+function portName(item, fallback = '') {
+  if (!item || typeof item !== 'object') return fallback;
+  return pickFirst(item.VITRI, item.PORTVL_ID, item.ten, item.name, item.label, item.title, fallback);
+}
+
+function naturalNumToken(v) {
+  const m = String(v || '').match(/\d+/);
+  return m ? Number(m[0]) : Number.POSITIVE_INFINITY;
+}
+
 /** GET: ?toQL=&veTinh=&thietBiOlt=&cardOlt=&portOlt= → đọc cache chung; ?meta=1 → meta đồng bộ */
 export async function GET(request) {
   try {
@@ -70,16 +135,111 @@ export async function GET(request) {
       const datePart = now.toISOString().slice(0, 10);
       const rowsSrc = Array.isArray(detailRes.rows) ? detailRes.rows : [];
       const filteredRows = toQlFilter ? rowsSrc.filter((r) => String(r?.toQL || '') === toQlFilter) : rowsSrc;
+      const browseRes = await sp2ServerGetBrowseSnapshot();
+      const snap = browseRes?.ok && browseRes?.snapshot?.v === 1 ? browseRes.snapshot : null;
+
+      const toNameById = new Map();
+      const tramNameByToTram = new Map();
+      const oltNameByToTramOlt = new Map();
+      const cardNameByPath = new Map();
+      const portNameByPath = new Map();
+
+      const toList = Array.isArray(snap?.toKyThuat) ? snap.toKyThuat : [];
+      for (const item of toList) {
+        const id = toQlId(item);
+        if (!id) continue;
+        const name = toQlName(item, id);
+        toNameById.set(id, name);
+      }
+
+      const tramByTo = snap?.tramByTo && typeof snap.tramByTo === 'object' ? snap.tramByTo : {};
+      for (const [toId, list] of Object.entries(tramByTo)) {
+        if (!Array.isArray(list)) continue;
+        for (const item of list) {
+          const id = tramId(item);
+          if (!id) continue;
+          tramNameByToTram.set(`${toId}|${id}`, tramName(item, id));
+        }
+      }
+
+      const oltByTram = snap?.oltByTram && typeof snap.oltByTram === 'object' ? snap.oltByTram : {};
+      for (const [toTram, list] of Object.entries(oltByTram)) {
+        if (!Array.isArray(list)) continue;
+        for (const item of list) {
+          const id = oltId(item);
+          if (!id) continue;
+          oltNameByToTramOlt.set(`${toTram}|${id}`, oltName(item, id));
+        }
+      }
+
+      const cardByOlt = snap?.cardByOlt && typeof snap.cardByOlt === 'object' ? snap.cardByOlt : {};
+      for (const [oltIdKey, list] of Object.entries(cardByOlt)) {
+        if (!Array.isArray(list)) continue;
+        for (const item of list) {
+          const id = cardId(item);
+          if (!id) continue;
+          const name = cardName(item, id);
+          cardNameByPath.set(`${oltIdKey}|${id}`, name);
+        }
+      }
+
+      const portByCard = snap?.portByCard && typeof snap.portByCard === 'object' ? snap.portByCard : {};
+      for (const [cardIdKey, list] of Object.entries(portByCard)) {
+        if (!Array.isArray(list)) continue;
+        for (const item of list) {
+          const id = portId(item);
+          if (!id) continue;
+          const name = portName(item, id);
+          portNameByPath.set(`${cardIdKey}|${id}`, name);
+        }
+      }
+
+      const enrichedRows = filteredRows.map((r) => {
+        const toId = String(r?.toQL || '');
+        const tramIdKey = String(r?.veTinh || '');
+        const oltIdKey = String(r?.thietBiOlt || '');
+        const cardIdKey = String(r?.cardOlt || '');
+        const portIdKey = String(r?.portOlt || '');
+        const toTen = toNameById.get(toId) || toId;
+        const tramTen = tramNameByToTram.get(`${toId}|${tramIdKey}`) || tramIdKey;
+        const oltTen = oltNameByToTramOlt.get(`${toId}|${tramIdKey}|${oltIdKey}`) || oltIdKey;
+        const cardTen = cardNameByPath.get(`${oltIdKey}|${cardIdKey}`) || cardIdKey;
+        const portTen = portNameByPath.get(`${cardIdKey}|${portIdKey}`) || portIdKey;
+        return {
+          ...r,
+          toTen,
+          tramTen,
+          oltTen,
+          cardTen,
+          portTen,
+          _cardOrder: naturalNumToken(cardTen || cardIdKey),
+          _portOrder: naturalNumToken(portTen || portIdKey),
+        };
+      });
+      enrichedRows.sort((a, b) =>
+        String(a.toTen || '').localeCompare(String(b.toTen || '')) ||
+        String(a.tramTen || '').localeCompare(String(b.tramTen || '')) ||
+        String(a.oltTen || '').localeCompare(String(b.oltTen || '')) ||
+        (a._cardOrder - b._cardOrder) ||
+        String(a.cardTen || '').localeCompare(String(b.cardTen || '')) ||
+        (a._portOrder - b._portOrder) ||
+        String(a.portTen || '').localeCompare(String(b.portTen || ''))
+      );
       const safeToQl = toQlFilter ? toQlFilter.replace(/[^a-zA-Z0-9_-]+/g, '_') : '';
       const filename = toQlFilter
         ? `pon_1sp2_chi_tiet_toql_${safeToQl || 'loc'}_${datePart}.xlsx`
         : `pon_1sp2_chi_tiet_${datePart}.xlsx`;
-      const excelRows = filteredRows.map((r, idx) => ({
+      const excelRows = enrichedRows.map((r, idx) => ({
         STT: idx + 1,
+        TO_KT_TEN: r.toTen || '',
         TO_KT_ID: r.toQL || '',
+        TRAM_BTS_TEN: r.tramTen || '',
         TRAM_BTS_ID: r.veTinh || '',
+        OLT_TEN: r.oltTen || '',
         OLT_ID: r.thietBiOlt || '',
+        CARD_OLT_TEN: r.cardTen || '',
         CARD_OLT_ID: r.cardOlt || '',
+        PORT_OLT_TEN: r.portTen || '',
         PORT_OLT_ID: r.portOlt || '',
         TEN_SP2: r.tenSp2 || '',
         CACHE_KEY: r.cacheKey || '',
