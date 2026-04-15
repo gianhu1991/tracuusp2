@@ -8,6 +8,7 @@ import {
   sp2ServerUpsertBatch,
   sp2ServerGetBrowseSnapshot,
   sp2ServerSetBrowseSnapshot,
+  sp2ServerGetPonOneSp2StatsByToQL,
 } from '../../../lib/sp2-server-cache';
 import { sp2CacheKey } from '../../../lib/sp2-cache-key';
 
@@ -38,6 +39,18 @@ export async function GET(request) {
         return NextResponse.json({ ok: false, message: 'Lỗi đọc snapshot danh mục.', snapshot: null }, { status: 500 });
       }
       return NextResponse.json({ ok: true, snapshot });
+    }
+
+    if (searchParams.get('stats') === '1') {
+      const configured = await sp2ServerConfigured();
+      if (!configured) {
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', rows: [] }, { status: 503 });
+      }
+      const resStats = await sp2ServerGetPonOneSp2StatsByToQL();
+      if (!resStats.ok) {
+        return NextResponse.json({ ok: false, message: resStats.message || 'Lỗi đọc thống kê.', rows: [] }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, rows: resStats.rows ?? [] });
     }
 
     const keyBody = {

@@ -60,6 +60,9 @@ export default function TraCuuSP2Page() {
   const [boQuaCache, setBoQuaCache] = useState(false);
   const [adminPasswordForSync, setAdminPasswordForSync] = useState('');
   const [serverSyncMeta, setServerSyncMeta] = useState(null);
+  const [ponOneSp2Stats, setPonOneSp2Stats] = useState([]);
+  const [ponStatsLoading, setPonStatsLoading] = useState(false);
+  const [ponStatsError, setPonStatsError] = useState('');
   const syncAbortRef = useRef(null);
 
   useEffect(() => {
@@ -124,6 +127,30 @@ export default function TraCuuSP2Page() {
 
   useEffect(() => {
     refreshBrowseSnapshot();
+  }, []);
+
+  async function refreshPonOneSp2Stats() {
+    setPonStatsLoading(true);
+    setPonStatsError('');
+    try {
+      const res = await fetch('/api/sp2-cache?stats=1');
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) {
+        setPonOneSp2Stats([]);
+        setPonStatsError(j.message || `Không tải được thống kê (${res.status}).`);
+        return;
+      }
+      setPonOneSp2Stats(Array.isArray(j.rows) ? j.rows : []);
+    } catch (e) {
+      setPonOneSp2Stats([]);
+      setPonStatsError(e?.message || 'Lỗi tải thống kê.');
+    } finally {
+      setPonStatsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refreshPonOneSp2Stats();
   }, []);
 
   /** Khi chưa có danh sách Tổ KT từ API (vd. thiếu token) nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
@@ -193,6 +220,19 @@ export default function TraCuuSP2Page() {
     const vitri = item?.VITRI;
     if (vitri !== undefined && vitri !== null) return `Slot ${vitri}`;
     return item?.TEN_DV ?? item?.TEN_OLT ?? item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(optionValue(item) || '');
+  }
+
+  function toQlDisplayName(rawToQl) {
+    const key = String(rawToQl || '');
+    if (!key) return '—';
+    const pools = [
+      ...(Array.isArray(browseSnapshot?.toKyThuat) ? browseSnapshot.toKyThuat : []),
+      ...(Array.isArray(listToQL) ? listToQL : []),
+    ];
+    const found = pools.find((item) => optionValue(item) === key);
+    if (!found) return key;
+    const label = optionLabel(found);
+    return label ? `${label} (${key})` : key;
   }
 
   const LOG = (tag, ...args) => { try { console.log('[TracuuSP2]', tag, ...args); } catch (_) {} };
@@ -533,6 +573,7 @@ export default function TraCuuSP2Page() {
       });
       await refreshServerMeta();
       await refreshBrowseSnapshot();
+      await refreshPonOneSp2Stats();
       if (!result.server) {
         const meta = await getSyncMeta();
         const fp = await authFingerprint(auth);
@@ -907,6 +948,56 @@ export default function TraCuuSP2Page() {
                         {serverSyncMeta.lastSyncAborted && ' — đã dừng giữa chừng'}
                       </p>
                     )}
+                    <div className="rounded border border-slate-200 bg-white p-2.5">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <p className="text-[11px] font-semibold text-slate-700">
+                          Tỷ lệ cổng PON có đúng 1 SP2 theo Tổ KT
+                        </p>
+                        <button
+                          type="button"
+                          onClick={refreshPonOneSp2Stats}
+                          disabled={ponStatsLoading}
+                          className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          {ponStatsLoading ? 'Đang tải…' : 'Làm mới'}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mb-2">
+                        Công thức: <strong>số cổng có đúng 1 SP2 / tổng số cổng đã cache</strong>.
+                      </p>
+                      {ponStatsError && (
+                        <p className="text-[11px] text-red-600 mb-1">{ponStatsError}</p>
+                      )}
+                      {!ponStatsError && ponOneSp2Stats.length === 0 && !ponStatsLoading && (
+                        <p className="text-[11px] text-slate-500">Chưa có dữ liệu thống kê.</p>
+                      )}
+                      {ponOneSp2Stats.length > 0 && (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-[11px]">
+                            <thead>
+                              <tr className="border-b border-slate-200 text-slate-600">
+                                <th className="text-left py-1 pr-2 font-semibold">Tổ KT</th>
+                                <th className="text-right py-1 px-2 font-semibold">1 SP2</th>
+                                <th className="text-right py-1 px-2 font-semibold">Tổng cổng</th>
+                                <th className="text-right py-1 pl-2 font-semibold">Tỷ lệ</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ponOneSp2Stats.map((row) => (
+                                <tr key={String(row?.toQL || '')} className="border-b border-slate-100 last:border-b-0 text-slate-700">
+                                  <td className="py-1.5 pr-2">{toQlDisplayName(row?.toQL)}</td>
+                                  <td className="py-1.5 px-2 text-right">{Number(row?.oneSp2Ports || 0)}</td>
+                                  <td className="py-1.5 px-2 text-right">{Number(row?.totalPorts || 0)}</td>
+                                  <td className="py-1.5 pl-2 text-right font-semibold text-indigo-700">
+                                    {(Number(row?.ratioOneSp2 || 0) * 100).toFixed(1)}%
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
                     {lastSyncInfo?.lastSyncAt && (
                       <p className="text-[11px] text-slate-500">
                         Đồng bộ cục bộ (trình duyệt này):{' '}
