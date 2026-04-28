@@ -1217,6 +1217,8 @@ export default function TraCuuSP2Page() {
                         setAuthPasswordError('Vui lòng nhập mật khẩu quản trị để mở menu báo cáo.');
                         return;
                       }
+                      setShowSettings(true);
+                      setShowReportPanel(true);
                       setShowReportMenu((v) => !v);
                     }}
                     className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
