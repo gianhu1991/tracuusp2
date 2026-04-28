@@ -1405,6 +1405,7 @@ export default function TraCuuSP2Page() {
                     )}
                       </>
                     )}
+                    {showReportPanel && (
                     <div className="rounded border border-slate-200 bg-white p-2.5">
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                         <p className="text-[11px] font-semibold text-slate-700">{activeReport.label}</p>
@@ -1893,6 +1894,7 @@ export default function TraCuuSP2Page() {
                         </div>
                       )}
                     </div>
+                    )}
                     {!showReportPanel && lastSyncInfo?.lastSyncAt && (
                       <p className="text-[11px] text-slate-500">
                         Đồng bộ cục bộ (trình duyệt này):{' '}
