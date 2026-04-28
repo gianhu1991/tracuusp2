@@ -912,7 +912,7 @@ export default function TraCuuSP2Page() {
       }
       setAuthUnlocked(true);
       setShowSettings(true);
-      setShowReportPanel(true);
+      setShowReportPanel(Boolean(unlockToOpenReport));
       if (typeof window !== 'undefined') sessionStorage.setItem(STORAGE_AUTH_UNLOCKED, '1');
       setAuthPasswordInput('');
       if (unlockToOpenReport) {
