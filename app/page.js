@@ -13,6 +13,11 @@ const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_PASSWORD = '1234';
 const REPORT_MENU_ITEMS = [
   {
+    id: 'olt_pon_detail',
+    label: 'Chi tiết S2 theo OLT/PON',
+    description: 'Xem chi tiết cổng PON theo OLT và xuất Excel theo OLT.',
+  },
+  {
     id: 'pon_one_sp2',
     label: 'Tỷ lệ cổng PON có đúng 1 SP2',
     description: 'Theo dõi tỷ lệ 1 SP2 theo Tổ KT và xuất Excel.',
@@ -84,6 +89,12 @@ export default function TraCuuSP2Page() {
   const [ponStatsError, setPonStatsError] = useState('');
   const [ponExporting, setPonExporting] = useState(false);
   const [ponExportToQl, setPonExportToQl] = useState('');
+  const [oltPonDetailRows, setOltPonDetailRows] = useState([]);
+  const [oltPonOptions, setOltPonOptions] = useState([]);
+  const [oltPonLoading, setOltPonLoading] = useState(false);
+  const [oltPonError, setOltPonError] = useState('');
+  const [oltPonExporting, setOltPonExporting] = useState(false);
+  const [oltPonFilter, setOltPonFilter] = useState('');
   const syncAbortRef = useRef(null);
   const reportMenuRef = useRef(null);
 
@@ -216,8 +227,64 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  async function refreshOltPonDetailRows() {
+    setOltPonLoading(true);
+    setOltPonError('');
+    try {
+      const res = await fetch('/api/sp2-cache?stats=olt_pon_detail');
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) {
+        setOltPonDetailRows([]);
+        setOltPonOptions([]);
+        setOltPonError(j.message || `Không tải được báo cáo OLT/PON (${res.status}).`);
+        return;
+      }
+      const rows = Array.isArray(j.rows) ? j.rows : [];
+      const oltsFromApi = Array.isArray(j.olts) ? j.olts : [];
+      setOltPonDetailRows(rows);
+      setOltPonOptions(oltsFromApi);
+    } catch (e) {
+      setOltPonDetailRows([]);
+      setOltPonOptions([]);
+      setOltPonError(e?.message || 'Lỗi tải báo cáo OLT/PON.');
+    } finally {
+      setOltPonLoading(false);
+    }
+  }
+
+  const handleExportOltPonExcel = async () => {
+    setOltPonExporting(true);
+    setOltPonError('');
+    try {
+      const q = new URLSearchParams({ stats: 'olt_pon_excel' });
+      if (oltPonFilter) q.set('thietBiOlt', oltPonFilter);
+      const res = await fetch(`/api/sp2-cache?${q.toString()}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.message || `Không xuất được Excel OLT/PON (${res.status}).`);
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get('content-disposition') || '';
+      const m = dispo.match(/filename="([^"]+)"/i);
+      const filename = m?.[1] || `bao_cao_s2_chi_tiet_theo_olt_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setOltPonError(e?.message || 'Lỗi xuất Excel OLT/PON.');
+    } finally {
+      setOltPonExporting(false);
+    }
+  };
+
   useEffect(() => {
     refreshPonOneSp2Stats();
+    refreshOltPonDetailRows();
   }, []);
 
   useEffect(() => {
@@ -225,6 +292,12 @@ export default function TraCuuSP2Page() {
     const exists = ponOneSp2Stats.some((r) => String(r?.toQL || '') === ponExportToQl);
     if (!exists) setPonExportToQl('');
   }, [ponOneSp2Stats, ponExportToQl]);
+
+  useEffect(() => {
+    if (!oltPonFilter) return;
+    const exists = oltPonOptions.some((r) => String(r?.id || '') === oltPonFilter);
+    if (!exists) setOltPonFilter('');
+  }, [oltPonOptions, oltPonFilter]);
 
   /** Khi chưa có danh sách Tổ KT từ API (vd. thiếu token) nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
   useEffect(() => {
@@ -808,6 +881,9 @@ export default function TraCuuSP2Page() {
       ? Math.min(100, Math.round((syncProgress.done / syncProgress.total) * 100))
       : null;
   const activeReport = REPORT_MENU_ITEMS.find((item) => item.id === activeReportId) || REPORT_MENU_ITEMS[0];
+  const filteredOltPonRows = oltPonFilter
+    ? oltPonDetailRows.filter((row) => String(row?.thietBiOlt || '') === oltPonFilter)
+    : oltPonDetailRows;
 
   function DropRow({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
     return (
@@ -1081,7 +1157,94 @@ export default function TraCuuSP2Page() {
                           Menu báo cáo
                         </span>
                       </div>
-                      {activeReportId === 'pon_one_sp2' ? (
+                      {activeReportId === 'olt_pon_detail' ? (
+                        <>
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                            <p className="text-[11px] font-semibold text-slate-700">
+                              Chi tiết S2 theo OLT và cổng PON
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={oltPonFilter}
+                                onChange={(e) => setOltPonFilter(e.target.value)}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                title="Lọc theo OLT để xem/xuất Excel"
+                              >
+                                <option value="">Tất cả OLT</option>
+                                {oltPonOptions.map((item) => {
+                                  const id = String(item?.id || '');
+                                  if (!id) return null;
+                                  return (
+                                    <option key={id} value={id}>
+                                      {String(item?.name || id)}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={handleExportOltPonExcel}
+                                disabled={oltPonExporting}
+                                className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                              >
+                                {oltPonExporting ? 'Đang xuất…' : (oltPonFilter ? 'Xuất Excel theo OLT' : 'Xuất Excel tất cả OLT')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={refreshOltPonDetailRows}
+                                disabled={oltPonLoading}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              >
+                                {oltPonLoading ? 'Đang tải…' : 'Làm mới'}
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mb-2">
+                            Mỗi dòng là một cổng PON trong cache, có số lượng SP2 và danh sách tên SP2 tương ứng.
+                          </p>
+                          {oltPonError && (
+                            <p className="text-[11px] text-red-600 mb-1">{oltPonError}</p>
+                          )}
+                          {!oltPonError && filteredOltPonRows.length === 0 && !oltPonLoading && (
+                            <p className="text-[11px] text-slate-500">Chưa có dữ liệu báo cáo OLT/PON.</p>
+                          )}
+                          {filteredOltPonRows.length > 0 && (
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full text-[11px]">
+                                <thead>
+                                  <tr className="border-b border-slate-200 text-slate-600">
+                                    <th className="text-left py-1 pr-2 font-semibold">OLT</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Card</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Port PON</th>
+                                    <th className="text-right py-1 px-2 font-semibold">Số SP2</th>
+                                    <th className="text-left py-1 pl-2 font-semibold">Danh sách SP2</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {filteredOltPonRows.map((row, idx) => (
+                                    <tr
+                                      key={`${String(row?.cacheKey || '')}-${idx}`}
+                                      className="border-b border-slate-100 last:border-b-0 text-slate-700"
+                                    >
+                                      <td className="py-1.5 pr-2">
+                                        {String(row?.oltTen || row?.thietBiOlt || '—')}
+                                      </td>
+                                      <td className="py-1.5 px-2">{String(row?.cardTen || row?.cardOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.portTen || row?.portOlt || '—')}</td>
+                                      <td className="py-1.5 px-2 text-right font-semibold text-indigo-700">
+                                        {Number(row?.sp2Count || 0)}
+                                      </td>
+                                      <td className="py-1.5 pl-2 max-w-[520px] truncate" title={String(row?.tenSp2List || '')}>
+                                        {String(row?.tenSp2List || '—')}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </>
+                      ) : activeReportId === 'pon_one_sp2' ? (
                         <>
                           <div className="flex items-center justify-between gap-2 mb-1.5">
                             <p className="text-[11px] font-semibold text-slate-700">

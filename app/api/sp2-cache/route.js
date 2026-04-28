@@ -10,6 +10,7 @@ import {
   sp2ServerSetBrowseSnapshot,
   sp2ServerGetPonOneSp2StatsByToQL,
   sp2ServerGetPonOneSp2DetailRows,
+  sp2ServerGetPonSp2DetailRowsByOlt,
 } from '../../../lib/sp2-server-cache';
 import { sp2CacheKey } from '../../../lib/sp2-cache-key';
 
@@ -83,6 +84,89 @@ function naturalNumToken(v) {
   return m ? Number(m[0]) : Number.POSITIVE_INFINITY;
 }
 
+function buildBrowseNameMaps(snapshot) {
+  const snap = snapshot && snapshot.v === 1 ? snapshot : null;
+  const toNameById = new Map();
+  const tramNameByToTram = new Map();
+  const oltNameByToTramOlt = new Map();
+  const cardNameByPath = new Map();
+  const portNameByPath = new Map();
+
+  const toList = Array.isArray(snap?.toKyThuat) ? snap.toKyThuat : [];
+  for (const item of toList) {
+    const id = toQlId(item);
+    if (!id) continue;
+    toNameById.set(id, toQlName(item, id));
+  }
+
+  const tramByTo = snap?.tramByTo && typeof snap.tramByTo === 'object' ? snap.tramByTo : {};
+  for (const [toId, list] of Object.entries(tramByTo)) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const id = tramId(item);
+      if (!id) continue;
+      tramNameByToTram.set(`${toId}|${id}`, tramName(item, id));
+    }
+  }
+
+  const oltByTram = snap?.oltByTram && typeof snap.oltByTram === 'object' ? snap.oltByTram : {};
+  for (const [toTram, list] of Object.entries(oltByTram)) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const id = oltId(item);
+      if (!id) continue;
+      oltNameByToTramOlt.set(`${toTram}|${id}`, oltName(item, id));
+    }
+  }
+
+  const cardByOlt = snap?.cardByOlt && typeof snap.cardByOlt === 'object' ? snap.cardByOlt : {};
+  for (const [oltIdKey, list] of Object.entries(cardByOlt)) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const id = cardId(item);
+      if (!id) continue;
+      cardNameByPath.set(`${oltIdKey}|${id}`, cardName(item, id));
+    }
+  }
+
+  const portByCard = snap?.portByCard && typeof snap.portByCard === 'object' ? snap.portByCard : {};
+  for (const [cardIdKey, list] of Object.entries(portByCard)) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const id = portId(item);
+      if (!id) continue;
+      portNameByPath.set(`${cardIdKey}|${id}`, portName(item, id));
+    }
+  }
+
+  return { toNameById, tramNameByToTram, oltNameByToTramOlt, cardNameByPath, portNameByPath };
+}
+
+function enrichPortRows(rows, maps) {
+  return (Array.isArray(rows) ? rows : []).map((r) => {
+    const toId = String(r?.toQL || '');
+    const tramIdKey = String(r?.veTinh || '');
+    const oltIdKey = String(r?.thietBiOlt || '');
+    const cardIdKey = String(r?.cardOlt || '');
+    const portIdKey = String(r?.portOlt || '');
+    const toTen = maps.toNameById.get(toId) || toId;
+    const tramTen = maps.tramNameByToTram.get(`${toId}|${tramIdKey}`) || tramIdKey;
+    const oltTen = maps.oltNameByToTramOlt.get(`${toId}|${tramIdKey}|${oltIdKey}`) || oltIdKey;
+    const cardTen = maps.cardNameByPath.get(`${oltIdKey}|${cardIdKey}`) || cardIdKey;
+    const portTen = maps.portNameByPath.get(`${cardIdKey}|${portIdKey}`) || portIdKey;
+    return {
+      ...r,
+      toTen,
+      tramTen,
+      oltTen,
+      cardTen,
+      portTen,
+      _cardOrder: naturalNumToken(cardTen || cardIdKey),
+      _portOrder: naturalNumToken(portTen || portIdKey),
+    };
+  });
+}
+
 /** GET: ?toQL=&veTinh=&thietBiOlt=&cardOlt=&portOlt= → đọc cache chung; ?meta=1 → meta đồng bộ */
 export async function GET(request) {
   try {
@@ -136,86 +220,8 @@ export async function GET(request) {
       const rowsSrc = Array.isArray(detailRes.rows) ? detailRes.rows : [];
       const filteredRows = toQlFilter ? rowsSrc.filter((r) => String(r?.toQL || '') === toQlFilter) : rowsSrc;
       const browseRes = await sp2ServerGetBrowseSnapshot();
-      const snap = browseRes?.ok && browseRes?.snapshot?.v === 1 ? browseRes.snapshot : null;
-
-      const toNameById = new Map();
-      const tramNameByToTram = new Map();
-      const oltNameByToTramOlt = new Map();
-      const cardNameByPath = new Map();
-      const portNameByPath = new Map();
-
-      const toList = Array.isArray(snap?.toKyThuat) ? snap.toKyThuat : [];
-      for (const item of toList) {
-        const id = toQlId(item);
-        if (!id) continue;
-        const name = toQlName(item, id);
-        toNameById.set(id, name);
-      }
-
-      const tramByTo = snap?.tramByTo && typeof snap.tramByTo === 'object' ? snap.tramByTo : {};
-      for (const [toId, list] of Object.entries(tramByTo)) {
-        if (!Array.isArray(list)) continue;
-        for (const item of list) {
-          const id = tramId(item);
-          if (!id) continue;
-          tramNameByToTram.set(`${toId}|${id}`, tramName(item, id));
-        }
-      }
-
-      const oltByTram = snap?.oltByTram && typeof snap.oltByTram === 'object' ? snap.oltByTram : {};
-      for (const [toTram, list] of Object.entries(oltByTram)) {
-        if (!Array.isArray(list)) continue;
-        for (const item of list) {
-          const id = oltId(item);
-          if (!id) continue;
-          oltNameByToTramOlt.set(`${toTram}|${id}`, oltName(item, id));
-        }
-      }
-
-      const cardByOlt = snap?.cardByOlt && typeof snap.cardByOlt === 'object' ? snap.cardByOlt : {};
-      for (const [oltIdKey, list] of Object.entries(cardByOlt)) {
-        if (!Array.isArray(list)) continue;
-        for (const item of list) {
-          const id = cardId(item);
-          if (!id) continue;
-          const name = cardName(item, id);
-          cardNameByPath.set(`${oltIdKey}|${id}`, name);
-        }
-      }
-
-      const portByCard = snap?.portByCard && typeof snap.portByCard === 'object' ? snap.portByCard : {};
-      for (const [cardIdKey, list] of Object.entries(portByCard)) {
-        if (!Array.isArray(list)) continue;
-        for (const item of list) {
-          const id = portId(item);
-          if (!id) continue;
-          const name = portName(item, id);
-          portNameByPath.set(`${cardIdKey}|${id}`, name);
-        }
-      }
-
-      const enrichedRows = filteredRows.map((r) => {
-        const toId = String(r?.toQL || '');
-        const tramIdKey = String(r?.veTinh || '');
-        const oltIdKey = String(r?.thietBiOlt || '');
-        const cardIdKey = String(r?.cardOlt || '');
-        const portIdKey = String(r?.portOlt || '');
-        const toTen = toNameById.get(toId) || toId;
-        const tramTen = tramNameByToTram.get(`${toId}|${tramIdKey}`) || tramIdKey;
-        const oltTen = oltNameByToTramOlt.get(`${toId}|${tramIdKey}|${oltIdKey}`) || oltIdKey;
-        const cardTen = cardNameByPath.get(`${oltIdKey}|${cardIdKey}`) || cardIdKey;
-        const portTen = portNameByPath.get(`${cardIdKey}|${portIdKey}`) || portIdKey;
-        return {
-          ...r,
-          toTen,
-          tramTen,
-          oltTen,
-          cardTen,
-          portTen,
-          _cardOrder: naturalNumToken(cardTen || cardIdKey),
-          _portOrder: naturalNumToken(portTen || portIdKey),
-        };
-      });
+      const maps = buildBrowseNameMaps(browseRes?.ok ? browseRes?.snapshot : null);
+      const enrichedRows = enrichPortRows(filteredRows, maps);
       enrichedRows.sort((a, b) =>
         String(a.toTen || '').localeCompare(String(b.toTen || '')) ||
         String(a.tramTen || '').localeCompare(String(b.tramTen || '')) ||
@@ -249,6 +255,88 @@ export async function GET(request) {
       xlsx.utils.book_append_sheet(wb, ws, 'PON_1_SP2');
       const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
+    if (searchParams.get('stats') === 'olt_pon_detail') {
+      const configured = await sp2ServerConfigured();
+      if (!configured) {
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', rows: [] }, { status: 503 });
+      }
+      const detailRes = await sp2ServerGetPonSp2DetailRowsByOlt();
+      if (!detailRes.ok) {
+        return NextResponse.json({ ok: false, message: detailRes.message || 'Lỗi đọc dữ liệu OLT/PON.', rows: [] }, { status: 500 });
+      }
+      const browseRes = await sp2ServerGetBrowseSnapshot();
+      const maps = buildBrowseNameMaps(browseRes?.ok ? browseRes?.snapshot : null);
+      const enrichedRows = enrichPortRows(detailRes.rows, maps);
+      enrichedRows.sort((a, b) =>
+        String(a.oltTen || '').localeCompare(String(b.oltTen || '')) ||
+        String(a.portTen || '').localeCompare(String(b.portTen || '')) ||
+        String(a.cardTen || '').localeCompare(String(b.cardTen || '')) ||
+        String(a.toTen || '').localeCompare(String(b.toTen || ''))
+      );
+      const olts = Array.from(new Map(
+        enrichedRows
+          .filter((r) => String(r?.thietBiOlt || ''))
+          .map((r) => [String(r.thietBiOlt), String(r.oltTen || r.thietBiOlt)])
+      ).entries()).map(([id, name]) => ({ id, name }));
+      return NextResponse.json({ ok: true, rows: enrichedRows, olts });
+    }
+
+    if (searchParams.get('stats') === 'olt_pon_excel') {
+      const configured = await sp2ServerConfigured();
+      if (!configured) {
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+      }
+      const oltFilter = (searchParams.get('thietBiOlt') || '').trim();
+      const detailRes = await sp2ServerGetPonSp2DetailRowsByOlt();
+      if (!detailRes.ok) {
+        return NextResponse.json({ ok: false, message: detailRes.message || 'Lỗi xuất dữ liệu OLT/PON.' }, { status: 500 });
+      }
+      const browseRes = await sp2ServerGetBrowseSnapshot();
+      const maps = buildBrowseNameMaps(browseRes?.ok ? browseRes?.snapshot : null);
+      const enrichedRows = enrichPortRows(detailRes.rows, maps)
+        .filter((r) => !oltFilter || String(r?.thietBiOlt || '') === oltFilter)
+        .sort((a, b) =>
+          String(a.oltTen || '').localeCompare(String(b.oltTen || '')) ||
+          String(a.cardTen || '').localeCompare(String(b.cardTen || '')) ||
+          String(a.portTen || '').localeCompare(String(b.portTen || '')) ||
+          String(a.toTen || '').localeCompare(String(b.toTen || ''))
+        );
+      const xlsx = await import('xlsx');
+      const datePart = new Date().toISOString().slice(0, 10);
+      const safeOlt = oltFilter.replace(/[^a-zA-Z0-9_-]+/g, '_');
+      const filename = oltFilter
+        ? `bao_cao_s2_chi_tiet_olt_${safeOlt || 'loc'}_${datePart}.xlsx`
+        : `bao_cao_s2_chi_tiet_theo_olt_${datePart}.xlsx`;
+      const excelRows = enrichedRows.map((r, idx) => ({
+        STT: idx + 1,
+        TO_KT_TEN: r.toTen || '',
+        TO_KT_ID: r.toQL || '',
+        TRAM_BTS_TEN: r.tramTen || '',
+        TRAM_BTS_ID: r.veTinh || '',
+        OLT_TEN: r.oltTen || '',
+        OLT_ID: r.thietBiOlt || '',
+        CARD_OLT_TEN: r.cardTen || '',
+        CARD_OLT_ID: r.cardOlt || '',
+        PORT_PON: r.portTen || '',
+        PORT_PON_ID: r.portOlt || '',
+        SO_LUONG_SP2: Number(r.sp2Count || 0),
+        DANH_SACH_SP2: r.tenSp2List || '',
+        CACHE_KEY: r.cacheKey || '',
+      }));
+      const ws = xlsx.utils.json_to_sheet(excelRows);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, 'OLT_PON_S2');
+      const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
       return new Response(buffer, {
         status: 200,
         headers: {
