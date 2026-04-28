@@ -95,6 +95,8 @@ export default function TraCuuSP2Page() {
   const [oltPonError, setOltPonError] = useState('');
   const [oltPonExporting, setOltPonExporting] = useState(false);
   const [oltPonFilter, setOltPonFilter] = useState('');
+  const [oltPonPage, setOltPonPage] = useState(1);
+  const [oltPonPageSize, setOltPonPageSize] = useState(20);
   const syncAbortRef = useRef(null);
   const reportMenuRef = useRef(null);
 
@@ -298,6 +300,10 @@ export default function TraCuuSP2Page() {
     const exists = oltPonOptions.some((r) => String(r?.id || '') === oltPonFilter);
     if (!exists) setOltPonFilter('');
   }, [oltPonOptions, oltPonFilter]);
+
+  useEffect(() => {
+    setOltPonPage(1);
+  }, [oltPonFilter, oltPonPageSize, oltPonDetailRows]);
 
   /** Khi chưa có danh sách Tổ KT từ API (vd. thiếu token) nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
   useEffect(() => {
@@ -884,6 +890,10 @@ export default function TraCuuSP2Page() {
   const filteredOltPonRows = oltPonFilter
     ? oltPonDetailRows.filter((row) => String(row?.thietBiOlt || '') === oltPonFilter)
     : oltPonDetailRows;
+  const oltPonTotalPages = Math.max(1, Math.ceil(filteredOltPonRows.length / oltPonPageSize));
+  const oltPonCurrentPage = Math.min(oltPonPage, oltPonTotalPages);
+  const oltPonStart = (oltPonCurrentPage - 1) * oltPonPageSize;
+  const pagedOltPonRows = filteredOltPonRows.slice(oltPonStart, oltPonStart + oltPonPageSize);
 
   function DropRow({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
     return (
@@ -1181,6 +1191,17 @@ export default function TraCuuSP2Page() {
                                   );
                                 })}
                               </select>
+                              <select
+                                value={String(oltPonPageSize)}
+                                onChange={(e) => setOltPonPageSize(Number(e.target.value) || 20)}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                title="Số cổng hiển thị mỗi trang"
+                              >
+                                <option value="10">10 cổng/trang</option>
+                                <option value="20">20 cổng/trang</option>
+                                <option value="50">50 cổng/trang</option>
+                                <option value="100">100 cổng/trang</option>
+                              </select>
                               <button
                                 type="button"
                                 onClick={handleExportOltPonExcel}
@@ -1221,9 +1242,9 @@ export default function TraCuuSP2Page() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {filteredOltPonRows.map((row, idx) => (
+                                  {pagedOltPonRows.map((row, idx) => (
                                     <tr
-                                      key={`${String(row?.cacheKey || '')}-${idx}`}
+                                      key={`${String(row?.cacheKey || '')}-${oltPonStart + idx}`}
                                       className="border-b border-slate-100 last:border-b-0 text-slate-700"
                                     >
                                       <td className="py-1.5 pr-2">
@@ -1255,6 +1276,34 @@ export default function TraCuuSP2Page() {
                                   ))}
                                 </tbody>
                               </table>
+                            </div>
+                          )}
+                          {filteredOltPonRows.length > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-[11px] text-slate-600">
+                                Hiển thị {oltPonStart + 1}-{Math.min(oltPonStart + oltPonPageSize, filteredOltPonRows.length)} / {filteredOltPonRows.length} cổng
+                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setOltPonPage((p) => Math.max(1, p - 1))}
+                                  disabled={oltPonCurrentPage <= 1}
+                                  className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                  Trang trước
+                                </button>
+                                <span className="text-[11px] text-slate-600">
+                                  Trang {oltPonCurrentPage}/{oltPonTotalPages}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setOltPonPage((p) => Math.min(oltPonTotalPages, p + 1))}
+                                  disabled={oltPonCurrentPage >= oltPonTotalPages}
+                                  className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                  Trang sau
+                                </button>
+                              </div>
                             </div>
                           )}
                         </>
