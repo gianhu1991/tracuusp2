@@ -300,6 +300,7 @@ export async function GET(request) {
       if (!configured) {
         return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
       }
+      const toQlFilter = (searchParams.get('toQL') || '').trim();
       const oltFilter = (searchParams.get('thietBiOlt') || '').trim();
       const detailRes = await sp2ServerGetPonSp2DetailRowsByOlt();
       if (!detailRes.ok) {
@@ -308,6 +309,7 @@ export async function GET(request) {
       const browseRes = await sp2ServerGetBrowseSnapshot();
       const maps = buildBrowseNameMaps(browseRes?.ok ? browseRes?.snapshot : null);
       const enrichedRows = enrichPortRows(detailRes.rows, maps)
+        .filter((r) => !toQlFilter || String(r?.toQL || '') === toQlFilter)
         .filter((r) => !oltFilter || String(r?.thietBiOlt || '') === oltFilter)
         .sort((a, b) =>
           String(a.oltTen || '').localeCompare(String(b.oltTen || '')) ||

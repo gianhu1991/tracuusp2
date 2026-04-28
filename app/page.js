@@ -93,10 +93,12 @@ export default function TraCuuSP2Page() {
   const [ponExporting, setPonExporting] = useState(false);
   const [ponExportToQl, setPonExportToQl] = useState('');
   const [oltPonDetailRows, setOltPonDetailRows] = useState([]);
+  const [oltPonToOptions, setOltPonToOptions] = useState([]);
   const [oltPonOptions, setOltPonOptions] = useState([]);
   const [oltPonLoading, setOltPonLoading] = useState(false);
   const [oltPonError, setOltPonError] = useState('');
   const [oltPonExporting, setOltPonExporting] = useState(false);
+  const [oltPonToFilter, setOltPonToFilter] = useState('');
   const [oltPonFilter, setOltPonFilter] = useState('');
   const [oltPonPage, setOltPonPage] = useState(1);
   const [oltPonPageSize, setOltPonPageSize] = useState(10);
@@ -272,16 +274,26 @@ export default function TraCuuSP2Page() {
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) {
         setOltPonDetailRows([]);
+        setOltPonToOptions([]);
         setOltPonOptions([]);
         setOltPonError(j.message || `Không tải được báo cáo OLT/PON (${res.status}).`);
         return;
       }
       const rows = Array.isArray(j.rows) ? j.rows : [];
       const oltsFromApi = Array.isArray(j.olts) ? j.olts : [];
+      const toMap = new Map();
+      for (const row of rows) {
+        const id = String(row?.toQL || '');
+        if (!id) continue;
+        const name = String(row?.toTen || id);
+        if (!toMap.has(id)) toMap.set(id, name);
+      }
       setOltPonDetailRows(rows);
+      setOltPonToOptions(Array.from(toMap.entries()).map(([id, name]) => ({ id, name })));
       setOltPonOptions(oltsFromApi);
     } catch (e) {
       setOltPonDetailRows([]);
+      setOltPonToOptions([]);
       setOltPonOptions([]);
       setOltPonError(e?.message || 'Lỗi tải báo cáo OLT/PON.');
     } finally {
@@ -294,6 +306,7 @@ export default function TraCuuSP2Page() {
     setOltPonError('');
     try {
       const q = new URLSearchParams({ stats: 'olt_pon_excel' });
+      if (oltPonToFilter) q.set('toQL', oltPonToFilter);
       if (oltPonFilter) q.set('thietBiOlt', oltPonFilter);
       const res = await fetch(`/api/sp2-cache?${q.toString()}`);
       if (!res.ok) {
@@ -450,10 +463,21 @@ export default function TraCuuSP2Page() {
   }, [ponOneSp2Stats, ponExportToQl]);
 
   useEffect(() => {
+    if (!oltPonToFilter) return;
+    const exists = oltPonToOptions.some((r) => String(r?.id || '') === oltPonToFilter);
+    if (!exists) setOltPonToFilter('');
+  }, [oltPonToOptions, oltPonToFilter]);
+
+  useEffect(() => {
     if (!oltPonFilter) return;
-    const exists = oltPonOptions.some((r) => String(r?.id || '') === oltPonFilter);
+    const exists = (oltPonToFilter
+      ? oltPonDetailRows
+        .filter((row) => String(row?.toQL || '') === oltPonToFilter)
+        .map((row) => String(row?.thietBiOlt || ''))
+      : oltPonOptions.map((r) => String(r?.id || ''))
+    ).includes(oltPonFilter);
     if (!exists) setOltPonFilter('');
-  }, [oltPonOptions, oltPonFilter]);
+  }, [oltPonOptions, oltPonFilter, oltPonDetailRows, oltPonToFilter]);
 
   useEffect(() => {
     if (!noSp2ToFilter) return;
@@ -463,9 +487,12 @@ export default function TraCuuSP2Page() {
 
   useEffect(() => {
     if (!noSp2OltFilter) return;
-    const exists = noSp2OltOptions.some((r) => String(r?.id || '') === noSp2OltFilter);
+    const exists = (noSp2ToFilter
+      ? noSp2Rows.filter((row) => String(row?.toQL || '') === noSp2ToFilter).map((row) => String(row?.thietBiOlt || ''))
+      : noSp2OltOptions.map((r) => String(r?.id || ''))
+    ).includes(noSp2OltFilter);
     if (!exists) setNoSp2OltFilter('');
-  }, [noSp2OltOptions, noSp2OltFilter]);
+  }, [noSp2OltOptions, noSp2OltFilter, noSp2Rows, noSp2ToFilter]);
 
   useEffect(() => {
     if (!s2CapacityToFilter) return;
@@ -475,13 +502,16 @@ export default function TraCuuSP2Page() {
 
   useEffect(() => {
     if (!s2CapacityOltFilter) return;
-    const exists = s2CapacityOltOptions.some((r) => String(r?.id || '') === s2CapacityOltFilter);
+    const exists = (s2CapacityToFilter
+      ? s2CapacityRows.filter((row) => String(row?.toQL || '') === s2CapacityToFilter).map((row) => String(row?.thietBiOlt || ''))
+      : s2CapacityOltOptions.map((r) => String(r?.id || ''))
+    ).includes(s2CapacityOltFilter);
     if (!exists) setS2CapacityOltFilter('');
-  }, [s2CapacityOltOptions, s2CapacityOltFilter]);
+  }, [s2CapacityOltOptions, s2CapacityOltFilter, s2CapacityRows, s2CapacityToFilter]);
 
   useEffect(() => {
     setOltPonPage(1);
-  }, [oltPonFilter, oltPonPageSize, oltPonDetailRows]);
+  }, [oltPonToFilter, oltPonFilter, oltPonPageSize, oltPonDetailRows]);
 
   useEffect(() => {
     setNoSp2Page(1);
@@ -1093,9 +1123,19 @@ export default function TraCuuSP2Page() {
       ? Math.min(100, Math.round((syncProgress.done / syncProgress.total) * 100))
       : null;
   const activeReport = REPORT_MENU_ITEMS.find((item) => item.id === activeReportId) || REPORT_MENU_ITEMS[0];
-  const filteredOltPonRows = oltPonFilter
-    ? oltPonDetailRows.filter((row) => String(row?.thietBiOlt || '') === oltPonFilter)
-    : oltPonDetailRows;
+  const filteredOltPonRows = oltPonDetailRows.filter((row) => {
+    if (oltPonToFilter && String(row?.toQL || '') !== oltPonToFilter) return false;
+    if (oltPonFilter && String(row?.thietBiOlt || '') !== oltPonFilter) return false;
+    return true;
+  });
+  const filteredOltPonOptions = oltPonToFilter
+    ? Array.from(new Map(
+      oltPonDetailRows
+        .filter((row) => String(row?.toQL || '') === oltPonToFilter)
+        .map((row) => [String(row?.thietBiOlt || ''), String(row?.oltTen || row?.thietBiOlt || '')])
+        .filter(([id]) => !!id)
+    ).entries()).map(([id, name]) => ({ id, name }))
+    : oltPonOptions;
   const oltPonTotalPages = Math.max(1, Math.ceil(filteredOltPonRows.length / oltPonPageSize));
   const oltPonCurrentPage = Math.min(oltPonPage, oltPonTotalPages);
   const oltPonStart = (oltPonCurrentPage - 1) * oltPonPageSize;
@@ -1105,6 +1145,14 @@ export default function TraCuuSP2Page() {
     if (noSp2OltFilter && String(row?.thietBiOlt || '') !== noSp2OltFilter) return false;
     return true;
   });
+  const filteredNoSp2OltOptions = noSp2ToFilter
+    ? Array.from(new Map(
+      noSp2Rows
+        .filter((row) => String(row?.toQL || '') === noSp2ToFilter)
+        .map((row) => [String(row?.thietBiOlt || ''), String(row?.oltTen || row?.thietBiOlt || '')])
+        .filter(([id]) => !!id)
+    ).entries()).map(([id, name]) => ({ id, name }))
+    : noSp2OltOptions;
   const noSp2TotalPages = Math.max(1, Math.ceil(filteredNoSp2Rows.length / noSp2PageSize));
   const noSp2CurrentPage = Math.min(noSp2Page, noSp2TotalPages);
   const noSp2Start = (noSp2CurrentPage - 1) * noSp2PageSize;
@@ -1114,6 +1162,14 @@ export default function TraCuuSP2Page() {
     if (s2CapacityOltFilter && String(row?.thietBiOlt || '') !== s2CapacityOltFilter) return false;
     return true;
   });
+  const filteredS2CapacityOltOptions = s2CapacityToFilter
+    ? Array.from(new Map(
+      s2CapacityRows
+        .filter((row) => String(row?.toQL || '') === s2CapacityToFilter)
+        .map((row) => [String(row?.thietBiOlt || ''), String(row?.oltTen || row?.thietBiOlt || '')])
+        .filter(([id]) => !!id)
+    ).entries()).map(([id, name]) => ({ id, name }))
+    : s2CapacityOltOptions;
   const s2CapacityTotalPages = Math.max(1, Math.ceil(filteredS2CapacityRows.length / s2CapacityPageSize));
   const s2CapacityCurrentPage = Math.min(s2CapacityPage, s2CapacityTotalPages);
   const s2CapacityStart = (s2CapacityCurrentPage - 1) * s2CapacityPageSize;
@@ -1452,7 +1508,7 @@ export default function TraCuuSP2Page() {
                                 title="Lọc theo OLT"
                               >
                                 <option value="">Tất cả OLT</option>
-                                {s2CapacityOltOptions.map((item) => {
+                                {filteredS2CapacityOltOptions.map((item) => {
                                   const id = String(item?.id || '');
                                   if (!id) return null;
                                   return <option key={id} value={id}>{String(item?.name || id)}</option>;
@@ -1563,7 +1619,7 @@ export default function TraCuuSP2Page() {
                                 title="Lọc theo OLT"
                               >
                                 <option value="">Tất cả OLT</option>
-                                {noSp2OltOptions.map((item) => {
+                                {filteredNoSp2OltOptions.map((item) => {
                                   const id = String(item?.id || '');
                                   if (!id) return null;
                                   return (
@@ -1677,13 +1733,30 @@ export default function TraCuuSP2Page() {
                             </p>
                             <div className="flex items-center gap-1.5">
                               <select
+                                value={oltPonToFilter}
+                                onChange={(e) => setOltPonToFilter(e.target.value)}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                title="Lọc theo Tổ kỹ thuật"
+                              >
+                                <option value="">Tất cả Tổ KT</option>
+                                {oltPonToOptions.map((item) => {
+                                  const id = String(item?.id || '');
+                                  if (!id) return null;
+                                  return (
+                                    <option key={id} value={id}>
+                                      {String(item?.name || id)}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <select
                                 value={oltPonFilter}
                                 onChange={(e) => setOltPonFilter(e.target.value)}
                                 className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
                                 title="Lọc theo OLT để xem/xuất Excel"
                               >
                                 <option value="">Tất cả OLT</option>
-                                {oltPonOptions.map((item) => {
+                                {filteredOltPonOptions.map((item) => {
                                   const id = String(item?.id || '');
                                   if (!id) return null;
                                   return (
