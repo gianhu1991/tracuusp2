@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 
-/** POST: body { password }. Kiểm tra mật khẩu quản trị từ biến môi trường server. */
+/** POST: body { password }. Kiểm tra mật khẩu mở khóa từ biến môi trường server. */
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
     const password = body?.password ?? '';
-    const adminPassword = process.env.ADMIN_PASSWORD || process.env.AUTH_PASSWORD || '';
+    const unlockPassword = process.env.UNLOCK_PASSWORD || '';
 
-    if (!adminPassword) {
+    if (!unlockPassword) {
       return NextResponse.json(
-        { ok: false, message: 'Chưa cấu hình ADMIN_PASSWORD trên server.' },
+        { ok: false, message: 'Chưa cấu hình UNLOCK_PASSWORD trên server.' },
         { status: 500 }
       );
     }
@@ -19,7 +19,7 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    if (String(password) !== adminPassword) {
+    if (String(password) !== unlockPassword) {
       return NextResponse.json(
         { ok: false, message: 'Mật khẩu không đúng.' },
         { status: 401 }

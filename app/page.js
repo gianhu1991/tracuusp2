@@ -1405,9 +1405,21 @@ export default function TraCuuSP2Page() {
                     <div className="rounded border border-slate-200 bg-white p-2.5">
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                         <p className="text-[11px] font-semibold text-slate-700">{activeReport.label}</p>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-100">
-                          Menu báo cáo
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-100">
+                            Menu báo cáo
+                          </span>
+                          {authUnlocked && (
+                            <button
+                              type="button"
+                              onClick={handleLockAuth}
+                              className="text-[10px] px-2 py-0.5 rounded border border-rose-200 text-rose-700 hover:bg-rose-50"
+                              title="Khóa lại quyền quản trị"
+                            >
+                              Khóa lại
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {activeReportId === 's2_capacity' ? (
                         <>
