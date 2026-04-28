@@ -1234,8 +1234,22 @@ export default function TraCuuSP2Page() {
                                       <td className="py-1.5 px-2 text-right font-semibold text-indigo-700">
                                         {Number(row?.sp2Count || 0)}
                                       </td>
-                                      <td className="py-1.5 pl-2 max-w-[520px] truncate" title={String(row?.tenSp2List || '')}>
-                                        {String(row?.tenSp2List || '—')}
+                                      <td className="py-1.5 pl-2">
+                                        {String(row?.tenSp2List || '').trim() ? (
+                                          <div className="max-w-[520px] space-y-1">
+                                            {String(row.tenSp2List)
+                                              .split(';')
+                                              .map((item) => item.trim())
+                                              .filter(Boolean)
+                                              .map((item, itemIdx) => (
+                                                <p key={`${String(row?.cacheKey || '')}-sp2-${itemIdx}`} className="leading-relaxed break-words">
+                                                  {item}
+                                                </p>
+                                              ))}
+                                          </div>
+                                        ) : (
+                                          <span>—</span>
+                                        )}
                                       </td>
                                     </tr>
                                   ))}

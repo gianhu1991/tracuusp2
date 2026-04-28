@@ -279,8 +279,10 @@ export async function GET(request) {
       const enrichedRows = enrichPortRows(detailRes.rows, maps);
       enrichedRows.sort((a, b) =>
         String(a.oltTen || '').localeCompare(String(b.oltTen || '')) ||
-        String(a.portTen || '').localeCompare(String(b.portTen || '')) ||
+        (Number(a._cardOrder) - Number(b._cardOrder)) ||
         String(a.cardTen || '').localeCompare(String(b.cardTen || '')) ||
+        (Number(a._portOrder) - Number(b._portOrder)) ||
+        String(a.portTen || '').localeCompare(String(b.portTen || '')) ||
         String(a.toTen || '').localeCompare(String(b.toTen || ''))
       );
       const olts = Array.from(new Map(
@@ -307,7 +309,9 @@ export async function GET(request) {
         .filter((r) => !oltFilter || String(r?.thietBiOlt || '') === oltFilter)
         .sort((a, b) =>
           String(a.oltTen || '').localeCompare(String(b.oltTen || '')) ||
+          (Number(a._cardOrder) - Number(b._cardOrder)) ||
           String(a.cardTen || '').localeCompare(String(b.cardTen || '')) ||
+          (Number(a._portOrder) - Number(b._portOrder)) ||
           String(a.portTen || '').localeCompare(String(b.portTen || '')) ||
           String(a.toTen || '').localeCompare(String(b.toTen || ''))
         );
