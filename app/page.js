@@ -13,6 +13,11 @@ const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
 const REPORT_MENU_ITEMS = [
   {
+    id: 's2_lookup',
+    label: 'Lấy thông số S2',
+    description: 'Tra cứu theo từng S2 hoặc theo file S2 để lấy OLT/Card/Port.',
+  },
+  {
     id: 's2_capacity',
     label: 'Dung lượng S2',
     description: 'Theo dõi dung lượng, đã dùng, chưa dùng của splitter S2.',
@@ -122,6 +127,15 @@ export default function TraCuuSP2Page() {
   const [s2CapacityExporting, setS2CapacityExporting] = useState(false);
   const [s2CapacityPage, setS2CapacityPage] = useState(1);
   const [s2CapacityPageSize, setS2CapacityPageSize] = useState(10);
+  const [s2LookupInput, setS2LookupInput] = useState('');
+  const [s2LookupRows, setS2LookupRows] = useState([]);
+  const [s2LookupNotFound, setS2LookupNotFound] = useState([]);
+  const [s2LookupLoading, setS2LookupLoading] = useState(false);
+  const [s2LookupError, setS2LookupError] = useState('');
+  const [s2LookupExporting, setS2LookupExporting] = useState(false);
+  const [s2LookupPage, setS2LookupPage] = useState(1);
+  const [s2LookupPageSize, setS2LookupPageSize] = useState(10);
+  const [s2LookupFileName, setS2LookupFileName] = useState('');
   const syncAbortRef = useRef(null);
   const reportMenuRef = useRef(null);
 
@@ -449,6 +463,159 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  function parseS2TokensFromText(rawText) {
+    return Array.from(new Set(
+      String(rawText || '')
+        .split(/\r?\n|,|;|\t|\|/g)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    ));
+  }
+
+  async function runS2Lookup(rawItems) {
+    const s2List = Array.from(new Set(
+      (Array.isArray(rawItems) ? rawItems : [])
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+    ));
+    if (s2List.length === 0) {
+      setS2LookupRows([]);
+      setS2LookupNotFound([]);
+      setS2LookupError('Vui lòng nhập ít nhất 1 mã S2 để tra cứu.');
+      return;
+    }
+    setS2LookupLoading(true);
+    setS2LookupError('');
+    try {
+      const res = await fetch('/api/s2-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ s2List }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) {
+        setS2LookupRows([]);
+        setS2LookupNotFound([]);
+        setS2LookupError(j?.message || `Không tra cứu được S2 (${res.status}).`);
+        return;
+      }
+      setS2LookupRows(Array.isArray(j.rows) ? j.rows : []);
+      setS2LookupNotFound(Array.isArray(j.notFound) ? j.notFound : []);
+    } catch (e) {
+      setS2LookupRows([]);
+      setS2LookupNotFound([]);
+      setS2LookupError(e?.message || 'Lỗi tra cứu S2.');
+    } finally {
+      setS2LookupLoading(false);
+    }
+  }
+
+  const handleLookupSingleS2 = async () => {
+    await runS2Lookup(parseS2TokensFromText(s2LookupInput));
+  };
+
+  const handleLookupS2File = async (event) => {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    setS2LookupFileName(file.name || '');
+    setS2LookupError('');
+    try {
+      const lowerName = String(file.name || '').toLowerCase();
+      const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
+      let tokens = [];
+      if (isExcel) {
+        const xlsx = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const wb = xlsx.read(buffer, { type: 'array' });
+        const firstSheetName = wb.SheetNames?.[0];
+        const ws = firstSheetName ? wb.Sheets[firstSheetName] : null;
+        const matrix = ws ? xlsx.utils.sheet_to_json(ws, { header: 1, raw: false }) : [];
+        const flat = [];
+        for (const row of matrix) {
+          if (!Array.isArray(row)) continue;
+          for (const cell of row) {
+            const text = String(cell ?? '').trim();
+            if (!text) continue;
+            flat.push(text);
+          }
+        }
+        tokens = Array.from(new Set(flat));
+      } else {
+        const text = await file.text();
+        tokens = parseS2TokensFromText(text);
+      }
+      if (tokens.length === 0) {
+        setS2LookupRows([]);
+        setS2LookupNotFound([]);
+        setS2LookupError('File không có dữ liệu S2 hợp lệ.');
+        return;
+      }
+      await runS2Lookup(tokens);
+    } catch (e) {
+      setS2LookupRows([]);
+      setS2LookupNotFound([]);
+      setS2LookupError(e?.message || 'Không đọc được file S2.');
+    } finally {
+      if (event?.target) event.target.value = '';
+    }
+  };
+
+  const handleExportS2LookupExcel = async () => {
+    if (s2LookupRows.length === 0 && s2LookupNotFound.length === 0) {
+      setS2LookupError('Chưa có dữ liệu để xuất Excel.');
+      return;
+    }
+    setS2LookupExporting(true);
+    setS2LookupError('');
+    try {
+      const xlsx = await import('xlsx');
+      const datePart = new Date().toISOString().slice(0, 10);
+      const foundRows = s2LookupRows.map((r, idx) => ({
+        STT: idx + 1,
+        TRANG_THAI: 'Tìm thấy',
+        S2_TRA_CUU: String(r?.queryS2 || ''),
+        KY_HIEU_S2: String(r?.kyHieu || ''),
+        TEN_SPLITTER: String(r?.tenSplitter || ''),
+        TO_KT: String(r?.toTen || r?.toQL || ''),
+        OLT: String(r?.oltTen || r?.thietBiOlt || ''),
+        CARD: String(r?.cardTen || r?.cardOlt || ''),
+        PORT_PON: String(r?.portTen || r?.portOlt || ''),
+        TRAM_BTS: String(r?.tramTen || r?.veTinh || ''),
+        CACHE_KEY: String(r?.cacheKey || ''),
+      }));
+      const missRows = s2LookupNotFound.map((s2, idx) => ({
+        STT: foundRows.length + idx + 1,
+        TRANG_THAI: 'Không tìm thấy',
+        S2_TRA_CUU: String(s2 || ''),
+        KY_HIEU_S2: '',
+        TEN_SPLITTER: '',
+        TO_KT: '',
+        OLT: '',
+        CARD: '',
+        PORT_PON: '',
+        TRAM_BTS: '',
+        CACHE_KEY: '',
+      }));
+      const ws = xlsx.utils.json_to_sheet([...foundRows, ...missRows]);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, 'TRA_CUU_S2');
+      const buffer = xlsx.write(wb, { type: 'array', bookType: 'xlsx' });
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bao_cao_tra_cuu_s2_${datePart}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setS2LookupError(e?.message || 'Lỗi xuất Excel tra cứu S2.');
+    } finally {
+      setS2LookupExporting(false);
+    }
+  };
+
   useEffect(() => {
     refreshPonOneSp2Stats();
     refreshOltPonDetailRows();
@@ -520,6 +687,10 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     setS2CapacityPage(1);
   }, [s2CapacityToFilter, s2CapacityOltFilter, s2CapacityPageSize, s2CapacityRows]);
+
+  useEffect(() => {
+    setS2LookupPage(1);
+  }, [s2LookupRows, s2LookupPageSize]);
 
   /** Khi chưa có danh sách Tổ KT từ API (vd. thiếu token) nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
   useEffect(() => {
@@ -1174,6 +1345,10 @@ export default function TraCuuSP2Page() {
   const s2CapacityCurrentPage = Math.min(s2CapacityPage, s2CapacityTotalPages);
   const s2CapacityStart = (s2CapacityCurrentPage - 1) * s2CapacityPageSize;
   const pagedS2CapacityRows = filteredS2CapacityRows.slice(s2CapacityStart, s2CapacityStart + s2CapacityPageSize);
+  const s2LookupTotalPages = Math.max(1, Math.ceil(s2LookupRows.length / s2LookupPageSize));
+  const s2LookupCurrentPage = Math.min(s2LookupPage, s2LookupTotalPages);
+  const s2LookupStart = (s2LookupCurrentPage - 1) * s2LookupPageSize;
+  const pagedS2LookupRows = s2LookupRows.slice(s2LookupStart, s2LookupStart + s2LookupPageSize);
 
   function DropRow({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
     return (
@@ -1481,7 +1656,137 @@ export default function TraCuuSP2Page() {
                           )}
                         </div>
                       </div>
-                      {activeReportId === 's2_capacity' ? (
+                      {activeReportId === 's2_lookup' ? (
+                        <>
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                            <p className="text-[11px] font-semibold text-slate-700">
+                              Lấy thông số S2 theo danh sách đầu vào
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={String(s2LookupPageSize)}
+                                onChange={(e) => setS2LookupPageSize(Number(e.target.value) || 10)}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                title="Số dòng hiển thị mỗi trang"
+                              >
+                                <option value="10">10 dòng/trang</option>
+                                <option value="20">20 dòng/trang</option>
+                                <option value="50">50 dòng/trang</option>
+                                <option value="100">100 dòng/trang</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={handleExportS2LookupExcel}
+                                disabled={s2LookupExporting}
+                                className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                              >
+                                {s2LookupExporting ? 'Đang xuất…' : 'Xuất Excel'}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-2 mb-2">
+                            <textarea
+                              value={s2LookupInput}
+                              onChange={(e) => setS2LookupInput(e.target.value)}
+                              rows={4}
+                              placeholder="Nhập danh sách S2 (mỗi dòng 1 mã, hoặc ngăn cách bằng dấu phẩy/chấm phẩy)"
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-[11px] text-slate-700 focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                            />
+                            <div className="flex lg:flex-col gap-1.5 lg:items-end">
+                              <button
+                                type="button"
+                                onClick={handleLookupSingleS2}
+                                disabled={s2LookupLoading}
+                                className="text-[11px] px-2.5 py-1.5 rounded border border-sky-300 text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+                              >
+                                {s2LookupLoading ? 'Đang tra cứu…' : 'Tra cứu danh sách'}
+                              </button>
+                              <label className="text-[11px] px-2.5 py-1.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer">
+                                Upload file S2
+                                <input
+                                  type="file"
+                                  accept=".txt,.csv,.xlsx,.xls"
+                                  onChange={handleLookupS2File}
+                                  className="hidden"
+                                />
+                              </label>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mb-2">
+                            Hỗ trợ file TXT/CSV/Excel. Hệ thống sẽ tìm S2 đang nằm ở OLT, Card, Port nào trong cache đồng bộ.
+                            {s2LookupFileName ? ` File gần nhất: ${s2LookupFileName}.` : ''}
+                          </p>
+                          {s2LookupError && <p className="text-[11px] text-red-600 mb-1">{s2LookupError}</p>}
+                          {!s2LookupError && s2LookupRows.length === 0 && s2LookupNotFound.length === 0 && !s2LookupLoading && (
+                            <p className="text-[11px] text-slate-500">Chưa có dữ liệu tra cứu S2.</p>
+                          )}
+                          {s2LookupNotFound.length > 0 && (
+                            <p className="text-[11px] text-amber-700 mb-1">
+                              Không tìm thấy {s2LookupNotFound.length} mã S2: {s2LookupNotFound.slice(0, 10).join(', ')}
+                              {s2LookupNotFound.length > 10 ? '…' : ''}
+                            </p>
+                          )}
+                          {s2LookupRows.length > 0 && (
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full text-[11px]">
+                                <thead>
+                                  <tr className="border-b border-slate-200 text-slate-600">
+                                    <th className="text-left py-1 pr-2 font-semibold">S2 tra cứu</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Ký hiệu S2</th>
+                                    <th className="text-left py-1 px-2 font-semibold">OLT</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Card</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Port</th>
+                                    <th className="text-left py-1 pl-2 font-semibold">Tổ KT</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {pagedS2LookupRows.map((row, idx) => (
+                                    <tr
+                                      key={`${String(row?.cacheKey || '')}-lookup-${s2LookupStart + idx}`}
+                                      className="border-b border-slate-100 last:border-b-0 text-slate-700"
+                                    >
+                                      <td className="py-1.5 pr-2">{String(row?.queryS2 || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.kyHieu || row?.tenSplitter || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.oltTen || row?.thietBiOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.cardTen || row?.cardOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.portTen || row?.portOlt || '—')}</td>
+                                      <td className="py-1.5 pl-2">{String(row?.toTen || row?.toQL || '—')}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          {s2LookupRows.length > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-[11px] text-slate-600">
+                                Hiển thị {s2LookupStart + 1}-{Math.min(s2LookupStart + s2LookupPageSize, s2LookupRows.length)} / {s2LookupRows.length} dòng
+                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setS2LookupPage((p) => Math.max(1, p - 1))}
+                                  disabled={s2LookupCurrentPage <= 1}
+                                  className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                  Trang trước
+                                </button>
+                                <span className="text-[11px] text-slate-600">
+                                  Trang {s2LookupCurrentPage}/{s2LookupTotalPages}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setS2LookupPage((p) => Math.min(s2LookupTotalPages, p + 1))}
+                                  disabled={s2LookupCurrentPage >= s2LookupTotalPages}
+                                  className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                  Trang sau
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : activeReportId === 's2_capacity' ? (
                         <>
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                             <p className="text-[11px] font-semibold text-slate-700">
