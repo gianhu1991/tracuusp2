@@ -11,6 +11,23 @@ const TTVT_MAC_DINH = 'Trung tâm viễn thông Nho Quan';
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_PASSWORD = '1234';
+const REPORT_MENU_ITEMS = [
+  {
+    id: 'pon_one_sp2',
+    label: 'Tỷ lệ cổng PON có đúng 1 SP2',
+    description: 'Theo dõi tỷ lệ 1 SP2 theo Tổ KT và xuất Excel.',
+  },
+  {
+    id: 'sync_quality',
+    label: 'Chất lượng đồng bộ S2',
+    description: 'Sẽ xây dựng: tổng port đồng bộ, lỗi, trạng thái dừng.',
+  },
+  {
+    id: 'cache_usage',
+    label: 'Hiệu quả sử dụng cache',
+    description: 'Sẽ xây dựng: tần suất hit/miss cache theo thời gian.',
+  },
+];
 
 export default function TraCuuSP2Page() {
   const [ttvt, setTtvt] = useState(TTVT_MAC_DINH);
@@ -32,6 +49,8 @@ export default function TraCuuSP2Page() {
 
   const [authorization, setAuthorization] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showReportMenu, setShowReportMenu] = useState(false);
+  const [activeReportId, setActiveReportId] = useState(REPORT_MENU_ITEMS[0].id);
   const [authUnlocked, setAuthUnlocked] = useState(false);
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authPasswordError, setAuthPasswordError] = useState('');
@@ -66,6 +85,7 @@ export default function TraCuuSP2Page() {
   const [ponExporting, setPonExporting] = useState(false);
   const [ponExportToQl, setPonExportToQl] = useState('');
   const syncAbortRef = useRef(null);
+  const reportMenuRef = useRef(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -73,6 +93,21 @@ export default function TraCuuSP2Page() {
       setAuthUnlocked(sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) === '1');
     }
   }, []);
+
+  useEffect(() => {
+    if (!showReportMenu) return;
+    const handleClickOutside = (event) => {
+      if (reportMenuRef.current && !reportMenuRef.current.contains(event.target)) {
+        setShowReportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showReportMenu]);
 
   useEffect(() => {
     let cancelled = false;
@@ -772,6 +807,7 @@ export default function TraCuuSP2Page() {
     syncProgress && syncProgress.total > 0
       ? Math.min(100, Math.round((syncProgress.done / syncProgress.total) * 100))
       : null;
+  const activeReport = REPORT_MENU_ITEMS.find((item) => item.id === activeReportId) || REPORT_MENU_ITEMS[0];
 
   function DropRow({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
     return (
@@ -860,21 +896,73 @@ export default function TraCuuSP2Page() {
                   Hệ thống tra cứu thông tin Spliter cấp 2 theo OLT, Slot và Port
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowSettings(!showSettings)}
-                className="shrink-0 inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
-                aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt — token và đồng bộ'}
-              >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                </svg>
-                <span>{showSettings ? 'Ẩn cài đặt' : 'Cài đặt'}</span>
-                <span className="hidden sm:inline">{showSettings ? '' : ' / Token & đồng bộ'}</span>
-                <svg className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
+              <div className="shrink-0 flex items-center gap-2">
+                <div className="relative" ref={reportMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!authUnlocked) {
+                        setShowSettings(true);
+                        setShowReportMenu(false);
+                        setAuthPasswordError('Vui lòng nhập mật khẩu quản trị để mở menu báo cáo.');
+                        return;
+                      }
+                      setShowReportMenu((v) => !v);
+                    }}
+                    className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
+                    aria-label={`Menu báo cáo - đang chọn ${activeReport.label}`}
+                    aria-expanded={showReportMenu}
+                  >
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h18v4H3V3zm0 7h18v4H3v-4zm0 7h18v4H3v-4z" />
+                    </svg>
+                    <span>Báo cáo</span>
+                    <svg className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 transition-transform ${showReportMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {showReportMenu && (
+                    <div className="absolute right-0 mt-2 w-[290px] max-w-[80vw] rounded-xl border border-slate-200 bg-white shadow-xl z-20">
+                      <div className="px-3 py-2 border-b border-slate-100">
+                        <p className="text-xs font-semibold text-slate-700">Danh sách báo cáo</p>
+                        <p className="text-[11px] text-slate-500">Chọn báo cáo cần xem/xây dựng.</p>
+                      </div>
+                      <div className="py-1">
+                        {REPORT_MENU_ITEMS.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveReportId(item.id);
+                              setShowReportMenu(false);
+                              setShowSettings(true);
+                            }}
+                            className={`w-full text-left px-3 py-2.5 hover:bg-slate-50 ${activeReportId === item.id ? 'bg-sky-50' : ''}`}
+                          >
+                            <p className="text-xs font-semibold text-slate-700">{item.label}</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">{item.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
+                  aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt — token và đồng bộ'}
+                >
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                  <span>{showSettings ? 'Ẩn cài đặt' : 'Cài đặt'}</span>
+                  <span className="hidden sm:inline">{showSettings ? '' : ' / Token & đồng bộ'}</span>
+                  <svg className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -987,79 +1075,94 @@ export default function TraCuuSP2Page() {
                       </p>
                     )}
                     <div className="rounded border border-slate-200 bg-white p-2.5">
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <p className="text-[11px] font-semibold text-slate-700">
-                          Tỷ lệ cổng PON có đúng 1 SP2 theo Tổ KT
-                        </p>
-                        <div className="flex items-center gap-1.5">
-                          <select
-                            value={ponExportToQl}
-                            onChange={(e) => setPonExportToQl(e.target.value)}
-                            className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                            title="Lọc theo Tổ KT để xuất Excel"
-                          >
-                            <option value="">Tất cả Tổ KT</option>
-                            {ponOneSp2Stats.map((row) => {
-                              const key = String(row?.toQL || '');
-                              if (!key) return null;
-                              return (
-                                <option key={key} value={key}>
-                                  {toQlDisplayName(key)}
-                                </option>
-                              );
-                            })}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={handleExportPonOneSp2Excel}
-                            disabled={ponExporting}
-                            className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-                          >
-                            {ponExporting ? 'Đang xuất…' : (ponExportToQl ? 'Xuất Excel theo tổ' : 'Xuất Excel 1 SP2')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={refreshPonOneSp2Stats}
-                            disabled={ponStatsLoading}
-                            className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                          >
-                            {ponStatsLoading ? 'Đang tải…' : 'Làm mới'}
-                          </button>
-                        </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                        <p className="text-[11px] font-semibold text-slate-700">{activeReport.label}</p>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-100">
+                          Menu báo cáo
+                        </span>
                       </div>
-                      <p className="text-[10px] text-slate-500 mb-2">
-                        Công thức: <strong>số cổng có đúng 1 SP2 / tổng số cổng đã cache</strong>.
-                      </p>
-                      {ponStatsError && (
-                        <p className="text-[11px] text-red-600 mb-1">{ponStatsError}</p>
-                      )}
-                      {!ponStatsError && ponOneSp2Stats.length === 0 && !ponStatsLoading && (
-                        <p className="text-[11px] text-slate-500">Chưa có dữ liệu thống kê.</p>
-                      )}
-                      {ponOneSp2Stats.length > 0 && (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full text-[11px]">
-                            <thead>
-                              <tr className="border-b border-slate-200 text-slate-600">
-                                <th className="text-left py-1 pr-2 font-semibold">Tổ KT</th>
-                                <th className="text-right py-1 px-2 font-semibold">1 SP2</th>
-                                <th className="text-right py-1 px-2 font-semibold">Tổng cổng</th>
-                                <th className="text-right py-1 pl-2 font-semibold">Tỷ lệ</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {ponOneSp2Stats.map((row) => (
-                                <tr key={String(row?.toQL || '')} className="border-b border-slate-100 last:border-b-0 text-slate-700">
-                                  <td className="py-1.5 pr-2">{toQlDisplayName(row?.toQL)}</td>
-                                  <td className="py-1.5 px-2 text-right">{Number(row?.oneSp2Ports || 0)}</td>
-                                  <td className="py-1.5 px-2 text-right">{Number(row?.totalPorts || 0)}</td>
-                                  <td className="py-1.5 pl-2 text-right font-semibold text-indigo-700">
-                                    {(Number(row?.ratioOneSp2 || 0) * 100).toFixed(1)}%
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                      {activeReportId === 'pon_one_sp2' ? (
+                        <>
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <p className="text-[11px] font-semibold text-slate-700">
+                              Tỷ lệ cổng PON có đúng 1 SP2 theo Tổ KT
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={ponExportToQl}
+                                onChange={(e) => setPonExportToQl(e.target.value)}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                title="Lọc theo Tổ KT để xuất Excel"
+                              >
+                                <option value="">Tất cả Tổ KT</option>
+                                {ponOneSp2Stats.map((row) => {
+                                  const key = String(row?.toQL || '');
+                                  if (!key) return null;
+                                  return (
+                                    <option key={key} value={key}>
+                                      {toQlDisplayName(key)}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={handleExportPonOneSp2Excel}
+                                disabled={ponExporting}
+                                className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                              >
+                                {ponExporting ? 'Đang xuất…' : (ponExportToQl ? 'Xuất Excel theo tổ' : 'Xuất Excel 1 SP2')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={refreshPonOneSp2Stats}
+                                disabled={ponStatsLoading}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              >
+                                {ponStatsLoading ? 'Đang tải…' : 'Làm mới'}
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mb-2">
+                            Công thức: <strong>số cổng có đúng 1 SP2 / tổng số cổng đã cache</strong>.
+                          </p>
+                          {ponStatsError && (
+                            <p className="text-[11px] text-red-600 mb-1">{ponStatsError}</p>
+                          )}
+                          {!ponStatsError && ponOneSp2Stats.length === 0 && !ponStatsLoading && (
+                            <p className="text-[11px] text-slate-500">Chưa có dữ liệu thống kê.</p>
+                          )}
+                          {ponOneSp2Stats.length > 0 && (
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full text-[11px]">
+                                <thead>
+                                  <tr className="border-b border-slate-200 text-slate-600">
+                                    <th className="text-left py-1 pr-2 font-semibold">Tổ KT</th>
+                                    <th className="text-right py-1 px-2 font-semibold">1 SP2</th>
+                                    <th className="text-right py-1 px-2 font-semibold">Tổng cổng</th>
+                                    <th className="text-right py-1 pl-2 font-semibold">Tỷ lệ</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {ponOneSp2Stats.map((row) => (
+                                    <tr key={String(row?.toQL || '')} className="border-b border-slate-100 last:border-b-0 text-slate-700">
+                                      <td className="py-1.5 pr-2">{toQlDisplayName(row?.toQL)}</td>
+                                      <td className="py-1.5 px-2 text-right">{Number(row?.oneSp2Ports || 0)}</td>
+                                      <td className="py-1.5 px-2 text-right">{Number(row?.totalPorts || 0)}</td>
+                                      <td className="py-1.5 pl-2 text-right font-semibold text-indigo-700">
+                                        {(Number(row?.ratioOneSp2 || 0) * 100).toFixed(1)}%
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2.5">
+                          <p className="text-[11px] font-medium text-slate-700">Báo cáo đang được xây dựng</p>
+                          <p className="text-[11px] text-slate-500 mt-1">{activeReport.description}</p>
                         </div>
                       )}
                     </div>
