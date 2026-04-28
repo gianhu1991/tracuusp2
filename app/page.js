@@ -10,7 +10,6 @@ const PLACEHOLDER = '-- Chọn --';
 const TTVT_MAC_DINH = 'Trung tâm viễn thông Nho Quan';
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
-const AUTH_PASSWORD = '1234';
 const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
 const REPORT_MENU_ITEMS = [
   {
@@ -62,6 +61,7 @@ export default function TraCuuSP2Page() {
   const [authUnlocked, setAuthUnlocked] = useState(false);
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authPasswordError, setAuthPasswordError] = useState('');
+  const [authUnlocking, setAuthUnlocking] = useState(false);
   const [adminPasswordForServer, setAdminPasswordForServer] = useState('');
   const [saveToServerStatus, setSaveToServerStatus] = useState('');
   const [saveToServerMessage, setSaveToServerMessage] = useState('');
@@ -865,10 +865,21 @@ export default function TraCuuSP2Page() {
     });
   }, [browseSnapshot, cardOlt]);
 
-  const handleUnlockAuth = (e) => {
+  const handleUnlockAuth = async (e) => {
     e.preventDefault();
     setAuthPasswordError('');
-    if (authPasswordInput === AUTH_PASSWORD) {
+    setAuthUnlocking(true);
+    try {
+      const res = await fetch('/api/admin/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: authPasswordInput }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) {
+        setAuthPasswordError(j?.message || 'Mật khẩu không đúng.');
+        return;
+      }
       setAuthUnlocked(true);
       if (typeof window !== 'undefined') sessionStorage.setItem(STORAGE_AUTH_UNLOCKED, '1');
       setAuthPasswordInput('');
@@ -876,8 +887,10 @@ export default function TraCuuSP2Page() {
         setShowReportPanel(true);
         setUnlockToOpenReport(false);
       }
-    } else {
-      setAuthPasswordError('Mật khẩu không đúng.');
+    } catch (err) {
+      setAuthPasswordError(err?.message || 'Không xác thực được mật khẩu.');
+    } finally {
+      setAuthUnlocking(false);
     }
   };
 
@@ -1288,8 +1301,8 @@ export default function TraCuuSP2Page() {
                       className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 placeholder-slate-400 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
                       autoComplete="current-password"
                     />
-                    <button type="submit" className="rounded-lg bg-sky-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-700 min-h-[44px]">
-                      Mở khóa
+                    <button type="submit" disabled={authUnlocking} className="rounded-lg bg-sky-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-700 min-h-[44px] disabled:opacity-50">
+                      {authUnlocking ? 'Đang kiểm tra…' : 'Mở khóa'}
                     </button>
                   </div>
                   {authPasswordError && <p className="text-xs text-red-600">{authPasswordError}</p>}
