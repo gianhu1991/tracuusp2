@@ -11,6 +11,7 @@ const TTVT_MAC_DINH = 'Trung tâm viễn thông Nho Quan';
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_PASSWORD = '1234';
+const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
 const REPORT_MENU_ITEMS = [
   {
     id: 's2_capacity',
@@ -128,6 +129,18 @@ export default function TraCuuSP2Page() {
       setAuthUnlocked(sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) === '1');
     }
   }, []);
+
+  useEffect(() => {
+    if (!authUnlocked) return;
+    const t = setTimeout(() => {
+      setAuthUnlocked(false);
+      setShowReportPanel(false);
+      setUnlockToOpenReport(false);
+      if (typeof window !== 'undefined') sessionStorage.removeItem(STORAGE_AUTH_UNLOCKED);
+      setAuthPasswordError('Phiên mở khóa đã hết hạn sau 5 phút. Vui lòng nhập lại mật khẩu.');
+    }, AUTH_AUTO_LOCK_MS);
+    return () => clearTimeout(t);
+  }, [authUnlocked]);
 
   useEffect(() => {
     if (!showReportMenu) return;
