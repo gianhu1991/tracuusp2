@@ -99,7 +99,7 @@ export default function TraCuuSP2Page() {
   const [oltPonExporting, setOltPonExporting] = useState(false);
   const [oltPonFilter, setOltPonFilter] = useState('');
   const [oltPonPage, setOltPonPage] = useState(1);
-  const [oltPonPageSize, setOltPonPageSize] = useState(20);
+  const [oltPonPageSize, setOltPonPageSize] = useState(10);
   const [noSp2Rows, setNoSp2Rows] = useState([]);
   const [noSp2ToOptions, setNoSp2ToOptions] = useState([]);
   const [noSp2OltOptions, setNoSp2OltOptions] = useState([]);
@@ -109,7 +109,7 @@ export default function TraCuuSP2Page() {
   const [noSp2Error, setNoSp2Error] = useState('');
   const [noSp2Exporting, setNoSp2Exporting] = useState(false);
   const [noSp2Page, setNoSp2Page] = useState(1);
-  const [noSp2PageSize, setNoSp2PageSize] = useState(20);
+  const [noSp2PageSize, setNoSp2PageSize] = useState(10);
   const [s2CapacityRows, setS2CapacityRows] = useState([]);
   const [s2CapacityToOptions, setS2CapacityToOptions] = useState([]);
   const [s2CapacityOltOptions, setS2CapacityOltOptions] = useState([]);
@@ -119,7 +119,7 @@ export default function TraCuuSP2Page() {
   const [s2CapacityError, setS2CapacityError] = useState('');
   const [s2CapacityExporting, setS2CapacityExporting] = useState(false);
   const [s2CapacityPage, setS2CapacityPage] = useState(1);
-  const [s2CapacityPageSize, setS2CapacityPageSize] = useState(20);
+  const [s2CapacityPageSize, setS2CapacityPageSize] = useState(10);
   const syncAbortRef = useRef(null);
   const reportMenuRef = useRef(null);
 
