@@ -11,6 +11,7 @@ import {
   sp2ServerGetPonOneSp2StatsByToQL,
   sp2ServerGetPonOneSp2DetailRows,
   sp2ServerGetPonSp2DetailRowsByOlt,
+  sp2ServerGetPonNoSp2DetailRows,
 } from '../../../lib/sp2-server-cache';
 import { sp2CacheKey } from '../../../lib/sp2-cache-key';
 
@@ -334,7 +335,11 @@ export async function GET(request) {
         PORT_PON: r.portTen || '',
         PORT_PON_ID: r.portOlt || '',
         SO_LUONG_SP2: Number(r.sp2Count || 0),
-        DANH_SACH_SP2: r.tenSp2List || '',
+        DANH_SACH_SP2: String(r.tenSp2List || '')
+          .split(';')
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .join('\n'),
         CACHE_KEY: r.cacheKey || '',
       }));
       const ws = xlsx.utils.json_to_sheet(excelRows);
@@ -349,6 +354,39 @@ export async function GET(request) {
           'Cache-Control': 'no-store',
         },
       });
+    }
+
+    if (searchParams.get('stats') === 'no_sp2_detail') {
+      const configured = await sp2ServerConfigured();
+      if (!configured) {
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', rows: [] }, { status: 503 });
+      }
+      const detailRes = await sp2ServerGetPonNoSp2DetailRows();
+      if (!detailRes.ok) {
+        return NextResponse.json({ ok: false, message: detailRes.message || 'Lỗi đọc dữ liệu cổng không có S2.', rows: [] }, { status: 500 });
+      }
+      const browseRes = await sp2ServerGetBrowseSnapshot();
+      const maps = buildBrowseNameMaps(browseRes?.ok ? browseRes?.snapshot : null);
+      const enrichedRows = enrichPortRows(detailRes.rows, maps);
+      enrichedRows.sort((a, b) =>
+        String(a.toTen || '').localeCompare(String(b.toTen || '')) ||
+        String(a.oltTen || '').localeCompare(String(b.oltTen || '')) ||
+        (Number(a._cardOrder) - Number(b._cardOrder)) ||
+        String(a.cardTen || '').localeCompare(String(b.cardTen || '')) ||
+        (Number(a._portOrder) - Number(b._portOrder)) ||
+        String(a.portTen || '').localeCompare(String(b.portTen || ''))
+      );
+      const toOptions = Array.from(new Map(
+        enrichedRows
+          .filter((r) => String(r?.toQL || ''))
+          .map((r) => [String(r.toQL), String(r.toTen || r.toQL)])
+      ).entries()).map(([id, name]) => ({ id, name }));
+      const oltOptions = Array.from(new Map(
+        enrichedRows
+          .filter((r) => String(r?.thietBiOlt || ''))
+          .map((r) => [String(r.thietBiOlt), String(r.oltTen || r.thietBiOlt)])
+      ).entries()).map(([id, name]) => ({ id, name }));
+      return NextResponse.json({ ok: true, rows: enrichedRows, toOptions, oltOptions });
     }
 
     const keyBody = {

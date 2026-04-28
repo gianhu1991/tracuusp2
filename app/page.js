@@ -13,6 +13,11 @@ const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_PASSWORD = '1234';
 const REPORT_MENU_ITEMS = [
   {
+    id: 'no_sp2_ports',
+    label: 'Cổng PON không có S2',
+    description: 'Báo cáo theo Tổ kỹ thuật và OLT các cổng chưa có S2.',
+  },
+  {
     id: 'olt_pon_detail',
     label: 'Chi tiết S2 theo OLT/PON',
     description: 'Xem chi tiết cổng PON theo OLT và xuất Excel theo OLT.',
@@ -97,6 +102,15 @@ export default function TraCuuSP2Page() {
   const [oltPonFilter, setOltPonFilter] = useState('');
   const [oltPonPage, setOltPonPage] = useState(1);
   const [oltPonPageSize, setOltPonPageSize] = useState(20);
+  const [noSp2Rows, setNoSp2Rows] = useState([]);
+  const [noSp2ToOptions, setNoSp2ToOptions] = useState([]);
+  const [noSp2OltOptions, setNoSp2OltOptions] = useState([]);
+  const [noSp2ToFilter, setNoSp2ToFilter] = useState('');
+  const [noSp2OltFilter, setNoSp2OltFilter] = useState('');
+  const [noSp2Loading, setNoSp2Loading] = useState(false);
+  const [noSp2Error, setNoSp2Error] = useState('');
+  const [noSp2Page, setNoSp2Page] = useState(1);
+  const [noSp2PageSize, setNoSp2PageSize] = useState(20);
   const syncAbortRef = useRef(null);
   const reportMenuRef = useRef(null);
 
@@ -284,9 +298,36 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  async function refreshNoSp2Rows() {
+    setNoSp2Loading(true);
+    setNoSp2Error('');
+    try {
+      const res = await fetch('/api/sp2-cache?stats=no_sp2_detail');
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) {
+        setNoSp2Rows([]);
+        setNoSp2ToOptions([]);
+        setNoSp2OltOptions([]);
+        setNoSp2Error(j.message || `Không tải được báo cáo cổng không có S2 (${res.status}).`);
+        return;
+      }
+      setNoSp2Rows(Array.isArray(j.rows) ? j.rows : []);
+      setNoSp2ToOptions(Array.isArray(j.toOptions) ? j.toOptions : []);
+      setNoSp2OltOptions(Array.isArray(j.oltOptions) ? j.oltOptions : []);
+    } catch (e) {
+      setNoSp2Rows([]);
+      setNoSp2ToOptions([]);
+      setNoSp2OltOptions([]);
+      setNoSp2Error(e?.message || 'Lỗi tải báo cáo cổng không có S2.');
+    } finally {
+      setNoSp2Loading(false);
+    }
+  }
+
   useEffect(() => {
     refreshPonOneSp2Stats();
     refreshOltPonDetailRows();
+    refreshNoSp2Rows();
   }, []);
 
   useEffect(() => {
@@ -302,8 +343,24 @@ export default function TraCuuSP2Page() {
   }, [oltPonOptions, oltPonFilter]);
 
   useEffect(() => {
+    if (!noSp2ToFilter) return;
+    const exists = noSp2ToOptions.some((r) => String(r?.id || '') === noSp2ToFilter);
+    if (!exists) setNoSp2ToFilter('');
+  }, [noSp2ToOptions, noSp2ToFilter]);
+
+  useEffect(() => {
+    if (!noSp2OltFilter) return;
+    const exists = noSp2OltOptions.some((r) => String(r?.id || '') === noSp2OltFilter);
+    if (!exists) setNoSp2OltFilter('');
+  }, [noSp2OltOptions, noSp2OltFilter]);
+
+  useEffect(() => {
     setOltPonPage(1);
   }, [oltPonFilter, oltPonPageSize, oltPonDetailRows]);
+
+  useEffect(() => {
+    setNoSp2Page(1);
+  }, [noSp2ToFilter, noSp2OltFilter, noSp2PageSize, noSp2Rows]);
 
   /** Khi chưa có danh sách Tổ KT từ API (vd. thiếu token) nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
   useEffect(() => {
@@ -894,6 +951,15 @@ export default function TraCuuSP2Page() {
   const oltPonCurrentPage = Math.min(oltPonPage, oltPonTotalPages);
   const oltPonStart = (oltPonCurrentPage - 1) * oltPonPageSize;
   const pagedOltPonRows = filteredOltPonRows.slice(oltPonStart, oltPonStart + oltPonPageSize);
+  const filteredNoSp2Rows = noSp2Rows.filter((row) => {
+    if (noSp2ToFilter && String(row?.toQL || '') !== noSp2ToFilter) return false;
+    if (noSp2OltFilter && String(row?.thietBiOlt || '') !== noSp2OltFilter) return false;
+    return true;
+  });
+  const noSp2TotalPages = Math.max(1, Math.ceil(filteredNoSp2Rows.length / noSp2PageSize));
+  const noSp2CurrentPage = Math.min(noSp2Page, noSp2TotalPages);
+  const noSp2Start = (noSp2CurrentPage - 1) * noSp2PageSize;
+  const pagedNoSp2Rows = filteredNoSp2Rows.slice(noSp2Start, noSp2Start + noSp2PageSize);
 
   function DropRow({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
     return (
@@ -1167,7 +1233,136 @@ export default function TraCuuSP2Page() {
                           Menu báo cáo
                         </span>
                       </div>
-                      {activeReportId === 'olt_pon_detail' ? (
+                      {activeReportId === 'no_sp2_ports' ? (
+                        <>
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                            <p className="text-[11px] font-semibold text-slate-700">
+                              Danh sách cổng PON không có S2
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={noSp2ToFilter}
+                                onChange={(e) => setNoSp2ToFilter(e.target.value)}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                title="Lọc theo Tổ kỹ thuật"
+                              >
+                                <option value="">Tất cả Tổ KT</option>
+                                {noSp2ToOptions.map((item) => {
+                                  const id = String(item?.id || '');
+                                  if (!id) return null;
+                                  return (
+                                    <option key={id} value={id}>
+                                      {String(item?.name || id)}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <select
+                                value={noSp2OltFilter}
+                                onChange={(e) => setNoSp2OltFilter(e.target.value)}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                title="Lọc theo OLT"
+                              >
+                                <option value="">Tất cả OLT</option>
+                                {noSp2OltOptions.map((item) => {
+                                  const id = String(item?.id || '');
+                                  if (!id) return null;
+                                  return (
+                                    <option key={id} value={id}>
+                                      {String(item?.name || id)}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <select
+                                value={String(noSp2PageSize)}
+                                onChange={(e) => setNoSp2PageSize(Number(e.target.value) || 20)}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                title="Số cổng hiển thị mỗi trang"
+                              >
+                                <option value="10">10 cổng/trang</option>
+                                <option value="20">20 cổng/trang</option>
+                                <option value="50">50 cổng/trang</option>
+                                <option value="100">100 cổng/trang</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={refreshNoSp2Rows}
+                                disabled={noSp2Loading}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              >
+                                {noSp2Loading ? 'Đang tải…' : 'Làm mới'}
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mb-2">
+                            Báo cáo liệt kê các cổng PON chưa có S2, hỗ trợ lọc theo Tổ kỹ thuật và OLT.
+                          </p>
+                          {noSp2Error && (
+                            <p className="text-[11px] text-red-600 mb-1">{noSp2Error}</p>
+                          )}
+                          {!noSp2Error && filteredNoSp2Rows.length === 0 && !noSp2Loading && (
+                            <p className="text-[11px] text-slate-500">Không có cổng PON nào thiếu S2 theo điều kiện lọc hiện tại.</p>
+                          )}
+                          {filteredNoSp2Rows.length > 0 && (
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full text-[11px]">
+                                <thead>
+                                  <tr className="border-b border-slate-200 text-slate-600">
+                                    <th className="text-left py-1 pr-2 font-semibold">Tổ KT</th>
+                                    <th className="text-left py-1 px-2 font-semibold">OLT</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Card</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Port PON</th>
+                                    <th className="text-left py-1 pl-2 font-semibold">Trạm BTS</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {pagedNoSp2Rows.map((row, idx) => (
+                                    <tr
+                                      key={`${String(row?.cacheKey || '')}-nosp2-${noSp2Start + idx}`}
+                                      className="border-b border-slate-100 last:border-b-0 text-slate-700"
+                                    >
+                                      <td className="py-1.5 pr-2">{String(row?.toTen || row?.toQL || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.oltTen || row?.thietBiOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.cardTen || row?.cardOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.portTen || row?.portOlt || '—')}</td>
+                                      <td className="py-1.5 pl-2">{String(row?.tramTen || row?.veTinh || '—')}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          {filteredNoSp2Rows.length > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-[11px] text-slate-600">
+                                Hiển thị {noSp2Start + 1}-{Math.min(noSp2Start + noSp2PageSize, filteredNoSp2Rows.length)} / {filteredNoSp2Rows.length} cổng
+                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setNoSp2Page((p) => Math.max(1, p - 1))}
+                                  disabled={noSp2CurrentPage <= 1}
+                                  className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                  Trang trước
+                                </button>
+                                <span className="text-[11px] text-slate-600">
+                                  Trang {noSp2CurrentPage}/{noSp2TotalPages}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNoSp2Page((p) => Math.min(noSp2TotalPages, p + 1))}
+                                  disabled={noSp2CurrentPage >= noSp2TotalPages}
+                                  className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                  Trang sau
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : activeReportId === 'olt_pon_detail' ? (
                         <>
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                             <p className="text-[11px] font-semibold text-slate-700">
