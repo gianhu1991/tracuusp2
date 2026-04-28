@@ -389,6 +389,72 @@ export async function GET(request) {
       return NextResponse.json({ ok: true, rows: enrichedRows, toOptions, oltOptions });
     }
 
+    if (searchParams.get('stats') === 'no_sp2_excel') {
+      const configured = await sp2ServerConfigured();
+      if (!configured) {
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+      }
+      const toQlFilter = (searchParams.get('toQL') || '').trim();
+      const oltFilter = (searchParams.get('thietBiOlt') || '').trim();
+      const detailRes = await sp2ServerGetPonNoSp2DetailRows();
+      if (!detailRes.ok) {
+        return NextResponse.json({ ok: false, message: detailRes.message || 'Lỗi xuất dữ liệu cổng không có S2.' }, { status: 500 });
+      }
+      const browseRes = await sp2ServerGetBrowseSnapshot();
+      const maps = buildBrowseNameMaps(browseRes?.ok ? browseRes?.snapshot : null);
+      const enrichedRows = enrichPortRows(detailRes.rows, maps)
+        .filter((r) => !toQlFilter || String(r?.toQL || '') === toQlFilter)
+        .filter((r) => !oltFilter || String(r?.thietBiOlt || '') === oltFilter)
+        .sort((a, b) =>
+          String(a.toTen || '').localeCompare(String(b.toTen || '')) ||
+          String(a.oltTen || '').localeCompare(String(b.oltTen || '')) ||
+          (Number(a._cardOrder) - Number(b._cardOrder)) ||
+          String(a.cardTen || '').localeCompare(String(b.cardTen || '')) ||
+          (Number(a._portOrder) - Number(b._portOrder)) ||
+          String(a.portTen || '').localeCompare(String(b.portTen || ''))
+        );
+
+      const xlsx = await import('xlsx');
+      const datePart = new Date().toISOString().slice(0, 10);
+      const safeToQl = toQlFilter.replace(/[^a-zA-Z0-9_-]+/g, '_');
+      const safeOlt = oltFilter.replace(/[^a-zA-Z0-9_-]+/g, '_');
+      const filename = [
+        'bao_cao_pon_khong_s2',
+        safeToQl ? `to_${safeToQl}` : '',
+        safeOlt ? `olt_${safeOlt}` : '',
+        datePart,
+      ].filter(Boolean).join('_') + '.xlsx';
+
+      const excelRows = enrichedRows.map((r, idx) => ({
+        STT: idx + 1,
+        TO_KT_TEN: r.toTen || '',
+        TO_KT_ID: r.toQL || '',
+        TRAM_BTS_TEN: r.tramTen || '',
+        TRAM_BTS_ID: r.veTinh || '',
+        OLT_TEN: r.oltTen || '',
+        OLT_ID: r.thietBiOlt || '',
+        CARD_OLT_TEN: r.cardTen || '',
+        CARD_OLT_ID: r.cardOlt || '',
+        PORT_PON: r.portTen || '',
+        PORT_PON_ID: r.portOlt || '',
+        SO_LUONG_SP2: 0,
+        GHI_CHU: 'Không có S2',
+        CACHE_KEY: r.cacheKey || '',
+      }));
+      const ws = xlsx.utils.json_to_sheet(excelRows);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, 'PON_KHONG_S2');
+      const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
     const keyBody = {
       toQL: searchParams.get('toQL') || '',
       veTinh: searchParams.get('veTinh') || '',

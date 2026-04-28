@@ -60,6 +60,7 @@ export default function TraCuuSP2Page() {
   const [authorization, setAuthorization] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showReportMenu, setShowReportMenu] = useState(false);
+  const [showReportPanel, setShowReportPanel] = useState(false);
   const [activeReportId, setActiveReportId] = useState(REPORT_MENU_ITEMS[0].id);
   const [authUnlocked, setAuthUnlocked] = useState(false);
   const [authPasswordInput, setAuthPasswordInput] = useState('');
@@ -109,6 +110,7 @@ export default function TraCuuSP2Page() {
   const [noSp2OltFilter, setNoSp2OltFilter] = useState('');
   const [noSp2Loading, setNoSp2Loading] = useState(false);
   const [noSp2Error, setNoSp2Error] = useState('');
+  const [noSp2Exporting, setNoSp2Exporting] = useState(false);
   const [noSp2Page, setNoSp2Page] = useState(1);
   const [noSp2PageSize, setNoSp2PageSize] = useState(20);
   const syncAbortRef = useRef(null);
@@ -323,6 +325,37 @@ export default function TraCuuSP2Page() {
       setNoSp2Loading(false);
     }
   }
+
+  const handleExportNoSp2Excel = async () => {
+    setNoSp2Exporting(true);
+    setNoSp2Error('');
+    try {
+      const q = new URLSearchParams({ stats: 'no_sp2_excel' });
+      if (noSp2ToFilter) q.set('toQL', noSp2ToFilter);
+      if (noSp2OltFilter) q.set('thietBiOlt', noSp2OltFilter);
+      const res = await fetch(`/api/sp2-cache?${q.toString()}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.message || `Không xuất được Excel cổng không có S2 (${res.status}).`);
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get('content-disposition') || '';
+      const m = dispo.match(/filename="([^"]+)"/i);
+      const filename = m?.[1] || `bao_cao_pon_khong_s2_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setNoSp2Error(e?.message || 'Lỗi xuất Excel cổng không có S2.');
+    } finally {
+      setNoSp2Exporting(false);
+    }
+  };
 
   useEffect(() => {
     refreshPonOneSp2Stats();
@@ -1088,6 +1121,7 @@ export default function TraCuuSP2Page() {
                               setActiveReportId(item.id);
                               setShowReportMenu(false);
                               setShowSettings(true);
+                              setShowReportPanel(true);
                             }}
                             className={`w-full text-left px-3 py-2.5 hover:bg-slate-50 ${activeReportId === item.id ? 'bg-sky-50' : ''}`}
                           >
@@ -1101,7 +1135,18 @@ export default function TraCuuSP2Page() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowSettings(!showSettings)}
+                  onClick={() => {
+                    if (!showSettings) {
+                      setShowSettings(true);
+                      setShowReportPanel(false);
+                      return;
+                    }
+                    if (showReportPanel) {
+                      setShowReportPanel(false);
+                      return;
+                    }
+                    setShowSettings(false);
+                  }}
                   className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
                   aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt — token và đồng bộ'}
                 >
@@ -1141,6 +1186,8 @@ export default function TraCuuSP2Page() {
                 </form>
               ) : (
                 <div>
+                  {!showReportPanel && (
+                    <>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <label className="block text-xs font-semibold text-slate-600">Authorization (Bearer token)</label>
                     <button type="button" onClick={handleLockAuth} className="text-xs text-slate-500 hover:text-slate-700 underline">
@@ -1171,8 +1218,12 @@ export default function TraCuuSP2Page() {
                     {saveToServerMessage && <p className={`text-xs ${saveToServerStatus === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{saveToServerMessage}</p>}
                   </form>
                   <p className="text-xs text-slate-500 mt-2">Cần cấu hình Supabase (bảng app_config) + ADMIN_PASSWORD trên Vercel (xem VERCEL-SETUP.md). Sau khi lưu, mọi người dùng app sẽ dùng token này.</p>
+                    </>
+                  )}
 
                   <div className="mt-5 pt-5 border-t border-slate-200 space-y-3">
+                    {!showReportPanel && (
+                      <>
                     <p className="text-xs font-semibold text-slate-700">Đồng bộ toàn bộ S2 &amp; cache tra cứu</p>
                     <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
                       Quét Tổ KT → Trạm → OLT → Card → Port và gọi tra cứu theo lô (vài port song song) để nhanh hơn. Nhập <strong>mật khẩu quản trị</strong> (cùng «Lưu token lên server») để lưu lên <strong>Supabase</strong>. Để trống mật khẩu thì chỉ lưu trên trình duyệt này. Cần bảng <code className="text-indigo-700 bg-white px-1 rounded">sp2_port_cache</code> (xem VERCEL-SETUP.md). Số port lớn vẫn có thể mất nhiều phút.
@@ -1225,6 +1276,8 @@ export default function TraCuuSP2Page() {
                         {serverSyncMeta.lastSyncErrors > 0 && ` — ${serverSyncMeta.lastSyncErrors} lỗi`}
                         {serverSyncMeta.lastSyncAborted && ' — đã dừng giữa chừng'}
                       </p>
+                    )}
+                      </>
                     )}
                     <div className="rounded border border-slate-200 bg-white p-2.5">
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
@@ -1285,6 +1338,14 @@ export default function TraCuuSP2Page() {
                                 <option value="50">50 cổng/trang</option>
                                 <option value="100">100 cổng/trang</option>
                               </select>
+                              <button
+                                type="button"
+                                onClick={handleExportNoSp2Excel}
+                                disabled={noSp2Exporting}
+                                className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                              >
+                                {noSp2Exporting ? 'Đang xuất…' : 'Xuất Excel'}
+                              </button>
                               <button
                                 type="button"
                                 onClick={refreshNoSp2Rows}
@@ -1587,7 +1648,7 @@ export default function TraCuuSP2Page() {
                         </div>
                       )}
                     </div>
-                    {lastSyncInfo?.lastSyncAt && (
+                    {!showReportPanel && lastSyncInfo?.lastSyncAt && (
                       <p className="text-[11px] text-slate-500">
                         Đồng bộ cục bộ (trình duyệt này):{' '}
                         {new Date(lastSyncInfo.lastSyncAt).toLocaleString('vi-VN')}
@@ -1598,6 +1659,7 @@ export default function TraCuuSP2Page() {
                         {lastSyncInfo.lastSyncErrors > 0 && ` — ${lastSyncInfo.lastSyncErrors} lỗi`}
                       </p>
                     )}
+                    {!showReportPanel && (
                     <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 pt-1">
                       <label className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer">
                         <input
@@ -1626,6 +1688,7 @@ export default function TraCuuSP2Page() {
                         Luôn gọi API (bỏ qua bộ nhớ)
                       </label>
                     </div>
+                    )}
                   </div>
                 </div>
               )}
