@@ -1360,7 +1360,7 @@ export default function TraCuuSP2Page() {
                       className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 placeholder-slate-400 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
                       autoComplete="current-password"
                     />
-                    <button type="submit" disabled={authUnlocking} className="rounded-lg bg-sky-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-700 min-h-[44px] disabled:opacity-50">
+                    <button type="submit" disabled={authUnlocking} className="rounded-lg bg-sky-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-700 min-h-[44px] whitespace-nowrap disabled:opacity-50">
                       {authUnlocking ? 'Đang kiểm tra…' : 'Mở khóa'}
                     </button>
                   </div>
