@@ -881,10 +881,11 @@ export default function TraCuuSP2Page() {
         return;
       }
       setAuthUnlocked(true);
+      setShowSettings(true);
+      setShowReportPanel(true);
       if (typeof window !== 'undefined') sessionStorage.setItem(STORAGE_AUTH_UNLOCKED, '1');
       setAuthPasswordInput('');
       if (unlockToOpenReport) {
-        setShowReportPanel(true);
         setUnlockToOpenReport(false);
       }
     } catch (err) {
