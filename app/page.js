@@ -13,6 +13,11 @@ const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_PASSWORD = '1234';
 const REPORT_MENU_ITEMS = [
   {
+    id: 's2_capacity',
+    label: 'Dung lượng S2',
+    description: 'Theo dõi dung lượng, đã dùng, chưa dùng của splitter S2.',
+  },
+  {
     id: 'no_sp2_ports',
     label: 'Cổng PON không có S2',
     description: 'Báo cáo theo Tổ kỹ thuật và OLT các cổng chưa có S2.',
@@ -26,16 +31,6 @@ const REPORT_MENU_ITEMS = [
     id: 'pon_one_sp2',
     label: 'Tỷ lệ cổng PON có đúng 1 SP2',
     description: 'Theo dõi tỷ lệ 1 SP2 theo Tổ KT và xuất Excel.',
-  },
-  {
-    id: 'sync_quality',
-    label: 'Chất lượng đồng bộ S2',
-    description: 'Sẽ xây dựng: tổng port đồng bộ, lỗi, trạng thái dừng.',
-  },
-  {
-    id: 'cache_usage',
-    label: 'Hiệu quả sử dụng cache',
-    description: 'Sẽ xây dựng: tần suất hit/miss cache theo thời gian.',
   },
 ];
 
@@ -61,6 +56,7 @@ export default function TraCuuSP2Page() {
   const [showSettings, setShowSettings] = useState(false);
   const [showReportMenu, setShowReportMenu] = useState(false);
   const [showReportPanel, setShowReportPanel] = useState(false);
+  const [unlockToOpenReport, setUnlockToOpenReport] = useState(false);
   const [activeReportId, setActiveReportId] = useState(REPORT_MENU_ITEMS[0].id);
   const [authUnlocked, setAuthUnlocked] = useState(false);
   const [authPasswordInput, setAuthPasswordInput] = useState('');
@@ -113,6 +109,16 @@ export default function TraCuuSP2Page() {
   const [noSp2Exporting, setNoSp2Exporting] = useState(false);
   const [noSp2Page, setNoSp2Page] = useState(1);
   const [noSp2PageSize, setNoSp2PageSize] = useState(20);
+  const [s2CapacityRows, setS2CapacityRows] = useState([]);
+  const [s2CapacityToOptions, setS2CapacityToOptions] = useState([]);
+  const [s2CapacityOltOptions, setS2CapacityOltOptions] = useState([]);
+  const [s2CapacityToFilter, setS2CapacityToFilter] = useState('');
+  const [s2CapacityOltFilter, setS2CapacityOltFilter] = useState('');
+  const [s2CapacityLoading, setS2CapacityLoading] = useState(false);
+  const [s2CapacityError, setS2CapacityError] = useState('');
+  const [s2CapacityExporting, setS2CapacityExporting] = useState(false);
+  const [s2CapacityPage, setS2CapacityPage] = useState(1);
+  const [s2CapacityPageSize, setS2CapacityPageSize] = useState(20);
   const syncAbortRef = useRef(null);
   const reportMenuRef = useRef(null);
 
@@ -357,10 +363,71 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  async function refreshS2CapacityRows() {
+    setS2CapacityLoading(true);
+    setS2CapacityError('');
+    try {
+      const q = new URLSearchParams({ stats: 's2_capacity_detail' });
+      if (s2CapacityToFilter) q.set('toQL', s2CapacityToFilter);
+      if (s2CapacityOltFilter) q.set('thietBiOlt', s2CapacityOltFilter);
+      const res = await fetch(`/api/sp2-cache?${q.toString()}`);
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) {
+        setS2CapacityRows([]);
+        setS2CapacityToOptions([]);
+        setS2CapacityOltOptions([]);
+        setS2CapacityError(j.message || `Không tải được báo cáo dung lượng S2 (${res.status}).`);
+        return;
+      }
+      setS2CapacityRows(Array.isArray(j.rows) ? j.rows : []);
+      setS2CapacityToOptions(Array.isArray(j.toOptions) ? j.toOptions : []);
+      setS2CapacityOltOptions(Array.isArray(j.oltOptions) ? j.oltOptions : []);
+    } catch (e) {
+      setS2CapacityRows([]);
+      setS2CapacityToOptions([]);
+      setS2CapacityOltOptions([]);
+      setS2CapacityError(e?.message || 'Lỗi tải báo cáo dung lượng S2.');
+    } finally {
+      setS2CapacityLoading(false);
+    }
+  }
+
+  const handleExportS2CapacityExcel = async () => {
+    setS2CapacityExporting(true);
+    setS2CapacityError('');
+    try {
+      const q = new URLSearchParams({ stats: 's2_capacity_excel' });
+      if (s2CapacityToFilter) q.set('toQL', s2CapacityToFilter);
+      if (s2CapacityOltFilter) q.set('thietBiOlt', s2CapacityOltFilter);
+      const res = await fetch(`/api/sp2-cache?${q.toString()}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.message || `Không xuất được Excel dung lượng S2 (${res.status}).`);
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get('content-disposition') || '';
+      const m = dispo.match(/filename="([^"]+)"/i);
+      const filename = m?.[1] || `bao_cao_dung_luong_s2_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setS2CapacityError(e?.message || 'Lỗi xuất Excel dung lượng S2.');
+    } finally {
+      setS2CapacityExporting(false);
+    }
+  };
+
   useEffect(() => {
     refreshPonOneSp2Stats();
     refreshOltPonDetailRows();
     refreshNoSp2Rows();
+    refreshS2CapacityRows();
   }, []);
 
   useEffect(() => {
@@ -388,12 +455,28 @@ export default function TraCuuSP2Page() {
   }, [noSp2OltOptions, noSp2OltFilter]);
 
   useEffect(() => {
+    if (!s2CapacityToFilter) return;
+    const exists = s2CapacityToOptions.some((r) => String(r?.id || '') === s2CapacityToFilter);
+    if (!exists) setS2CapacityToFilter('');
+  }, [s2CapacityToOptions, s2CapacityToFilter]);
+
+  useEffect(() => {
+    if (!s2CapacityOltFilter) return;
+    const exists = s2CapacityOltOptions.some((r) => String(r?.id || '') === s2CapacityOltFilter);
+    if (!exists) setS2CapacityOltFilter('');
+  }, [s2CapacityOltOptions, s2CapacityOltFilter]);
+
+  useEffect(() => {
     setOltPonPage(1);
   }, [oltPonFilter, oltPonPageSize, oltPonDetailRows]);
 
   useEffect(() => {
     setNoSp2Page(1);
   }, [noSp2ToFilter, noSp2OltFilter, noSp2PageSize, noSp2Rows]);
+
+  useEffect(() => {
+    setS2CapacityPage(1);
+  }, [s2CapacityToFilter, s2CapacityOltFilter, s2CapacityPageSize, s2CapacityRows]);
 
   /** Khi chưa có danh sách Tổ KT từ API (vd. thiếu token) nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
   useEffect(() => {
@@ -776,6 +859,10 @@ export default function TraCuuSP2Page() {
       setAuthUnlocked(true);
       if (typeof window !== 'undefined') sessionStorage.setItem(STORAGE_AUTH_UNLOCKED, '1');
       setAuthPasswordInput('');
+      if (unlockToOpenReport) {
+        setShowReportPanel(true);
+        setUnlockToOpenReport(false);
+      }
     } else {
       setAuthPasswordError('Mật khẩu không đúng.');
     }
@@ -783,6 +870,8 @@ export default function TraCuuSP2Page() {
 
   const handleLockAuth = () => {
     setAuthUnlocked(false);
+    setShowReportPanel(false);
+    setUnlockToOpenReport(false);
     if (typeof window !== 'undefined') sessionStorage.removeItem(STORAGE_AUTH_UNLOCKED);
   };
 
@@ -993,6 +1082,15 @@ export default function TraCuuSP2Page() {
   const noSp2CurrentPage = Math.min(noSp2Page, noSp2TotalPages);
   const noSp2Start = (noSp2CurrentPage - 1) * noSp2PageSize;
   const pagedNoSp2Rows = filteredNoSp2Rows.slice(noSp2Start, noSp2Start + noSp2PageSize);
+  const filteredS2CapacityRows = s2CapacityRows.filter((row) => {
+    if (s2CapacityToFilter && String(row?.toQL || '') !== s2CapacityToFilter) return false;
+    if (s2CapacityOltFilter && String(row?.thietBiOlt || '') !== s2CapacityOltFilter) return false;
+    return true;
+  });
+  const s2CapacityTotalPages = Math.max(1, Math.ceil(filteredS2CapacityRows.length / s2CapacityPageSize));
+  const s2CapacityCurrentPage = Math.min(s2CapacityPage, s2CapacityTotalPages);
+  const s2CapacityStart = (s2CapacityCurrentPage - 1) * s2CapacityPageSize;
+  const pagedS2CapacityRows = filteredS2CapacityRows.slice(s2CapacityStart, s2CapacityStart + s2CapacityPageSize);
 
   function DropRow({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
     return (
@@ -1089,6 +1187,7 @@ export default function TraCuuSP2Page() {
                       if (!authUnlocked) {
                         setShowSettings(true);
                         setShowReportMenu(false);
+                        setUnlockToOpenReport(true);
                         setAuthPasswordError('Vui lòng nhập mật khẩu quản trị để mở menu báo cáo.');
                         return;
                       }
@@ -1108,10 +1207,6 @@ export default function TraCuuSP2Page() {
                   </button>
                   {showReportMenu && (
                     <div className="absolute right-0 mt-2 w-[290px] max-w-[80vw] rounded-xl border border-slate-200 bg-white shadow-xl z-20">
-                      <div className="px-3 py-2 border-b border-slate-100">
-                        <p className="text-xs font-semibold text-slate-700">Danh sách báo cáo</p>
-                        <p className="text-[11px] text-slate-500">Chọn báo cáo cần xem/xây dựng.</p>
-                      </div>
                       <div className="py-1">
                         {REPORT_MENU_ITEMS.map((item) => (
                           <button
@@ -1122,6 +1217,7 @@ export default function TraCuuSP2Page() {
                               setShowReportMenu(false);
                               setShowSettings(true);
                               setShowReportPanel(true);
+                              setUnlockToOpenReport(false);
                             }}
                             className={`w-full text-left px-3 py-2.5 hover:bg-slate-50 ${activeReportId === item.id ? 'bg-sky-50' : ''}`}
                           >
@@ -1136,6 +1232,7 @@ export default function TraCuuSP2Page() {
                 <button
                   type="button"
                   onClick={() => {
+                    setUnlockToOpenReport(false);
                     if (!showSettings) {
                       setShowSettings(true);
                       setShowReportPanel(false);
@@ -1286,7 +1383,114 @@ export default function TraCuuSP2Page() {
                           Menu báo cáo
                         </span>
                       </div>
-                      {activeReportId === 'no_sp2_ports' ? (
+                      {activeReportId === 's2_capacity' ? (
+                        <>
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                            <p className="text-[11px] font-semibold text-slate-700">
+                              Báo cáo dung lượng S2
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={s2CapacityToFilter}
+                                onChange={(e) => setS2CapacityToFilter(e.target.value)}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                title="Lọc theo Tổ kỹ thuật"
+                              >
+                                <option value="">Tất cả Tổ KT</option>
+                                {s2CapacityToOptions.map((item) => {
+                                  const id = String(item?.id || '');
+                                  if (!id) return null;
+                                  return <option key={id} value={id}>{String(item?.name || id)}</option>;
+                                })}
+                              </select>
+                              <select
+                                value={s2CapacityOltFilter}
+                                onChange={(e) => setS2CapacityOltFilter(e.target.value)}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                title="Lọc theo OLT"
+                              >
+                                <option value="">Tất cả OLT</option>
+                                {s2CapacityOltOptions.map((item) => {
+                                  const id = String(item?.id || '');
+                                  if (!id) return null;
+                                  return <option key={id} value={id}>{String(item?.name || id)}</option>;
+                                })}
+                              </select>
+                              <select
+                                value={String(s2CapacityPageSize)}
+                                onChange={(e) => setS2CapacityPageSize(Number(e.target.value) || 20)}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                title="Số dòng hiển thị mỗi trang"
+                              >
+                                <option value="10">10 dòng/trang</option>
+                                <option value="20">20 dòng/trang</option>
+                                <option value="50">50 dòng/trang</option>
+                                <option value="100">100 dòng/trang</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={handleExportS2CapacityExcel}
+                                disabled={s2CapacityExporting}
+                                className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                              >
+                                {s2CapacityExporting ? 'Đang xuất…' : 'Xuất Excel'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={refreshS2CapacityRows}
+                                disabled={s2CapacityLoading}
+                                className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              >
+                                {s2CapacityLoading ? 'Đang tải…' : 'Làm mới'}
+                              </button>
+                            </div>
+                          </div>
+                          {s2CapacityError && <p className="text-[11px] text-red-600 mb-1">{s2CapacityError}</p>}
+                          {!s2CapacityError && filteredS2CapacityRows.length === 0 && !s2CapacityLoading && (
+                            <p className="text-[11px] text-slate-500">Chưa có dữ liệu dung lượng S2.</p>
+                          )}
+                          {filteredS2CapacityRows.length > 0 && (
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full text-[11px]">
+                                <thead>
+                                  <tr className="border-b border-slate-200 text-slate-600">
+                                    <th className="text-left py-1 pr-2 font-semibold">Tổ KT</th>
+                                    <th className="text-left py-1 px-2 font-semibold">OLT</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Ký hiệu</th>
+                                    <th className="text-right py-1 px-2 font-semibold">Dung lượng</th>
+                                    <th className="text-right py-1 px-2 font-semibold">Đã dùng</th>
+                                    <th className="text-right py-1 pl-2 font-semibold">Chưa dùng</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {pagedS2CapacityRows.map((row, idx) => (
+                                    <tr key={`${String(row?.cacheKey || '')}-cap-${s2CapacityStart + idx}`} className="border-b border-slate-100 last:border-b-0 text-slate-700">
+                                      <td className="py-1.5 pr-2">{String(row?.toTen || row?.toQL || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.oltTen || row?.thietBiOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.kyHieu || row?.tenSplitter || '—')}</td>
+                                      <td className="py-1.5 px-2 text-right">{row?.dungLuong ?? '—'}</td>
+                                      <td className="py-1.5 px-2 text-right">{row?.daDung ?? '—'}</td>
+                                      <td className="py-1.5 pl-2 text-right">{row?.chuaDung ?? '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          {filteredS2CapacityRows.length > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-[11px] text-slate-600">
+                                Hiển thị {s2CapacityStart + 1}-{Math.min(s2CapacityStart + s2CapacityPageSize, filteredS2CapacityRows.length)} / {filteredS2CapacityRows.length} dòng
+                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <button type="button" onClick={() => setS2CapacityPage((p) => Math.max(1, p - 1))} disabled={s2CapacityCurrentPage <= 1} className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50">Trang trước</button>
+                                <span className="text-[11px] text-slate-600">Trang {s2CapacityCurrentPage}/{s2CapacityTotalPages}</span>
+                                <button type="button" onClick={() => setS2CapacityPage((p) => Math.min(s2CapacityTotalPages, p + 1))} disabled={s2CapacityCurrentPage >= s2CapacityTotalPages} className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50">Trang sau</button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : activeReportId === 'no_sp2_ports' ? (
                         <>
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                             <p className="text-[11px] font-semibold text-slate-700">

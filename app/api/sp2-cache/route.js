@@ -12,6 +12,7 @@ import {
   sp2ServerGetPonOneSp2DetailRows,
   sp2ServerGetPonSp2DetailRowsByOlt,
   sp2ServerGetPonNoSp2DetailRows,
+  sp2ServerGetS2CapacityRows,
 } from '../../../lib/sp2-server-cache';
 import { sp2CacheKey } from '../../../lib/sp2-cache-key';
 
@@ -444,6 +445,86 @@ export async function GET(request) {
       const ws = xlsx.utils.json_to_sheet(excelRows);
       const wb = xlsx.utils.book_new();
       xlsx.utils.book_append_sheet(wb, ws, 'PON_KHONG_S2');
+      const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
+    if (searchParams.get('stats') === 's2_capacity_detail') {
+      const configured = await sp2ServerConfigured();
+      if (!configured) {
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', rows: [] }, { status: 503 });
+      }
+      const toQlFilter = (searchParams.get('toQL') || '').trim();
+      const oltFilter = (searchParams.get('thietBiOlt') || '').trim();
+      const detailRes = await sp2ServerGetS2CapacityRows();
+      if (!detailRes.ok) {
+        return NextResponse.json({ ok: false, message: detailRes.message || 'Lỗi đọc dữ liệu dung lượng S2.', rows: [] }, { status: 500 });
+      }
+      const browseRes = await sp2ServerGetBrowseSnapshot();
+      const maps = buildBrowseNameMaps(browseRes?.ok ? browseRes?.snapshot : null);
+      const enrichedRows = enrichPortRows(detailRes.rows, maps)
+        .filter((r) => !toQlFilter || String(r?.toQL || '') === toQlFilter)
+        .filter((r) => !oltFilter || String(r?.thietBiOlt || '') === oltFilter);
+      const toOptions = Array.from(new Map(
+        enrichedRows
+          .filter((r) => String(r?.toQL || ''))
+          .map((r) => [String(r.toQL), String(r.toTen || r.toQL)])
+      ).entries()).map(([id, name]) => ({ id, name }));
+      const oltOptions = Array.from(new Map(
+        enrichedRows
+          .filter((r) => String(r?.thietBiOlt || ''))
+          .map((r) => [String(r.thietBiOlt), String(r.oltTen || r.thietBiOlt)])
+      ).entries()).map(([id, name]) => ({ id, name }));
+      return NextResponse.json({ ok: true, rows: enrichedRows, toOptions, oltOptions });
+    }
+
+    if (searchParams.get('stats') === 's2_capacity_excel') {
+      const configured = await sp2ServerConfigured();
+      if (!configured) {
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+      }
+      const toQlFilter = (searchParams.get('toQL') || '').trim();
+      const oltFilter = (searchParams.get('thietBiOlt') || '').trim();
+      const detailRes = await sp2ServerGetS2CapacityRows();
+      if (!detailRes.ok) {
+        return NextResponse.json({ ok: false, message: detailRes.message || 'Lỗi xuất dữ liệu dung lượng S2.' }, { status: 500 });
+      }
+      const browseRes = await sp2ServerGetBrowseSnapshot();
+      const maps = buildBrowseNameMaps(browseRes?.ok ? browseRes?.snapshot : null);
+      const rows = enrichPortRows(detailRes.rows, maps)
+        .filter((r) => !toQlFilter || String(r?.toQL || '') === toQlFilter)
+        .filter((r) => !oltFilter || String(r?.thietBiOlt || '') === oltFilter);
+      const xlsx = await import('xlsx');
+      const datePart = new Date().toISOString().slice(0, 10);
+      const filename = `bao_cao_dung_luong_s2_${datePart}.xlsx`;
+      const excelRows = rows.map((r, idx) => ({
+        STT: idx + 1,
+        TO_KT_TEN: r.toTen || '',
+        TO_KT_ID: r.toQL || '',
+        OLT_TEN: r.oltTen || '',
+        OLT_ID: r.thietBiOlt || '',
+        CARD_OLT_TEN: r.cardTen || '',
+        PORT_PON: r.portTen || '',
+        TEN_SPLITTER: r.tenSplitter || '',
+        KY_HIEU: r.kyHieu || '',
+        CAP_SP: r.capSp || '',
+        DUNG_LUONG: r.dungLuong ?? '',
+        DA_DUNG: r.daDung ?? '',
+        CHUA_DUNG: r.chuaDung ?? '',
+        NGAY_CAP_NHAT: r.ngayCapNhat || '',
+        DIA_CHI: r.diaChi || '',
+        CACHE_KEY: r.cacheKey || '',
+      }));
+      const ws = xlsx.utils.json_to_sheet(excelRows);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, 'DUNG_LUONG_S2');
       const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
       return new Response(buffer, {
         status: 200,
