@@ -1217,6 +1217,7 @@ export default function TraCuuSP2Page() {
 
     try {
       const fp = await authFingerprint(authTrim);
+      let apiFallbackNotice = '';
 
       if (chiTrongCache) {
         const srv = await fetchServerPortCache(keyBody);
@@ -1243,22 +1244,47 @@ export default function TraCuuSP2Page() {
         return;
       }
 
+      // Neu co Authorization thi uu tien goi API truoc, cache chi la fallback.
+      if (authTrim && !boQuaCache) {
+        try {
+          const headers = { 'Content-Type': 'application/json', Authorization: authTrim };
+          const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
+          const data = await res.json().catch(() => ({}));
+          LOG('Tra cứu', 'Response (API ưu tiên)', { status: res.status, ok: res.ok, data });
+          if (res.ok) {
+            const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? []);
+            const message = data?.message || (list.length === 0 ? 'Không có bản ghi nào từ API.' : null);
+            setKetQua({ data: Array.isArray(list) ? list : [], message, fromCache: 'api' });
+            return;
+          }
+          apiFallbackNotice = data?.message || data?.error || `API lỗi (${res.status}), đã chuyển sang cache.`;
+        } catch (err) {
+          apiFallbackNotice = err?.message || 'Không gọi được API, đã chuyển sang cache.';
+        }
+      }
+
       if (!boQuaCache) {
         const srv = await fetchServerPortCache(keyBody);
         if (srv !== undefined && srv !== null) {
-          const message =
+          const cacheMsg =
             srv.length === 0
               ? 'Không có bản ghi trong cache chung. Bật «Luôn gọi API» để hỏi lại OneBSS.'
               : null;
+          const message = apiFallbackNotice
+            ? [apiFallbackNotice, cacheMsg].filter(Boolean).join(' ')
+            : cacheMsg;
           setKetQua({ data: srv, message, fromCache: 'server' });
           return;
         }
         const cached = await getPortCache(cacheKey, fp);
         if (cached !== null) {
-          const message =
+          const cacheMsg =
             cached.length === 0
               ? 'Không có bản ghi trong bộ nhớ trình duyệt. Bật «Luôn gọi API» để hỏi lại server.'
               : null;
+          const message = apiFallbackNotice
+            ? [apiFallbackNotice, cacheMsg].filter(Boolean).join(' ')
+            : cacheMsg;
           setKetQua({ data: cached, message, fromCache: 'local' });
           return;
         }
