@@ -1463,8 +1463,8 @@ export default function TraCuuSP2Page() {
                   Hệ thống tra cứu thông tin Spliter cấp 2 theo OLT, Slot và Port
                 </p>
               </div>
-              <div className="shrink-0 flex w-full sm:w-auto flex-wrap items-center justify-end gap-2">
-                <div className="relative w-full sm:w-auto" ref={reportMenuRef}>
+              <div className="relative shrink-0 flex w-full sm:w-auto items-center justify-end gap-2" ref={reportMenuRef}>
+                <div className="flex-1 sm:flex-none">
                   <button
                     type="button"
                     onClick={() => {
@@ -1479,7 +1479,7 @@ export default function TraCuuSP2Page() {
                       setShowReportPanel(true);
                       setShowReportMenu((v) => !v);
                     }}
-                    className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
+                    className="inline-flex w-full justify-center sm:w-auto items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
                     aria-label={`Menu báo cáo - đang chọn ${activeReport.label}`}
                     aria-expanded={showReportMenu}
                   >
@@ -1530,7 +1530,7 @@ export default function TraCuuSP2Page() {
                     }
                     setShowSettings(false);
                   }}
-                  className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
+                  className="inline-flex flex-1 justify-center sm:flex-none sm:w-auto items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
                   aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt — token và đồng bộ'}
                 >
                   <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
