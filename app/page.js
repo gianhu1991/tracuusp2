@@ -1464,7 +1464,7 @@ export default function TraCuuSP2Page() {
                 </p>
               </div>
               <div className="shrink-0 flex w-full sm:w-auto flex-wrap items-center justify-end gap-2">
-                <div className="relative" ref={reportMenuRef}>
+                <div className="relative w-full sm:w-auto" ref={reportMenuRef}>
                   <button
                     type="button"
                     onClick={() => {
@@ -1492,7 +1492,7 @@ export default function TraCuuSP2Page() {
                     </svg>
                   </button>
                   {showReportMenu && (
-                    <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-[92vw] sm:w-[290px] max-w-[92vw] rounded-xl border border-slate-200 bg-white shadow-xl z-20">
+                    <div className="absolute left-0 right-0 sm:left-auto sm:right-0 mt-2 w-auto sm:w-[290px] sm:max-w-[92vw] rounded-xl border border-slate-200 bg-white shadow-xl z-20">
                       <div className="py-1">
                         {REPORT_MENU_ITEMS.map((item) => (
                           <button
