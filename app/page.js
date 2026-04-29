@@ -1492,7 +1492,7 @@ export default function TraCuuSP2Page() {
                     </svg>
                   </button>
                   {showReportMenu && (
-                    <div className="absolute right-0 mt-2 w-[290px] max-w-[92vw] rounded-xl border border-slate-200 bg-white shadow-xl z-20">
+                    <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-[92vw] sm:w-[290px] max-w-[92vw] rounded-xl border border-slate-200 bg-white shadow-xl z-20">
                       <div className="py-1">
                         {REPORT_MENU_ITEMS.map((item) => (
                           <button
