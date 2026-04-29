@@ -1463,7 +1463,7 @@ export default function TraCuuSP2Page() {
                   Hệ thống tra cứu thông tin Spliter cấp 2 theo OLT, Slot và Port
                 </p>
               </div>
-              <div className="shrink-0 flex items-center gap-2">
+              <div className="shrink-0 flex w-full sm:w-auto flex-wrap items-center justify-end gap-2">
                 <div className="relative" ref={reportMenuRef}>
                   <button
                     type="button"
@@ -1492,7 +1492,7 @@ export default function TraCuuSP2Page() {
                     </svg>
                   </button>
                   {showReportMenu && (
-                    <div className="absolute right-0 mt-2 w-[290px] max-w-[80vw] rounded-xl border border-slate-200 bg-white shadow-xl z-20">
+                    <div className="absolute right-0 mt-2 w-[290px] max-w-[92vw] rounded-xl border border-slate-200 bg-white shadow-xl z-20">
                       <div className="py-1">
                         {REPORT_MENU_ITEMS.map((item) => (
                           <button
@@ -1552,7 +1552,7 @@ export default function TraCuuSP2Page() {
               {!authUnlocked ? (
                 <form onSubmit={handleUnlockAuth} className="space-y-3 max-w-xs">
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nhập mật khẩu để mở cài đặt (token, lưu server, đồng bộ S2, cache)</label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="password"
                       value={authPasswordInput}
@@ -1688,11 +1688,11 @@ export default function TraCuuSP2Page() {
                             <p className="text-[11px] font-semibold text-slate-700">
                               Lấy thông số S2 theo danh sách đầu vào
                             </p>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex w-full sm:w-auto flex-wrap items-center gap-1.5">
                               <select
                                 value={String(s2LookupPageSize)}
                                 onChange={(e) => setS2LookupPageSize(Number(e.target.value) || 10)}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
                                 title="Số dòng hiển thị mỗi trang"
                               >
                                 <option value="10">10 dòng/trang</option>
@@ -1704,7 +1704,7 @@ export default function TraCuuSP2Page() {
                                 type="button"
                                 onClick={handleExportS2LookupExcel}
                                 disabled={s2LookupExporting}
-                                className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                               >
                                 {s2LookupExporting ? 'Đang xuất…' : 'Xuất Excel'}
                               </button>
@@ -1718,16 +1718,16 @@ export default function TraCuuSP2Page() {
                               placeholder="Nhập danh sách S2 (mỗi dòng 1 mã, hoặc ngăn cách bằng dấu phẩy/chấm phẩy)"
                               className="w-full rounded border border-slate-300 px-2 py-1.5 text-[11px] text-slate-700 focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                             />
-                            <div className="flex lg:flex-col gap-1.5 lg:items-end">
+                            <div className="flex flex-col sm:flex-row lg:flex-col gap-1.5 lg:items-end">
                               <button
                                 type="button"
                                 onClick={handleLookupSingleS2}
                                 disabled={s2LookupLoading}
-                                className="text-[11px] px-2.5 py-1.5 rounded border border-sky-300 text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+                                className="w-full sm:w-auto text-[11px] px-2.5 py-1.5 rounded border border-sky-300 text-sky-700 hover:bg-sky-50 disabled:opacity-50"
                               >
                                 {s2LookupLoading ? 'Đang tra cứu…' : 'Tra cứu danh sách'}
                               </button>
-                              <label className="text-[11px] px-2.5 py-1.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer">
+                              <label className="w-full sm:w-auto text-center text-[11px] px-2.5 py-1.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer">
                                 Upload file S2
                                 <input
                                   type="file"
@@ -1753,8 +1753,8 @@ export default function TraCuuSP2Page() {
                             </p>
                           )}
                           {s2LookupRows.length > 0 && (
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full text-[11px]">
+                            <div className="overflow-x-auto -mx-1 px-1">
+                              <table className="min-w-[680px] text-[11px]">
                                 <thead>
                                   <tr className="border-b border-slate-200 text-slate-600">
                                     <th className="text-left py-1 pr-2 font-semibold">S2 tra cứu</th>
@@ -1788,7 +1788,7 @@ export default function TraCuuSP2Page() {
                               <p className="text-[11px] text-slate-600">
                                 Hiển thị {s2LookupStart + 1}-{Math.min(s2LookupStart + s2LookupPageSize, s2LookupRows.length)} / {s2LookupRows.length} dòng
                               </p>
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex flex-wrap items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => setS2LookupPage((p) => Math.max(1, p - 1))}
@@ -1818,11 +1818,11 @@ export default function TraCuuSP2Page() {
                             <p className="text-[11px] font-semibold text-slate-700">
                               Báo cáo dung lượng S2
                             </p>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex w-full sm:w-auto flex-wrap items-center gap-1.5">
                               <select
                                 value={s2CapacityToFilter}
                                 onChange={(e) => setS2CapacityToFilter(e.target.value)}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
                                 title="Lọc theo Tổ kỹ thuật"
                               >
                                 <option value="">Tất cả Tổ KT</option>
@@ -1835,7 +1835,7 @@ export default function TraCuuSP2Page() {
                               <select
                                 value={s2CapacityOltFilter}
                                 onChange={(e) => setS2CapacityOltFilter(e.target.value)}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
                                 title="Lọc theo OLT"
                               >
                                 <option value="">Tất cả OLT</option>
@@ -1848,7 +1848,7 @@ export default function TraCuuSP2Page() {
                               <select
                                 value={String(s2CapacityPageSize)}
                                 onChange={(e) => setS2CapacityPageSize(Number(e.target.value) || 20)}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
                                 title="Số dòng hiển thị mỗi trang"
                               >
                                 <option value="10">10 dòng/trang</option>
@@ -1860,7 +1860,7 @@ export default function TraCuuSP2Page() {
                                 type="button"
                                 onClick={handleExportS2CapacityExcel}
                                 disabled={s2CapacityExporting}
-                                className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                               >
                                 {s2CapacityExporting ? 'Đang xuất…' : 'Xuất Excel'}
                               </button>
@@ -1868,7 +1868,7 @@ export default function TraCuuSP2Page() {
                                 type="button"
                                 onClick={refreshS2CapacityRows}
                                 disabled={s2CapacityLoading}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                               >
                                 {s2CapacityLoading ? 'Đang tải…' : 'Làm mới'}
                               </button>
@@ -1879,8 +1879,8 @@ export default function TraCuuSP2Page() {
                             <p className="text-[11px] text-slate-500">Chưa có dữ liệu dung lượng S2.</p>
                           )}
                           {filteredS2CapacityRows.length > 0 && (
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full text-[11px]">
+                            <div className="overflow-x-auto -mx-1 px-1">
+                              <table className="min-w-[720px] text-[11px]">
                                 <thead>
                                   <tr className="border-b border-slate-200 text-slate-600">
                                     <th className="text-left py-1 pr-2 font-semibold">Tổ KT</th>
@@ -1925,11 +1925,11 @@ export default function TraCuuSP2Page() {
                             <p className="text-[11px] font-semibold text-slate-700">
                               Danh sách cổng PON không có S2
                             </p>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex w-full sm:w-auto flex-wrap items-center gap-1.5">
                               <select
                                 value={noSp2ToFilter}
                                 onChange={(e) => setNoSp2ToFilter(e.target.value)}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
                                 title="Lọc theo Tổ kỹ thuật"
                               >
                                 <option value="">Tất cả Tổ KT</option>
@@ -1946,7 +1946,7 @@ export default function TraCuuSP2Page() {
                               <select
                                 value={noSp2OltFilter}
                                 onChange={(e) => setNoSp2OltFilter(e.target.value)}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
                                 title="Lọc theo OLT"
                               >
                                 <option value="">Tất cả OLT</option>
@@ -1963,7 +1963,7 @@ export default function TraCuuSP2Page() {
                               <select
                                 value={String(noSp2PageSize)}
                                 onChange={(e) => setNoSp2PageSize(Number(e.target.value) || 20)}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
                                 title="Số cổng hiển thị mỗi trang"
                               >
                                 <option value="10">10 cổng/trang</option>
@@ -1975,7 +1975,7 @@ export default function TraCuuSP2Page() {
                                 type="button"
                                 onClick={handleExportNoSp2Excel}
                                 disabled={noSp2Exporting}
-                                className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                               >
                                 {noSp2Exporting ? 'Đang xuất…' : 'Xuất Excel'}
                               </button>
@@ -1983,7 +1983,7 @@ export default function TraCuuSP2Page() {
                                 type="button"
                                 onClick={refreshNoSp2Rows}
                                 disabled={noSp2Loading}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                               >
                                 {noSp2Loading ? 'Đang tải…' : 'Làm mới'}
                               </button>
@@ -1999,8 +1999,8 @@ export default function TraCuuSP2Page() {
                             <p className="text-[11px] text-slate-500">Không có cổng PON nào thiếu S2 theo điều kiện lọc hiện tại.</p>
                           )}
                           {filteredNoSp2Rows.length > 0 && (
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full text-[11px]">
+                            <div className="overflow-x-auto -mx-1 px-1">
+                              <table className="min-w-[680px] text-[11px]">
                                 <thead>
                                   <tr className="border-b border-slate-200 text-slate-600">
                                     <th className="text-left py-1 pr-2 font-semibold">Tổ KT</th>
@@ -2062,11 +2062,11 @@ export default function TraCuuSP2Page() {
                             <p className="text-[11px] font-semibold text-slate-700">
                               Chi tiết S2 theo OLT và cổng PON
                             </p>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex w-full sm:w-auto flex-wrap items-center gap-1.5">
                               <select
                                 value={oltPonToFilter}
                                 onChange={(e) => setOltPonToFilter(e.target.value)}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
                                 title="Lọc theo Tổ kỹ thuật"
                               >
                                 <option value="">Tất cả Tổ KT</option>
@@ -2083,7 +2083,7 @@ export default function TraCuuSP2Page() {
                               <select
                                 value={oltPonFilter}
                                 onChange={(e) => setOltPonFilter(e.target.value)}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
                                 title="Lọc theo OLT để xem/xuất Excel"
                               >
                                 <option value="">Tất cả OLT</option>
@@ -2100,7 +2100,7 @@ export default function TraCuuSP2Page() {
                               <select
                                 value={String(oltPonPageSize)}
                                 onChange={(e) => setOltPonPageSize(Number(e.target.value) || 20)}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
                                 title="Số cổng hiển thị mỗi trang"
                               >
                                 <option value="10">10 cổng/trang</option>
@@ -2112,7 +2112,7 @@ export default function TraCuuSP2Page() {
                                 type="button"
                                 onClick={handleExportOltPonExcel}
                                 disabled={oltPonExporting}
-                                className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                               >
                                 {oltPonExporting ? 'Đang xuất…' : (oltPonFilter ? 'Xuất Excel theo OLT' : 'Xuất Excel tất cả OLT')}
                               </button>
@@ -2120,7 +2120,7 @@ export default function TraCuuSP2Page() {
                                 type="button"
                                 onClick={refreshOltPonDetailRows}
                                 disabled={oltPonLoading}
-                                className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                               >
                                 {oltPonLoading ? 'Đang tải…' : 'Làm mới'}
                               </button>
@@ -2136,8 +2136,8 @@ export default function TraCuuSP2Page() {
                             <p className="text-[11px] text-slate-500">Chưa có dữ liệu báo cáo OLT/PON.</p>
                           )}
                           {filteredOltPonRows.length > 0 && (
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full text-[11px]">
+                            <div className="overflow-x-auto -mx-1 px-1">
+                              <table className="min-w-[760px] text-[11px]">
                                 <thead>
                                   <tr className="border-b border-slate-200 text-slate-600">
                                     <th className="text-left py-1 pr-2 font-semibold">OLT</th>
