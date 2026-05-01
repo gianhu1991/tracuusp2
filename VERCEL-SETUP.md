@@ -1,22 +1,8 @@
-# Cấu hình Vercel — đổi token trên web (dùng Supabase)
+# Ghi chú triển khai (Supabase)
 
-Làm **một lần** theo thứ tự sau. Sau đó mỗi ngày chỉ cần vào app → Cài đặt → Lưu token lên server.
+Tài liệu kỹ thuật ngắn cho quản trị: tạo bảng và biến môi trường cần thiết trên môi trường deploy. Không lưu thông tin nhạy cảm trong repo.
 
----
-
-## Bước 1: Cài dependency (trên máy bạn)
-
-```bash
-cd c:\Users\Admin\Desktop\tracuusp2
-npm install
-```
-
----
-
-## Bước 2: Tạo project Supabase và bảng
-
-1. Vào **https://supabase.com** → đăng nhập → **New Project** (hoặc dùng project có sẵn).
-2. Vào **SQL Editor** → **New query** → dán và chạy:
+## SQL (Supabase — SQL Editor)
 
 ```sql
 create table if not exists app_config (
@@ -24,14 +10,13 @@ create table if not exists app_config (
   value text
 );
 
--- Cache tra cứu S2 theo port (dùng chung cho mọi người dùng app, sau khi quản trị «Đồng bộ toàn bộ S2» có mật khẩu)
+-- Cache tra cứu S2 theo port (dùng chung)
 create table if not exists sp2_port_cache (
   cache_key text primary key,
   data jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default now()
 );
 
--- (Tuỳ chọn) Xóa toàn bộ cache port một lệnh — API sẽ gọi RPC này khi bắt đầu đồng bộ
 create or replace function public.truncate_sp2_port_cache()
 returns void
 language sql
@@ -42,32 +27,10 @@ as $$
 $$;
 ```
 
-Meta lần đồng bộ ghi vào `app_config` với key `sp2_sync_meta` (JSON), không cần tạo bảng thêm.
+Meta đồng bộ có thể ghi vào `app_config` (key `sp2_sync_meta`), tùy triển khai.
 
-3. Vào **Project Settings** → **API**:
-   - Copy **Project URL** (dùng làm `NEXT_PUBLIC_SUPABASE_URL`).
-   - Copy **service_role** key (Secret) — dùng làm `SUPABASE_SERVICE_ROLE_KEY` (không public key anon nếu muốn chỉ server ghi).
+## Biến môi trường (Vercel)
 
----
+Thêm URL và khóa API Supabase theo **Project Settings → API** của project (Project URL, service role). Các biến bổ sung cho app do quản trị cấu hình trực tiếp trên Vercel, không liệt kê trong file này.
 
-## Bước 3: Thêm biến môi trường trên Vercel
-
-1. Vào **https://vercel.com** → project **tracuusp2** → **Settings** → **Environment Variables**.
-2. Thêm 3 biến:
-
-| Name | Value |
-|------|--------|
-| `NEXT_PUBLIC_SUPABASE_URL` | URL project Supabase (vd: https://xxx.supabase.co) |
-| `SUPABASE_SERVICE_ROLE_KEY` | service_role key (Secret) từ Supabase → Settings → API |
-| `ADMIN_PASSWORD` | Mật khẩu quản trị (vd: QuanTri@2025) — dùng khi bấm "Lưu token lên server" trên web |
-
-3. **Save**.
-
----
-
-## Bước 4: Deploy lại
-
-1. **Deployments** → **Redeploy** (hoặc push code rồi đợi deploy xong).
-2. Mở app → **Cài đặt** → mở khóa → dán token OneBSS → nhập **Mật khẩu quản trị** (đúng ADMIN_PASSWORD) → bấm **Lưu token lên server**.
-
-Sau đó mọi người dùng app sẽ dùng token này. Mỗi ngày bạn chỉ cần vào Cài đặt → dán token mới → Lưu token lên server (không cần vào Vercel).
+Sau khi cấu hình xong, redeploy project.

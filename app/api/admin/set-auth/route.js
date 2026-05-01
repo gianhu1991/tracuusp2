@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { setStoredAuth } from '../../../../lib/auth-store';
 
-/** POST: body { password, authorization }. Mật khẩu quản trị = ADMIN_PASSWORD (env). Lưu token vào Redis để mọi người dùng chung. */
+/** POST: body { password, authorization } — xác thực phía server, lưu Authorization dùng chung. */
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -11,19 +11,19 @@ export async function POST(request) {
     const adminPassword = process.env.ADMIN_PASSWORD || process.env.AUTH_PASSWORD || '';
     if (!adminPassword) {
       return NextResponse.json(
-        { ok: false, message: 'Chưa cấu hình ADMIN_PASSWORD trên server. Quản trị thêm biến môi trường ADMIN_PASSWORD (Vercel).' },
+        { ok: false, message: 'Chưa cấu hình xác thực phía server.' },
         { status: 500 }
       );
     }
     if (password !== adminPassword) {
       return NextResponse.json(
-        { ok: false, message: 'Mật khẩu quản trị không đúng.' },
+        { ok: false, message: 'Không được phép.' },
         { status: 401 }
       );
     }
     if (!authorization || !authorization.trim()) {
       return NextResponse.json(
-        { ok: false, message: 'Token không được để trống.' },
+        { ok: false, message: 'Thiếu Authorization.' },
         { status: 400 }
       );
     }
@@ -35,7 +35,7 @@ export async function POST(request) {
         { status: 500 }
       );
     }
-    return NextResponse.json({ ok: true, message: 'Đã lưu token lên server. Mọi người dùng app sẽ dùng token này.' });
+    return NextResponse.json({ ok: true, message: 'Đã lưu.' });
   } catch (err) {
     return NextResponse.json(
       { ok: false, message: err.message || 'Lỗi server' },

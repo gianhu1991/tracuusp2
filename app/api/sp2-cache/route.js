@@ -568,10 +568,7 @@ export async function GET(request) {
   }
 }
 
-/**
- * POST: quản trị — body JSON
- * { password, action: 'clear' | 'batch' | 'meta' | 'set_browse', batch?: [{ key, data }], meta?: object, snapshot?: object }
- */
+/** POST: quản trị cache — body JSON (action, batch, meta, snapshot; xác thực theo cấu hình server). */
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -580,7 +577,7 @@ export async function POST(request) {
 
     if (!adminPasswordOk(password)) {
       return NextResponse.json(
-        { ok: false, message: 'Mật khẩu quản trị không đúng hoặc chưa cấu hình ADMIN_PASSWORD.' },
+        { ok: false, message: 'Không được phép.' },
         { status: 401 }
       );
     }

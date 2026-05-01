@@ -1,14 +1,7 @@
 #!/usr/bin/env node
 /**
- * Script push code lên GitHub dùng GITHUB_TOKEN.
- * Token lấy từ .env.local (dòng GITHUB_TOKEN=xxx) hoặc biến môi trường GITHUB_TOKEN.
- *
- * Cách dùng:
- * 1. Tạo file .env.local ở thư mục gốc dự án (đã có trong .gitignore).
- * 2. Thêm dòng: GITHUB_TOKEN=ghp_xxxxxxxx (thay bằng Personal Access Token của bạn).
- * 3. Chạy: node scripts/push.js
- *
- * Tạo token: GitHub → Settings → Developer settings → Personal access tokens → Generate new token (quyền repo).
+ * Push code lên remote GitHub (dùng GITHUB_TOKEN trong .env.local hoặc biến môi trường).
+ * Chạy: node scripts/push.js
  */
 
 const { readFileSync, existsSync } = require('fs');
@@ -31,9 +24,7 @@ if (!token && existsSync(envPath)) {
 }
 
 if (!token) {
-  console.error('Chưa có GITHUB_TOKEN.');
-  console.error('Cách 1: Tạo file .env.local với nội dung: GITHUB_TOKEN=ghp_xxxx');
-  console.error('Cách 2: Chạy: set GITHUB_TOKEN=ghp_xxxx (Windows) rồi chạy lại script.');
+  console.error('Chưa có GITHUB_TOKEN. Thiết lập trong .env.local hoặc biến môi trường.');
   process.exit(1);
 }
 

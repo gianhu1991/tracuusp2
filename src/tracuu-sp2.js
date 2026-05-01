@@ -1,6 +1,6 @@
 /**
  * Module tra cứu Splitter (SP2) theo port OLT - OneBSS VNPT
- * URL và Authorization lấy từ config.js (có thể sửa tại đó khi token đổi).
+ * URL và Authorization lấy từ config.js.
  */
 
 async function loadConfig() {

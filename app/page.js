@@ -80,7 +80,7 @@ export default function TraCuuSP2Page() {
   const [loadingPortOlt, setLoadingPortOlt] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [listError, setListError] = useState('');
-  /** Snapshot danh mục từ server (lưu lúc đồng bộ S2) — dùng khi API OneBSS / token lỗi. */
+  /** Snapshot danh mục từ server (lưu lúc đồng bộ S2). */
   const [browseSnapshot, setBrowseSnapshot] = useState(null);
   const browseSnapshotRef = useRef(null);
   const [showCopyToast, setShowCopyToast] = useState(false);
@@ -153,7 +153,7 @@ export default function TraCuuSP2Page() {
       setShowReportPanel(false);
       setUnlockToOpenReport(false);
       if (typeof window !== 'undefined') sessionStorage.removeItem(STORAGE_AUTH_UNLOCKED);
-      setAuthPasswordError('Phiên mở khóa đã hết hạn sau 5 phút. Vui lòng nhập lại mật khẩu.');
+      setAuthPasswordError('Phiên đã hết hạn. Vui lòng thử lại.');
     }, AUTH_AUTO_LOCK_MS);
     return () => clearTimeout(t);
   }, [authUnlocked]);
@@ -692,7 +692,7 @@ export default function TraCuuSP2Page() {
     setS2LookupPage(1);
   }, [s2LookupRows, s2LookupPageSize]);
 
-  /** Khi chưa có danh sách Tổ KT từ API (vd. thiếu token) nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
+  /** Khi chưa có danh sách Tổ KT từ API nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
   useEffect(() => {
     if (!browseSnapshot?.toKyThuat?.length) return;
     if (listToQL.length > 0) return;
@@ -1078,7 +1078,7 @@ export default function TraCuuSP2Page() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) {
-        setAuthPasswordError(j?.message || 'Mật khẩu không đúng.');
+        setAuthPasswordError(j?.message || 'Không thể mở khóa.');
         return;
       }
       setAuthUnlocked(true);
@@ -1090,7 +1090,7 @@ export default function TraCuuSP2Page() {
         setUnlockToOpenReport(false);
       }
     } catch (err) {
-      setAuthPasswordError(err?.message || 'Không xác thực được mật khẩu.');
+      setAuthPasswordError(err?.message || 'Không xác thực được.');
     } finally {
       setAuthUnlocking(false);
     }
@@ -1143,7 +1143,7 @@ export default function TraCuuSP2Page() {
       if (result.aborted) {
         setListError(`Đã dừng đồng bộ. Đã xử lý ${result.completed ?? 0}/${result.total ?? '—'} port.`);
       } else if (result.errors > 0) {
-        setListError(`Đồng bộ xong với ${result.errors} lỗi (tra cứu API) trên ${result.total} port. Kiểm tra token hoặc chạy lại.`);
+        setListError(`Đồng bộ xong với ${result.errors} lỗi (tra cứu API) trên ${result.total} port. Có thể chạy lại.`);
       }
     } catch (err) {
       LOG('Đồng bộ toàn bộ', err);
@@ -1168,7 +1168,7 @@ export default function TraCuuSP2Page() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
         setSaveToServerStatus('ok');
-        setSaveToServerMessage(data.message || 'Đã lưu token lên server.');
+        setSaveToServerMessage(data.message || 'Đã lưu.');
         setAdminPasswordForServer('');
         setShowSettings(false);
       } else {
@@ -1232,7 +1232,7 @@ export default function TraCuuSP2Page() {
         const cached = await getPortCache(cacheKey, fp);
         if (cached === null) {
           setLoi(
-            'Chưa có dữ liệu đồng bộ cho bộ lọc này. Quản trị chạy «Đồng bộ toàn bộ S2» kèm mật khẩu (lưu cache chung Supabase), hoặc tắt «Chỉ tra cứu từ cache».'
+            'Chưa có dữ liệu đồng bộ cho bộ lọc này. Quản trị có thể chạy đồng bộ đầy đủ lên server, hoặc tắt «Chỉ tra cứu từ cache».'
           );
           return;
         }
@@ -1472,7 +1472,7 @@ export default function TraCuuSP2Page() {
                         setShowSettings(true);
                         setShowReportMenu(false);
                         setUnlockToOpenReport(true);
-                        setAuthPasswordError('Vui lòng nhập mật khẩu quản trị để mở menu báo cáo.');
+                        setAuthPasswordError('Vui lòng nhập mã để mở menu báo cáo.');
                         return;
                       }
                       setShowSettings(true);
@@ -1531,13 +1531,13 @@ export default function TraCuuSP2Page() {
                     setShowSettings(false);
                   }}
                   className="inline-flex flex-1 justify-center sm:flex-none sm:w-auto items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
-                  aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt — token và đồng bộ'}
+                  aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt và đồng bộ'}
                 >
                   <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                   </svg>
                   <span>{showSettings ? 'Ẩn cài đặt' : 'Cài đặt'}</span>
-                  <span className="hidden sm:inline">{showSettings ? '' : ' / Token & đồng bộ'}</span>
+                  <span className="hidden sm:inline">{showSettings ? '' : ' / Đồng bộ'}</span>
                   <svg className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
@@ -1546,18 +1546,18 @@ export default function TraCuuSP2Page() {
             </div>
           </div>
 
-          {/* Cài đặt: token, lưu server, đồng bộ S2, cache — bảo vệ bằng mật khẩu */}
+          {/* Cài đặt — khu vực quản trị */}
           {showSettings && (
             <div className="border-b border-slate-100 bg-slate-50/80 px-3 sm:px-8 py-3 sm:py-4 shrink-0">
               {!authUnlocked ? (
                 <form onSubmit={handleUnlockAuth} className="space-y-3 max-w-xs">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nhập mật khẩu để mở cài đặt (token, lưu server, đồng bộ S2, cache)</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nhập mã để mở cài đặt</label>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="password"
                       value={authPasswordInput}
                       onChange={(e) => { setAuthPasswordInput(e.target.value); setAuthPasswordError(''); }}
-                      placeholder="Mật khẩu"
+                      placeholder="Mã mở khóa"
                       className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 placeholder-slate-400 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
                       autoComplete="current-password"
                     />
@@ -1572,7 +1572,7 @@ export default function TraCuuSP2Page() {
                   {!showReportPanel && (
                     <>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <label className="block text-xs font-semibold text-slate-600">Authorization (Bearer token)</label>
+                    <label className="block text-xs font-semibold text-slate-600">Authorization</label>
                     <button type="button" onClick={handleLockAuth} className="text-xs text-slate-500 hover:text-slate-700 underline">
                       Khóa lại
                     </button>
@@ -1581,26 +1581,25 @@ export default function TraCuuSP2Page() {
                     type="password"
                     value={authorization}
                     onChange={(e) => saveAuth(e.target.value)}
-                    placeholder="Bearer eyJhbGci... hoặc token của bạn"
+                    placeholder="Authorization"
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 text-base sm:text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
                   />
                   <form onSubmit={handleSaveToServer} className="mt-3 space-y-2">
-                    <label className="block text-xs text-slate-600">Mật khẩu quản trị (ADMIN_PASSWORD trên server)</label>
+                    <label className="block text-xs text-slate-600">Mã xác thực lưu server</label>
                     <div className="flex gap-2 flex-wrap items-center">
                       <input
                         type="password"
                         value={adminPasswordForServer}
                         onChange={(e) => { setAdminPasswordForServer(e.target.value); setSaveToServerStatus(''); }}
-                        placeholder="Mật khẩu quản trị"
+                        placeholder="Mã xác thực"
                         className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-48 max-w-full"
                       />
                       <button type="submit" disabled={saveToServerStatus === 'saving' || !authorization?.trim()} className="rounded-lg bg-sky-600 text-white px-4 py-2 text-sm font-medium hover:bg-sky-700 disabled:opacity-50">
-                        {saveToServerStatus === 'saving' ? 'Đang lưu...' : 'Lưu token lên server'}
+                        {saveToServerStatus === 'saving' ? 'Đang lưu...' : 'Lưu lên server'}
                       </button>
                     </div>
                     {saveToServerMessage && <p className={`text-xs ${saveToServerStatus === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{saveToServerMessage}</p>}
                   </form>
-                  <p className="text-xs text-slate-500 mt-2">Cần cấu hình Supabase (bảng app_config) + ADMIN_PASSWORD trên Vercel (xem VERCEL-SETUP.md). Sau khi lưu, mọi người dùng app sẽ dùng token này.</p>
                     </>
                   )}
 
@@ -1609,11 +1608,11 @@ export default function TraCuuSP2Page() {
                       <>
                     <p className="text-xs font-semibold text-slate-700">Đồng bộ toàn bộ S2 &amp; cache tra cứu</p>
                     <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                      Quét Tổ KT → Trạm → OLT → Card → Port và gọi tra cứu theo lô (vài port song song) để nhanh hơn. Nhập <strong>mật khẩu quản trị</strong> (cùng «Lưu token lên server») để lưu lên <strong>Supabase</strong>. Để trống mật khẩu thì chỉ lưu trên trình duyệt này. Cần bảng <code className="text-indigo-700 bg-white px-1 rounded">sp2_port_cache</code> (xem VERCEL-SETUP.md). Số port lớn vẫn có thể mất nhiều phút.
+                      Quét Tổ KT → Trạm → OLT → Card → Port. Số port lớn có thể mất nhiều phút.
                     </p>
                     <div className="max-w-lg">
                       <label className="block text-[11px] sm:text-xs text-slate-600">
-                        Mật khẩu quản trị (để lưu cache chung)
+                        Mã xác thực (ghi cache chung)
                         <input
                           type="password"
                           value={adminPasswordForSync}
@@ -2374,7 +2373,7 @@ export default function TraCuuSP2Page() {
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">
-                  Dữ liệu lấy từ API hoặc cache. Sau <strong>đồng bộ S2</strong> lên server, danh mục (dropdown) và kết quả có thể dùng từ snapshot/cache khi token OneBSS hết hạn. Quản trị: <strong>Cài đặt</strong> (mật khẩu) để token, đồng bộ và tùy chọn cache.
+                  Dữ liệu lấy từ API hoặc cache. Có thể dùng tùy chọn bên dưới để ưu tiên nguồn dữ liệu.
                 </p>
               </div>
             </form>

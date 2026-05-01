@@ -98,7 +98,7 @@ export async function GET(request) {
     const olt = searchParams.get('olt') || searchParams.get('thietBiOlt') || '';
     const cardOlt = searchParams.get('cardOlt') || '';
 
-    // Token: client gửi → env → Redis (quản trị đổi token trên web)
+    // Authorization: từ request hoặc cấu hình server
     const authHeader = (request.headers.get('Authorization') || request.headers.get('authorization') || '').trim();
     const authEnv = process.env.ONE_BSS_AUTHORIZATION || process.env.AUTHORIZATION || '';
     const authRedis = await getStoredAuth();
@@ -109,7 +109,7 @@ export async function GET(request) {
     }
     if (!auth) {
       return NextResponse.json(
-        { message: 'Thiếu Authorization. Nhập token trong Cài đặt hoặc nhờ quản trị cấu hình ONE_BSS_AUTHORIZATION trên server.' },
+        { message: 'Thiếu Authorization.' },
         { status: 400 }
       );
     }

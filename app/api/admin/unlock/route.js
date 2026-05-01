@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-/** POST: body { password }. Kiểm tra mật khẩu mở khóa từ biến môi trường server. */
+/** POST: body { password } — xác thực mở khóa phía server. */
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -9,19 +9,19 @@ export async function POST(request) {
 
     if (!unlockPassword) {
       return NextResponse.json(
-        { ok: false, message: 'Chưa cấu hình UNLOCK_PASSWORD trên server.' },
+        { ok: false, message: 'Chưa cấu hình mở khóa phía server.' },
         { status: 500 }
       );
     }
     if (!password || String(password).trim() === '') {
       return NextResponse.json(
-        { ok: false, message: 'Vui lòng nhập mật khẩu quản trị.' },
+        { ok: false, message: 'Vui lòng nhập mã.' },
         { status: 400 }
       );
     }
     if (String(password) !== unlockPassword) {
       return NextResponse.json(
-        { ok: false, message: 'Mật khẩu không đúng.' },
+        { ok: false, message: 'Không được phép.' },
         { status: 401 }
       );
     }

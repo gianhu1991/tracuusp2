@@ -20,17 +20,10 @@ Mở http://localhost:3000
 ## Deploy lên Vercel
 
 1. Đẩy code lên GitHub (hoặc Git khác), kết nối repo với Vercel.
-2. Trong Vercel: **Project → Settings → Environment Variables** thêm:
-   - **ADMIN_PASSWORD**: Mật khẩu quản trị để đổi token **ngay trên web** (Cài đặt → Lưu token lên server). Quản trị dùng mật khẩu này khi bấm "Lưu token lên server".
-   - **ONE_BSS_AUTHORIZATION** (hoặc **AUTHORIZATION**): Token Bearer OneBSS. Có thể set ở đây hoặc **đổi hàng ngày trên web** (xem bước 3).
-   - **BACKEND_URL** / **TRACUU_AUTHORIZATION** / **LIST_API_*** (tùy chọn): theo nhu cầu.
-3. **Đổi token hàng ngày trên web (không cần vào Vercel):**
-   - Tạo project **Supabase** → SQL Editor chạy: `create table if not exists app_config ( key text primary key, value text );`
-   - Vercel → **Settings → Environment Variables** thêm: **NEXT_PUBLIC_SUPABASE_URL**, **SUPABASE_SERVICE_ROLE_KEY** (lấy từ Supabase → Settings → API).
-   - Deploy lại. Trên app: **Cài đặt** → mở khóa → nhập token mới → nhập **Mật khẩu quản trị** (đúng ADMIN_PASSWORD) → bấm **Lưu token lên server**. Mọi người dùng app sẽ dùng token này cho đến khi quản trị lưu token mới.
-4. Deploy lại.
+2. Trong Vercel: **Project → Settings → Environment Variables** — cấu hình các biến theo môi trường triển khai (backend, Supabase, v.v.). Chi tiết do quản trị nội bộ quy định.
+3. Deploy lại sau khi thêm biến.
 
-Nếu chưa có backend, giao diện vẫn chạy; khi bấm Tra cứu sẽ báo cần cấu hình BACKEND_URL.
+Nếu chưa có backend, giao diện vẫn chạy; khi bấm Tra cứu có thể báo cần cấu hình thêm.
 
 ## Cấu hình URL và Authorization (backend / CLI)
 
@@ -39,7 +32,7 @@ Nếu chưa có backend, giao diện vẫn chạy; khi bấm Tra cứu sẽ báo
 | Mục | Ý nghĩa |
 |-----|---------|
 | **baseUrl** | URL trang tra cứu (vd: `https://onebss.vnpt.vn/#/ecms/tracuu-splitter-theo-port-olt`) |
-| **authorization** | Chuỗi Authorization gửi kèm request (vd: `Bearer eyJhbGci...`). Khi token thay đổi, chỉ cần sửa giá trị này trong `config.js`. |
+| **authorization** | Chuỗi Authorization gửi kèm request (theo định dạng hệ thống nguồn). |
 
 Nếu chưa có `config.js`, copy từ `config.example.js` rồi điền URL và authorization của bạn.
 
