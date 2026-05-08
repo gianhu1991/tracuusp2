@@ -902,24 +902,45 @@ export default function TraCuuSP2Page() {
       let sharedSaved = false;
       let sharedSaveMessage = '';
       try {
-        const saveRes = await fetch('/api/tb-cache', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileName: file.name || '',
-            rows: hydratedRows,
-          }),
-        });
-        const saveData = await saveRes.json().catch(() => ({}));
-        if (saveRes.ok && saveData?.ok) {
+        const chunkSize = 400;
+        const totalChunks = Math.max(1, Math.ceil(hydratedRows.length / chunkSize));
+        const uploadedAt = new Date().toISOString();
+        const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        let finalData = null;
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * chunkSize;
+          const end = start + chunkSize;
+          const chunk = hydratedRows.slice(start, end);
+          const saveRes = await fetch('/api/tb-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'chunk',
+              uploadId,
+              fileName: file.name || '',
+              chunkIndex: i,
+              totalChunks,
+              totalCount: hydratedRows.length,
+              uploadedAt,
+              rows: chunk,
+            }),
+          });
+          const saveData = await saveRes.json().catch(() => ({}));
+          if (!saveRes.ok || !saveData?.ok) {
+            const serverMsg = String(saveData?.message || saveRes.statusText || '');
+            throw new Error(serverMsg || `Lỗi lưu chunk ${i + 1}/${totalChunks}.`);
+          }
+          finalData = saveData;
+        }
+        if (finalData?.ok) {
           sharedSaved = true;
           setTbSharedMeta({
-            fileName: String(saveData.fileName || file.name || ''),
-            uploadedAt: String(saveData.uploadedAt || new Date().toISOString()),
-            count: Number(saveData.count || hydratedRows.length),
+            fileName: String(finalData.fileName || file.name || ''),
+            uploadedAt: String(finalData.uploadedAt || uploadedAt),
+            count: Number(finalData.count || hydratedRows.length),
           });
         } else {
-          sharedSaveMessage = String(saveData?.message || '');
+          sharedSaveMessage = 'Không nhận được phản hồi chốt upload.';
           setTbSharedMeta(null);
         }
       } catch (saveErr) {
