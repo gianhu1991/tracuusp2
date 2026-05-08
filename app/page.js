@@ -39,6 +39,49 @@ const REPORT_MENU_ITEMS = [
   },
 ];
 
+const TB_MODULE_SPLITTER = 'splitter';
+const TB_MODULE_TB = 'tb';
+
+function tbNormHeader(s) {
+  return String(s ?? '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/đ/g, 'd')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Ánh xạ dòng tiêu đề Excel → chỉ số cột (linh hoạt tên cột). */
+function tbResolveColumnIndices(headerRow) {
+  const idx = {};
+  const cells = (headerRow || []).map((h, i) => ({ i, n: tbNormHeader(h) }));
+  for (const { i, n } of cells) {
+    if (!n) continue;
+    if (idx.stt == null && (n === 'stt' || n.startsWith('stt'))) idx.stt = i;
+    if (idx.account == null && (n.includes('acount') || n === 'account' || n.includes('tai khoan'))) idx.account = i;
+    if (idx.diaChi == null && (n.includes('dia chi') || n === 'address')) idx.diaChi = i;
+    if (idx.soDt == null && (n.includes('so dt') || n.includes('dien thoai') || n === 'sdt' || n.includes('phone'))) idx.soDt = i;
+    if (idx.olt == null && (n === 'olt' || /^olt\b/u.test(n))) idx.olt = i;
+    if (idx.slot == null && n.includes('slot')) idx.slot = i;
+    if (idx.port == null && (n === 'port' || n.startsWith('port'))) idx.port = i;
+    if (idx.nvQL == null && (n.includes('nhan vien') || n.includes('nv ql'))) idx.nvQL = i;
+  }
+  return idx;
+}
+
+function tbCell(matrixRow, colIdx) {
+  if (colIdx == null || colIdx < 0) return '';
+  const v = matrixRow?.[colIdx];
+  if (v == null || v === '') return '';
+  return String(v).trim();
+}
+
+function tbNewRowId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `tb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export default function TraCuuSP2Page() {
   const [ttvt, setTtvt] = useState(TTVT_MAC_DINH);
   const [veTinh, setVeTinh] = useState('');
@@ -136,6 +179,21 @@ export default function TraCuuSP2Page() {
   const [s2LookupPage, setS2LookupPage] = useState(1);
   const [s2LookupPageSize, setS2LookupPageSize] = useState(10);
   const [s2LookupFileName, setS2LookupFileName] = useState('');
+  const [activeMainModule, setActiveMainModule] = useState(TB_MODULE_SPLITTER);
+  const [tbRows, setTbRows] = useState([]);
+  const [tbFileName, setTbFileName] = useState('');
+  const [tbParseMessage, setTbParseMessage] = useState('');
+  const [tbNvQL, setTbNvQL] = useState('');
+  const [tbOlt, setTbOlt] = useState('');
+  const [tbSlot, setTbSlot] = useState('');
+  const [tbPort, setTbPort] = useState('');
+  const [tbKetQua, setTbKetQua] = useState(null);
+  const [tbTimKiemLoi, setTbTimKiemLoi] = useState('');
+  const [tbShowChuyenModal, setTbShowChuyenModal] = useState(false);
+  const [tbChuyenTargetNv, setTbChuyenTargetNv] = useState('');
+  const [tbChuyenIds, setTbChuyenIds] = useState(() => new Set());
+  const [tbChuyenBatches, setTbChuyenBatches] = useState([]);
+  const [tbExporting, setTbExporting] = useState(false);
   const syncAbortRef = useRef(null);
   const reportMenuRef = useRef(null);
 
@@ -613,6 +671,236 @@ export default function TraCuuSP2Page() {
       setS2LookupError(e?.message || 'Lỗi xuất Excel tra cứu S2.');
     } finally {
       setS2LookupExporting(false);
+    }
+  };
+
+  const handleDownloadTbMau = async () => {
+    try {
+      const xlsx = await import('xlsx');
+      const sample = [
+        {
+          STT: 1,
+          Acount: 'VD_ACCOUNT_001',
+          'Địa chỉ': 'Số nhà …, xã …, tỉnh …',
+          'Số ĐT': '0912345678',
+          OLT: 'OLT Yên Quang',
+          SLot: '3',
+          PORT: '1',
+          'Nhân viên QL': 'Nguyễn Văn A',
+        },
+      ];
+      const ws = xlsx.utils.json_to_sheet(sample);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, 'TB');
+      const buffer = xlsx.write(wb, { type: 'array', bookType: 'xlsx' });
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'mau_tra_cuu_tb.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setTbParseMessage(e?.message || 'Không tạo được file mẫu.');
+    }
+  };
+
+  const handleTbExcelUpload = async (event) => {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    setTbFileName(file.name || '');
+    setTbParseMessage('');
+    setTbKetQua(null);
+    setTbTimKiemLoi('');
+    setTbNvQL('');
+    setTbOlt('');
+    setTbSlot('');
+    setTbPort('');
+    try {
+      const lowerName = String(file.name || '').toLowerCase();
+      if (!lowerName.endsWith('.xlsx') && !lowerName.endsWith('.xls')) {
+        setTbRows([]);
+        setTbParseMessage('Chỉ hỗ trợ file .xlsx hoặc .xls');
+        return;
+      }
+      const xlsx = await import('xlsx');
+      const buffer = await file.arrayBuffer();
+      const wb = xlsx.read(buffer, { type: 'array' });
+      const sheetName = wb.SheetNames?.[0];
+      const ws = sheetName ? wb.Sheets[sheetName] : null;
+      const matrix = ws ? xlsx.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) : [];
+      if (!matrix.length) {
+        setTbRows([]);
+        setTbParseMessage('File không có dữ liệu.');
+        return;
+      }
+      const col = tbResolveColumnIndices(matrix[0]);
+      const need = ['nvQL', 'olt', 'slot', 'port'];
+      const missing = need.filter((k) => col[k] == null);
+      if (missing.length) {
+        setTbRows([]);
+        setTbParseMessage(
+          `Thiếu cột bắt buộc trong dòng tiêu đề: ${missing.join(', ')}. Cần có: Nhân viên QL, OLT, SLOT, PORT (và các cột khác theo mẫu).`
+        );
+        return;
+      }
+      const out = [];
+      for (let r = 1; r < matrix.length; r++) {
+        const row = matrix[r];
+        const nvQL = tbCell(row, col.nvQL);
+        const olt = tbCell(row, col.olt);
+        const slot = tbCell(row, col.slot);
+        const port = tbCell(row, col.port);
+        if (!nvQL && !olt && !slot && !port && !tbCell(row, col.account)) continue;
+        out.push({
+          id: tbNewRowId(),
+          stt: tbCell(row, col.stt),
+          account: tbCell(row, col.account),
+          diaChi: tbCell(row, col.diaChi),
+          soDt: tbCell(row, col.soDt),
+          olt,
+          slot,
+          port,
+          nvQL,
+        });
+      }
+      setTbRows(out);
+      setTbParseMessage(out.length ? `Đã nhập ${out.length} thuê bao từ file.` : 'Không có dòng dữ liệu hợp lệ sau tiêu đề.');
+    } catch (e) {
+      setTbRows([]);
+      setTbParseMessage(e?.message || 'Không đọc được file Excel.');
+    } finally {
+      if (event?.target) event.target.value = '';
+    }
+  };
+
+  const handleTbTraCuu = (e) => {
+    e?.preventDefault?.();
+    setTbTimKiemLoi('');
+    if (!tbRows.length) {
+      setTbTimKiemLoi('Vui lòng upload file Excel danh sách thuê bao.');
+      setTbKetQua(null);
+      return;
+    }
+    if (!tbNvQL || !tbOlt || !tbSlot || !tbPort) {
+      setTbTimKiemLoi('Vui lòng chọn đủ Nhân viên QL, OLT, SLOT và Port.');
+      setTbKetQua(null);
+      return;
+    }
+    const found = tbRows.filter(
+      (r) => r.nvQL === tbNvQL && r.olt === tbOlt && r.slot === tbSlot && String(r.port) === String(tbPort)
+    );
+    setTbKetQua(found);
+  };
+
+  const tbNvqlChoices = [...new Set(tbRows.map((r) => r.nvQL).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi'));
+  const tbByNv = !tbNvQL ? tbRows : tbRows.filter((r) => r.nvQL === tbNvQL);
+  const tbOltChoices = [...new Set(tbByNv.map((r) => r.olt).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi'));
+  const tbByNvOlt = !tbOlt ? tbByNv : tbByNv.filter((r) => r.olt === tbOlt);
+  const tbSlotChoices = [...new Set(tbByNvOlt.map((r) => r.slot).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), 'vi', { numeric: true }));
+  const tbByNvOltSlot = !tbSlot ? tbByNvOlt : tbByNvOlt.filter((r) => String(r.slot) === String(tbSlot));
+  const tbPortChoices = [...new Set(tbByNvOltSlot.map((r) => r.port).filter(Boolean))].sort((a, b) =>
+    String(a).localeCompare(String(b), 'vi', { numeric: true }));
+
+  const openTbChuyenModal = () => {
+    if (!Array.isArray(tbKetQua) || tbKetQua.length === 0) return;
+    setTbChuyenTargetNv('');
+    setTbChuyenIds(new Set(tbKetQua.map((r) => r.id)));
+    setTbShowChuyenModal(true);
+  };
+
+  const toggleTbChuyenId = (id) => {
+    setTbChuyenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const confirmTbChuyenDiaBan = () => {
+    const target = (tbChuyenTargetNv || '').trim();
+    if (!target) {
+      setTbParseMessage('Chọn Nhân viên QL đích để chuyển địa bàn.');
+      return;
+    }
+    if (!Array.isArray(tbKetQua) || !tbKetQua.length) return;
+    const picked = tbKetQua.filter((r) => tbChuyenIds.has(r.id));
+    if (!picked.length) {
+      setTbParseMessage('Chọn ít nhất một thuê bao trong danh sách.');
+      return;
+    }
+    const thoiGian = new Date().toISOString();
+    const batchRows = picked.map((r) => ({
+      stt: r.stt,
+      account: r.account,
+      diaChi: r.diaChi,
+      soDt: r.soDt,
+      olt: r.olt,
+      slot: r.slot,
+      port: r.port,
+      nvQLCu: r.nvQL,
+      nvQLMoi: target,
+    }));
+    setTbChuyenBatches((prev) => [...prev, { id: tbNewRowId(), thoiGian, rows: batchRows }]);
+    setTbRows((rows) =>
+      rows.map((row) => {
+        const hit = picked.find((p) => p.id === row.id);
+        if (!hit) return row;
+        return { ...row, nvQL: target };
+      })
+    );
+    setTbKetQua((cur) =>
+      Array.isArray(cur) ? cur.map((row) => (tbChuyenIds.has(row.id) ? { ...row, nvQL: target } : row)) : cur
+    );
+    setTbShowChuyenModal(false);
+    setTbParseMessage(`Đã chuyển ${picked.length} thuê bao sang «${target}». Có thể xuất Excel ở mục lịch sử bên dưới.`);
+  };
+
+  const handleExportTbChuyenExcel = async () => {
+    const flat = [];
+    tbChuyenBatches.forEach((batch) => {
+      batch.rows.forEach((r) => {
+        flat.push({
+          STT: flat.length + 1,
+          Acount: r.account,
+          'Địa chỉ': r.diaChi,
+          'Số ĐT': r.soDt,
+          OLT: r.olt,
+          SLOT: r.slot,
+          PORT: r.port,
+          'Nhân viên QL (cũ)': r.nvQLCu,
+          'Nhân viên QL (mới)': r.nvQLMoi,
+          'Thời gian chuyển': new Date(batch.thoiGian).toLocaleString('vi-VN'),
+        });
+      });
+    });
+    if (!flat.length) {
+      setTbParseMessage('Chưa có thuê bao nào được chuyển địa bàn để xuất.');
+      return;
+    }
+    setTbExporting(true);
+    try {
+      const xlsx = await import('xlsx');
+      const ws = xlsx.utils.json_to_sheet(flat);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, 'CHUYEN_DIA_BAN');
+      const buffer = xlsx.write(wb, { type: 'array', bookType: 'xlsx' });
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `thue_bao_chuyen_dia_ban_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setTbParseMessage(e?.message || 'Lỗi xuất Excel.');
+    } finally {
+      setTbExporting(false);
     }
   };
 
@@ -1457,11 +1745,41 @@ export default function TraCuuSP2Page() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <h1 className="text-base sm:text-2xl font-bold text-white tracking-tight truncate">
-                  Module tra cứu Spliter cấp 2
+                  {activeMainModule === TB_MODULE_TB ? 'Module tra cứu thuê bao (TB)' : 'Module tra cứu Spliter cấp 2'}
                 </h1>
                 <p className="text-sky-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1 hidden sm:block">
-                  Hệ thống tra cứu thông tin Spliter cấp 2 theo OLT, Slot và Port
+                  {activeMainModule === TB_MODULE_TB
+                    ? 'Upload Excel, lọc theo nhân viên QL / OLT / Slot / Port, chuyển địa bàn và xuất Excel.'
+                    : 'Hệ thống tra cứu thông tin Spliter cấp 2 theo OLT, Slot và Port'}
                 </p>
+                <div className="mt-2 flex flex-wrap gap-1.5" role="tablist" aria-label="Chọn module">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeMainModule === TB_MODULE_SPLITTER}
+                    onClick={() => setActiveMainModule(TB_MODULE_SPLITTER)}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] sm:text-xs font-semibold border transition-colors ${
+                      activeMainModule === TB_MODULE_SPLITTER
+                        ? 'bg-white text-sky-700 border-white'
+                        : 'bg-white/10 text-white border-white/30 hover:bg-white/20'
+                    }`}
+                  >
+                    Spliter cấp 2
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeMainModule === TB_MODULE_TB}
+                    onClick={() => setActiveMainModule(TB_MODULE_TB)}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] sm:text-xs font-semibold border transition-colors ${
+                      activeMainModule === TB_MODULE_TB
+                        ? 'bg-white text-sky-700 border-white'
+                        : 'bg-white/10 text-white border-white/30 hover:bg-white/20'
+                    }`}
+                  >
+                    Tra cứu TB
+                  </button>
+                </div>
               </div>
               <div className="relative shrink-0 flex w-full sm:w-auto items-center justify-end gap-2" ref={reportMenuRef}>
                 <div className="flex-1 sm:flex-none">
@@ -2345,6 +2663,9 @@ export default function TraCuuSP2Page() {
             </div>
           )}
 
+          {/* Form + kết quả: Spliter hoặc TB */}
+          {activeMainModule === TB_MODULE_SPLITTER ? (
+            <>
           {/* Form tra cứu - Tìm kiếm thông tin Splitter */}
           <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0">
             <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">Tìm kiếm thông tin Splitter</h2>
@@ -2461,8 +2782,297 @@ export default function TraCuuSP2Page() {
                 </div>
               )}
             </div>
+            </>
+          ) : (
+            <>
+              <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0 space-y-4">
+                <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">Tra cứu thuê bao từ Excel</h2>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 space-y-3">
+                  <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
+                    File cần có tiêu đề cột: <strong>STT</strong>, <strong>Acount</strong>, <strong>Địa chỉ</strong>, <strong>Số ĐT</strong>, <strong>OLT</strong>, <strong>SLot</strong>, <strong>PORT</strong>, <strong>Nhân viên QL</strong>.
+                    Bắt buộc nhận diện được: Nhân viên QL, OLT, SLOT, PORT.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-sky-700 cursor-pointer min-h-[40px]">
+                      Upload Excel (.xlsx / .xls)
+                      <input type="file" accept=".xlsx,.xls" onChange={handleTbExcelUpload} className="hidden" />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleDownloadTbMau}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]"
+                    >
+                      Tải file mẫu
+                    </button>
+                    {tbFileName && <span className="text-[11px] text-slate-500 w-full sm:w-auto">File: {tbFileName}</span>}
+                  </div>
+                  {tbParseMessage && (
+                    <p
+                      className={`text-[11px] sm:text-xs ${
+                        /Thiếu|Lỗi|Không đọc|Chỉ hỗ trợ|Không có dòng|File không|Chưa có thuê bao nào được chuyển/i.test(tbParseMessage)
+                          ? 'text-red-600'
+                          : 'text-emerald-800'
+                      }`}
+                    >
+                      {tbParseMessage}
+                    </p>
+                  )}
+                </div>
+                <form onSubmit={handleTbTraCuu} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
+                    <div className="space-y-2">
+                      <label className="block text-[11px] sm:text-xs font-semibold text-slate-600">Nhân viên QL</label>
+                      <select
+                        value={tbNvQL}
+                        onChange={(e) => {
+                          setTbNvQL(e.target.value);
+                          setTbOlt('');
+                          setTbSlot('');
+                          setTbPort('');
+                          setTbKetQua(null);
+                          setTbTimKiemLoi('');
+                        }}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 min-h-[40px]"
+                      >
+                        <option value="">{PLACEHOLDER}</option>
+                        {tbNvqlChoices.map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-[11px] sm:text-xs font-semibold text-slate-600">OLT</label>
+                      <select
+                        value={tbOlt}
+                        onChange={(e) => {
+                          setTbOlt(e.target.value);
+                          setTbSlot('');
+                          setTbPort('');
+                          setTbKetQua(null);
+                          setTbTimKiemLoi('');
+                        }}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 min-h-[40px]"
+                      >
+                        <option value="">{PLACEHOLDER}</option>
+                        {tbOltChoices.map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-[11px] sm:text-xs font-semibold text-slate-600">SLOT</label>
+                      <select
+                        value={tbSlot}
+                        onChange={(e) => {
+                          setTbSlot(e.target.value);
+                          setTbPort('');
+                          setTbKetQua(null);
+                          setTbTimKiemLoi('');
+                        }}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 min-h-[40px]"
+                      >
+                        <option value="">{PLACEHOLDER}</option>
+                        {tbSlotChoices.map((n) => (
+                          <option key={String(n)} value={String(n)}>{String(n)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-[11px] sm:text-xs font-semibold text-slate-600">Port</label>
+                      <select
+                        value={tbPort === '' ? '' : String(tbPort)}
+                        onChange={(e) => {
+                          setTbPort(e.target.value);
+                          setTbKetQua(null);
+                          setTbTimKiemLoi('');
+                        }}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 min-h-[40px]"
+                      >
+                        <option value="">{PLACEHOLDER}</option>
+                        {tbPortChoices.map((n) => (
+                          <option key={String(n)} value={String(n)}>{String(n)}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-2.5 rounded-lg font-semibold text-white text-xs sm:text-sm bg-sky-600 hover:bg-sky-700 min-h-[40px] sm:min-h-[44px]"
+                  >
+                    Tra cứu
+                  </button>
+                  {tbTimKiemLoi && <p className="text-xs text-red-600">{tbTimKiemLoi}</p>}
+                </form>
+              </div>
+              <div className="mt-2 sm:mt-6 mx-2 sm:mx-8 mb-2 sm:mb-6 rounded-lg sm:rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 flex-1 min-h-[140px] sm:min-h-[280px] p-3 sm:p-6 flex flex-col overflow-hidden">
+                {tbKetQua === null && !tbTimKiemLoi && (
+                  <p className="text-slate-500 text-center text-xs sm:text-base py-8 flex-1 flex items-center justify-center">
+                    Upload file, chọn bộ lọc và bấm Tra cứu để xem danh sách thuê bao.
+                  </p>
+                )}
+                {Array.isArray(tbKetQua) && (
+                  <div className="w-full flex-1 min-h-0 flex flex-col gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-slate-800 font-bold text-sm sm:text-base">
+                        Kết quả tra cứu ({tbKetQua.length} thuê bao)
+                      </h3>
+                      {tbKetQua.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={openTbChuyenModal}
+                          className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs sm:text-sm font-medium px-3 py-2 min-h-[40px]"
+                        >
+                          Chuyển địa bàn
+                        </button>
+                      )}
+                    </div>
+                    {tbKetQua.length === 0 ? (
+                      <p className="text-slate-500 text-center text-xs sm:text-sm py-6">Không có thuê bao khớp bộ lọc.</p>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <table className="min-w-[720px] w-full text-[11px] sm:text-xs text-left">
+                          <thead>
+                            <tr className="bg-slate-100 text-slate-600 border-b border-slate-200">
+                              <th className="py-2 px-2 font-semibold">STT</th>
+                              <th className="py-2 px-2 font-semibold">Account</th>
+                              <th className="py-2 px-2 font-semibold">Địa chỉ</th>
+                              <th className="py-2 px-2 font-semibold">Số ĐT</th>
+                              <th className="py-2 px-2 font-semibold">OLT</th>
+                              <th className="py-2 px-2 font-semibold">Slot</th>
+                              <th className="py-2 px-2 font-semibold">Port</th>
+                              <th className="py-2 px-2 font-semibold">NV QL</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tbKetQua.map((r) => (
+                              <tr key={r.id} className="border-b border-slate-100 last:border-0 text-slate-800">
+                                <td className="py-1.5 px-2 align-top">{r.stt || '—'}</td>
+                                <td className="py-1.5 px-2 align-top font-medium">{r.account || '—'}</td>
+                                <td className="py-1.5 px-2 align-top max-w-[200px] break-words">{r.diaChi || '—'}</td>
+                                <td className="py-1.5 px-2 align-top whitespace-nowrap">{r.soDt || '—'}</td>
+                                <td className="py-1.5 px-2 align-top">{r.olt || '—'}</td>
+                                <td className="py-1.5 px-2 align-top">{r.slot || '—'}</td>
+                                <td className="py-1.5 px-2 align-top">{r.port ?? '—'}</td>
+                                <td className="py-1.5 px-2 align-top">{r.nvQL || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {tbChuyenBatches.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-slate-200">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                      <h4 className="text-xs sm:text-sm font-semibold text-slate-800">Lịch sử chuyển địa bàn (xuất Excel)</h4>
+                      <button
+                        type="button"
+                        onClick={handleExportTbChuyenExcel}
+                        disabled={tbExporting}
+                        className="rounded-lg border border-emerald-500 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                      >
+                        {tbExporting ? 'Đang xuất…' : 'Xuất Excel thuê bao đã chuyển'}
+                      </button>
+                    </div>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500">
+                      Đã ghi nhận {tbChuyenBatches.reduce((n, b) => n + b.rows.length, 0)} dòng chuyển trong {tbChuyenBatches.length} lần thao tác.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
+      {tbShowChuyenModal && Array.isArray(tbKetQua) && tbKetQua.length > 0 && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tb-chuyen-title"
+        >
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[88vh] flex flex-col border border-slate-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
+              <h3 id="tb-chuyen-title" className="text-sm font-semibold text-slate-800">Chuyển địa bàn</h3>
+              <button
+                type="button"
+                onClick={() => setTbShowChuyenModal(false)}
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                aria-label="Đóng"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="px-4 py-3 overflow-y-auto flex-1 min-h-0 space-y-3">
+              <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
+                Chọn thuê bao cần chuyển và <strong>Nhân viên QL đích</strong> (lấy từ danh sách trong file Excel đã upload).
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTbChuyenIds(new Set(tbKetQua.map((r) => r.id)))}
+                  className="text-[11px] px-2.5 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
+                >
+                  Chọn tất cả
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTbChuyenIds(new Set())}
+                  className="text-[11px] px-2.5 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
+                >
+                  Bỏ chọn
+                </button>
+              </div>
+              <ul className="max-h-[40vh] overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100 text-[11px] sm:text-xs">
+                {tbKetQua.map((r) => (
+                  <li key={r.id} className="flex items-start gap-2 px-2 py-2 hover:bg-slate-50/80">
+                    <input
+                      type="checkbox"
+                      checked={tbChuyenIds.has(r.id)}
+                      onChange={() => toggleTbChuyenId(r.id)}
+                      className="mt-0.5 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                    />
+                    <span className="min-w-0 break-words">
+                      <span className="font-medium text-slate-800">{r.account || '—'}</span>
+                      <span className="text-slate-500"> · {r.nvQL || '—'} · Port {r.port ?? '—'}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nhân viên QL đích</label>
+                <select
+                  value={tbChuyenTargetNv}
+                  onChange={(e) => setTbChuyenTargetNv(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 min-h-[40px]"
+                >
+                  <option value="">{PLACEHOLDER}</option>
+                  {tbNvqlChoices.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t border-slate-100 flex flex-wrap justify-end gap-2 shrink-0 bg-slate-50/80">
+              <button
+                type="button"
+                onClick={() => setTbShowChuyenModal(false)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={confirmTbChuyenDiaBan}
+                className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 text-xs font-medium min-h-[40px]"
+              >
+                Xác nhận chuyển
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     {showCopyToast && (
         <div className="fixed inset-0 flex items-end justify-center pb-8 sm:pb-12 pointer-events-none z-50">
           <div className="bg-black/40 backdrop-blur-sm text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium border border-white/20">
