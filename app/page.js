@@ -810,16 +810,15 @@ export default function TraCuuSP2Page() {
         if (raw) {
           try {
             const cached = JSON.parse(raw);
-            const cachedRows = tbHydrateRows(cached?.rows);
-            if (cachedRows.length) {
-              setTbRows(cachedRows);
+            const cachedCount = Number(cached?.count || 0);
+            if (cachedCount > 0) {
               setTbSharedMeta({
                 fileName: String(cached?.fileName || ''),
                 uploadedAt: String(cached?.uploadedAt || ''),
-                count: cachedRows.length,
+                count: cachedCount,
               });
               if (!silent) {
-                setTbParseMessage(`Đã nạp nhanh ${cachedRows.length} thuê bao từ bộ nhớ cục bộ, đang đồng bộ bản mới từ server...`);
+                setTbParseMessage(`Đang đồng bộ dữ liệu chung từ server${cached?.fileName ? ` (${cached.fileName})` : ''}...`);
               }
             }
           } catch {
@@ -855,11 +854,15 @@ export default function TraCuuSP2Page() {
       setTbPort('');
       if (meta.fileName) setTbFileName(meta.fileName);
       if (typeof window !== 'undefined') {
-        localStorage.setItem(TB_SHARED_LOCAL_CACHE_KEY, JSON.stringify({
-          fileName: meta.fileName,
-          uploadedAt: meta.uploadedAt,
-          rows,
-        }));
+        try {
+          localStorage.setItem(TB_SHARED_LOCAL_CACHE_KEY, JSON.stringify({
+            fileName: meta.fileName,
+            uploadedAt: meta.uploadedAt,
+            count: rows.length,
+          }));
+        } catch {
+          // Bỏ qua lỗi quota localStorage
+        }
       }
       const timeText = meta.uploadedAt ? new Date(meta.uploadedAt).toLocaleString('vi-VN') : '';
       if (!silent) {
@@ -968,11 +971,15 @@ export default function TraCuuSP2Page() {
         return;
       }
       if (typeof window !== 'undefined') {
-        localStorage.setItem(TB_SHARED_LOCAL_CACHE_KEY, JSON.stringify({
-          fileName: file.name || '',
-          uploadedAt: new Date().toISOString(),
-          rows: hydratedRows,
-        }));
+        try {
+          localStorage.setItem(TB_SHARED_LOCAL_CACHE_KEY, JSON.stringify({
+            fileName: file.name || '',
+            uploadedAt: new Date().toISOString(),
+            count: hydratedRows.length,
+          }));
+        } catch {
+          // Bỏ qua lỗi quota localStorage, vẫn tiếp tục lưu server
+        }
       }
       let sharedSaved = false;
       let sharedSaveMessage = '';
