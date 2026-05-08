@@ -2995,7 +2995,7 @@ export default function TraCuuSP2Page() {
           )}
 
           {/* Form + kết quả: Tra cứu S2 hoặc TB */}
-          {!showReportPanel && (activeMainModule === TB_MODULE_SPLITTER ? (
+          {!showSettings && !showReportPanel && (activeMainModule === TB_MODULE_SPLITTER ? (
             <>
           {/* Form tra cứu - Tìm kiếm thông tin S2 */}
           <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0">
