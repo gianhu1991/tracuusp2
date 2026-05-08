@@ -88,6 +88,65 @@ function tbNewRowId() {
   return `tb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function tbStripBuildSuffix(s) {
+  return String(s)
+    .replace(/\s*Build\/[^\s)]+/gi, '')
+    .trim();
+}
+
+/** Tên/mã chủng loại từ User-Agent (đặc biệt Android có đoạn sau «Android xx;»). */
+function tbParsePhoneModelFromUa(ua) {
+  if (!ua) return '';
+  if (/iPad/i.test(ua)) return 'iPad';
+  if (/iPhone/i.test(ua)) return 'iPhone';
+  const m = ua.match(/Android\s+[\d._]+;\s*([^)]+)\)/i);
+  if (!m) return '';
+  let raw = tbStripBuildSuffix(m[1]).replace(/^Linux;\s*/i, '').trim();
+  if (/^K$/i.test(raw)) return '';
+  if (raw.length > 96) raw = `${raw.slice(0, 93)}…`;
+  return raw || '';
+}
+
+/**
+ * Tên hoặc chủng loại điện thoại/thiết bị lúc thao tác (Client Hints + UA).
+ * Máy tính: «Máy tính (hệ điều hành ngắn gọn)».
+ */
+async function tbSummarizeThietBiThaoTacAsync() {
+  if (typeof navigator === 'undefined') return '';
+  const ua = navigator.userAgent || '';
+
+  try {
+    const uad = navigator.userAgentData;
+    if (uad?.getHighEntropyValues) {
+      const hi = await uad.getHighEntropyValues(['model', 'platform', 'mobile']);
+      const m = String(hi?.model || '').trim();
+      if (hi?.mobile && m && !/^generic$/i.test(m)) return m.length > 120 ? `${m.slice(0, 117)}…` : m;
+    }
+  } catch {
+    /* bỏ qua */
+  }
+
+  const fromUa = tbParsePhoneModelFromUa(ua);
+  if (fromUa) return fromUa;
+
+  if (/Mobi|Android|iPhone|iPad|iPod/i.test(ua)) {
+    if (/Android/i.test(ua)) return 'Điện thoại Android (không đọc được model)';
+    if (/iPad/i.test(ua)) return 'iPad';
+    if (/iPhone|iPod/i.test(ua)) return 'iPhone';
+    return 'Thiết bị di động';
+  }
+
+  let os = '';
+  if (/Windows NT 10\.0|Windows NT 11\.0/i.test(ua)) os = 'Windows';
+  else if (/Windows NT/i.test(ua)) os = 'Windows';
+  else if (/Mac OS X/i.test(ua)) os = 'macOS';
+  else if (/CrOS/i.test(ua)) os = 'Chrome OS';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+  else os = '—';
+  if (/Macintosh|Windows|CrOS|Linux/i.test(ua)) return `Máy tính (${os})`;
+  return ua.trim() ? ua.slice(0, 120) : '';
+}
+
 export default function TraCuuSP2Page() {
   const [ttvt, setTtvt] = useState(TTVT_MAC_DINH);
   const [veTinh, setVeTinh] = useState('');
@@ -828,7 +887,7 @@ export default function TraCuuSP2Page() {
     });
   };
 
-  const confirmTbChuyenDiaBan = () => {
+  const confirmTbChuyenDiaBan = async () => {
     const target = (tbChuyenTargetNv || '').trim();
     if (!target) {
       setTbParseMessage('Chọn Nhân viên QL đích để chuyển địa bàn.');
@@ -841,19 +900,16 @@ export default function TraCuuSP2Page() {
       return;
     }
     const thoiGian = new Date().toISOString();
+    const thietBiThaoTac = await tbSummarizeThietBiThaoTacAsync();
     const batchRows = picked.map((r) => ({
       stt: r.stt,
-      tenKH: r.tenKH,
       account: r.account,
+      tenKH: r.tenKH,
       diaChi: r.diaChi,
-      soDt: r.soDt,
-      olt: r.olt,
-      slot: r.slot,
-      port: r.port,
-      nvQLCu: r.nvQL,
-      nvQLMoi: target,
+      diaBanCu: r.nvQL,
+      diaBanMoi: target,
     }));
-    setTbChuyenBatches((prev) => [...prev, { id: tbNewRowId(), thoiGian, rows: batchRows }]);
+    setTbChuyenBatches((prev) => [...prev, { id: tbNewRowId(), thoiGian, thietBiThaoTac, rows: batchRows }]);
     setTbRows((rows) =>
       rows.map((row) => {
         const hit = picked.find((p) => p.id === row.id);
@@ -872,18 +928,17 @@ export default function TraCuuSP2Page() {
     const flat = [];
     tbChuyenBatches.forEach((batch) => {
       batch.rows.forEach((r) => {
+        const diaBanCu = r.diaBanCu ?? r.nvQLCu ?? '';
+        const diaBanMoi = r.diaBanMoi ?? r.nvQLMoi ?? '';
         flat.push({
           STT: flat.length + 1,
-          Acount: r.account,
+          Account: r.account ?? '',
           'Tên KH': r.tenKH ?? '',
-          'Địa chỉ': r.diaChi,
-          'Số ĐT': r.soDt,
-          OLT: r.olt,
-          SLOT: r.slot,
-          PORT: r.port,
-          'Nhân viên QL (cũ)': r.nvQLCu,
-          'Nhân viên QL (mới)': r.nvQLMoi,
+          'Địa chỉ': r.diaChi ?? '',
+          'Địa bàn cũ': diaBanCu,
+          'Địa bàn mới': diaBanMoi,
           'Thời gian chuyển': new Date(batch.thoiGian).toLocaleString('vi-VN'),
+          'Thiết bị thao tác': batch.thietBiThaoTac || '—',
         });
       });
     });
@@ -2985,21 +3040,63 @@ export default function TraCuuSP2Page() {
                   </div>
                 )}
                 {tbChuyenBatches.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-slate-200">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                      <h4 className="text-xs sm:text-sm font-semibold text-slate-800">Lịch sử chuyển địa bàn (xuất Excel)</h4>
+                  <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-xs sm:text-sm font-semibold text-slate-800">Lịch sử chuyển địa bàn</h4>
                       <button
                         type="button"
                         onClick={handleExportTbChuyenExcel}
                         disabled={tbExporting}
                         className="rounded-lg border border-emerald-500 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
                       >
-                        {tbExporting ? 'Đang xuất…' : 'Xuất Excel thuê bao đã chuyển'}
+                        {tbExporting ? 'Đang xuất…' : 'Xuất Excel'}
                       </button>
                     </div>
                     <p className="text-[10px] sm:text-[11px] text-slate-500">
-                      Đã ghi nhận {tbChuyenBatches.reduce((n, b) => n + b.rows.length, 0)} dòng chuyển trong {tbChuyenBatches.length} lần thao tác.
+                      Đã ghi nhận {tbChuyenBatches.reduce((n, b) => n + b.rows.length, 0)} dòng trong {tbChuyenBatches.length} lần thao tác. «Thiết bị thao tác» ghi nhận tên/mã chủng loại điện thoại (hoặc «Máy tính (OS)» nếu làm việc trên PC); iPhone/OS che model thường chỉ hiện «iPhone». Trình duyệt / chính sách riêng tư có thể làm không đọc được model cụ thể.
                     </p>
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm max-h-[min(50vh,420px)] overflow-y-auto">
+                      <table className="min-w-[880px] w-full text-[10px] sm:text-[11px] text-left">
+                        <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-600 border-b border-slate-200">
+                          <tr>
+                            <th className="py-2 px-2 font-semibold whitespace-nowrap">STT</th>
+                            <th className="py-2 px-2 font-semibold whitespace-nowrap">Account</th>
+                            <th className="py-2 px-2 font-semibold">Tên KH</th>
+                            <th className="py-2 px-2 font-semibold">Địa chỉ</th>
+                            <th className="py-2 px-2 font-semibold whitespace-nowrap">Địa bàn cũ</th>
+                            <th className="py-2 px-2 font-semibold whitespace-nowrap">Địa bàn mới</th>
+                            <th className="py-2 px-2 font-semibold whitespace-nowrap">Thời gian chuyển</th>
+                            <th className="py-2 px-2 font-semibold min-w-[140px]">Thiết bị thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tbChuyenBatches.flatMap((batch, bi) =>
+                            batch.rows.map((r, ri) => {
+                              const diaBanCu = r.diaBanCu ?? r.nvQLCu;
+                              const diaBanMoi = r.diaBanMoi ?? r.nvQLMoi;
+                              const globalStt =
+                                tbChuyenBatches.slice(0, bi).reduce((n, x) => n + x.rows.length, 0) + ri + 1;
+                              return (
+                                <tr key={`${batch.id}-${ri}`} className="border-b border-slate-100 last:border-0 text-slate-800">
+                                  <td className="py-1.5 px-2 align-top whitespace-nowrap">{globalStt}</td>
+                                  <td className="py-1.5 px-2 align-top font-medium whitespace-nowrap">{r.account || '—'}</td>
+                                  <td className="py-1.5 px-2 align-top max-w-[120px] break-words">{r.tenKH || '—'}</td>
+                                  <td className="py-1.5 px-2 align-top max-w-[160px] break-words">{r.diaChi || '—'}</td>
+                                  <td className="py-1.5 px-2 align-top max-w-[100px] break-words">{diaBanCu || '—'}</td>
+                                  <td className="py-1.5 px-2 align-top max-w-[100px] break-words">{diaBanMoi || '—'}</td>
+                                  <td className="py-1.5 px-2 align-top whitespace-nowrap text-slate-600">
+                                    {new Date(batch.thoiGian).toLocaleString('vi-VN')}
+                                  </td>
+                                  <td className="py-1.5 px-2 align-top text-slate-600 break-words max-w-[220px]">
+                                    {batch.thietBiThaoTac || '—'}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>
