@@ -283,6 +283,9 @@ export default function TraCuuSP2Page() {
   const [tbChuyenIds, setTbChuyenIds] = useState(() => new Set());
   const [tbChuyenBatches, setTbChuyenBatches] = useState([]);
   const [tbTransferLoading, setTbTransferLoading] = useState(false);
+  const [tbConfirmingTransferKey, setTbConfirmingTransferKey] = useState('');
+  const [tbUploading, setTbUploading] = useState(false);
+  const [tbUploadProgress, setTbUploadProgress] = useState(null);
   const [tbExporting, setTbExporting] = useState(false);
   const [tbSharedLoading, setTbSharedLoading] = useState(false);
   const [tbSharedMeta, setTbSharedMeta] = useState(null);
@@ -895,6 +898,37 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  const confirmTbTransferRow = async (batchId, rowIndex) => {
+    const key = `${batchId}-${rowIndex}`;
+    setTbConfirmingTransferKey(key);
+    try {
+      const res = await fetch('/api/tb-transfer', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId, rowIndex }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        setTbParseMessage(data?.message || 'Không xác nhận được dòng lịch sử chuyển.');
+        return;
+      }
+      setTbChuyenBatches((prev) =>
+        prev.map((b) => {
+          if (String(b?.id || '') !== String(batchId || '')) return b;
+          const rows = Array.isArray(b.rows)
+            ? b.rows.map((r, idx) => (idx === rowIndex ? { ...r, xacNhan: true, thoiGianXacNhan: new Date().toISOString() } : r))
+            : [];
+          return { ...b, rows };
+        })
+      );
+      setTbParseMessage('Đã xác nhận 1 dòng lịch sử chuyển địa bàn.');
+    } catch (e) {
+      setTbParseMessage(e?.message || 'Không xác nhận được dòng lịch sử chuyển.');
+    } finally {
+      setTbConfirmingTransferKey('');
+    }
+  };
+
   const handleTbFileSelect = (event) => {
     const file = event?.target?.files?.[0] || null;
     setTbSelectedFile(file);
@@ -907,6 +941,8 @@ export default function TraCuuSP2Page() {
   const handleTbExcelUpload = async () => {
     const file = tbSelectedFile;
     if (!file) return;
+    setTbUploading(true);
+    setTbUploadProgress({ phase: 'Đang đọc file Excel...', current: 0, total: 1, percent: 0 });
     setTbFileName(file.name || '');
     setTbParseMessage('');
     setTbKetQua(null);
@@ -986,6 +1022,7 @@ export default function TraCuuSP2Page() {
       try {
         const chunkSize = 400;
         const totalChunks = Math.max(1, Math.ceil(hydratedRows.length / chunkSize));
+        setTbUploadProgress({ phase: 'Đang upload dữ liệu lên server...', current: 0, total: totalChunks, percent: 0 });
         const uploadedAt = new Date().toISOString();
         const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
         let finalData = null;
@@ -1012,6 +1049,14 @@ export default function TraCuuSP2Page() {
             const serverMsg = String(saveData?.message || saveRes.statusText || '');
             throw new Error(serverMsg || `Lỗi lưu chunk ${i + 1}/${totalChunks}.`);
           }
+          const currentChunk = i + 1;
+          const percent = Math.min(100, Math.round((currentChunk / totalChunks) * 100));
+          setTbUploadProgress({
+            phase: 'Đang upload dữ liệu lên server...',
+            current: currentChunk,
+            total: totalChunks,
+            percent,
+          });
           finalData = saveData;
         }
         if (finalData?.ok) {
@@ -1038,6 +1083,8 @@ export default function TraCuuSP2Page() {
       setTbRows([]);
       setTbParseMessage(e?.message || 'Không đọc được file Excel.');
     } finally {
+      setTbUploading(false);
+      setTbUploadProgress(null);
       setTbSelectedFile(null);
       if (tbFileInputRef.current) tbFileInputRef.current.value = '';
     }
@@ -2979,6 +3026,7 @@ export default function TraCuuSP2Page() {
                                       <th className="text-left py-1 px-2 font-semibold">Địa bàn mới</th>
                                       <th className="text-left py-1 px-2 font-semibold">Thời gian chuyển</th>
                                       <th className="text-left py-1 pl-2 font-semibold">Thiết bị thao tác</th>
+                                      <th className="text-right py-1 pl-2 font-semibold">Xác nhận</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -2988,6 +3036,8 @@ export default function TraCuuSP2Page() {
                                         const diaBanMoi = r.diaBanMoi ?? r.nvQLMoi;
                                         const globalStt =
                                           tbChuyenBatches.slice(0, bi).reduce((n, x) => n + x.rows.length, 0) + ri + 1;
+                                        const rowKey = `${batch.id}-${ri}`;
+                                        const daXacNhan = Boolean(r?.xacNhan);
                                         return (
                                           <tr key={`${batch.id}-report-${ri}`} className="border-b border-slate-100 last:border-b-0 text-slate-700">
                                             <td className="py-1.5 pr-2">{globalStt}</td>
@@ -2998,6 +3048,20 @@ export default function TraCuuSP2Page() {
                                             <td className="py-1.5 px-2">{diaBanMoi || '—'}</td>
                                             <td className="py-1.5 px-2">{new Date(batch.thoiGian).toLocaleString('vi-VN')}</td>
                                             <td className="py-1.5 pl-2">{batch.thietBiThaoTac || '—'}</td>
+                                            <td className="py-1.5 pl-2 text-right">
+                                              <button
+                                                type="button"
+                                                onClick={() => confirmTbTransferRow(batch.id, ri)}
+                                                disabled={daXacNhan || tbConfirmingTransferKey === rowKey}
+                                                className={`text-[10px] px-2 py-1 rounded border disabled:opacity-50 ${
+                                                  daXacNhan
+                                                    ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
+                                                    : 'border-sky-300 text-sky-700 hover:bg-sky-50'
+                                                }`}
+                                              >
+                                                {daXacNhan ? 'Đã xác nhận' : (tbConfirmingTransferKey === rowKey ? 'Đang xác nhận…' : 'Xác nhận')}
+                                              </button>
+                                            </td>
                                           </tr>
                                         );
                                       })
@@ -3203,10 +3267,10 @@ export default function TraCuuSP2Page() {
                     <button
                       type="button"
                       onClick={handleTbExcelUpload}
-                      disabled={!tbSelectedFile}
+                      disabled={!tbSelectedFile || tbUploading}
                       className="inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-sky-700 min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Upload
+                      {tbUploading ? 'Đang upload...' : 'Upload'}
                     </button>
                     <button
                       type="button"
@@ -3231,6 +3295,21 @@ export default function TraCuuSP2Page() {
                       </span>
                     )}
                   </div>
+                  {tbUploadProgress && (
+                    <div className="space-y-1">
+                      <p className="text-[11px] sm:text-xs text-sky-700">
+                        {tbUploadProgress.phase}
+                        {tbUploadProgress.total > 1 ? ` ${tbUploadProgress.current}/${tbUploadProgress.total} chunk` : ''}
+                        {typeof tbUploadProgress.percent === 'number' ? ` (${tbUploadProgress.percent}%)` : ''}
+                      </p>
+                      <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
+                        <div
+                          className="h-full bg-sky-600 transition-all"
+                          style={{ width: `${Math.max(0, Math.min(100, Number(tbUploadProgress.percent || 0)))}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                   {tbParseMessage && (
                     <p
                       className={`text-[11px] sm:text-xs ${

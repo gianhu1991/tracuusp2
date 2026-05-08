@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-import { tbServerConfigured, tbServerGetTransferHistory, tbServerAppendTransferBatch } from '../../../lib/tb-server-cache';
+import {
+  tbServerConfigured,
+  tbServerGetTransferHistory,
+  tbServerAppendTransferBatch,
+  tbServerDeleteTransferRow,
+  tbServerConfirmTransferRow,
+} from '../../../lib/tb-server-cache';
 
 export async function GET() {
   try {
@@ -29,6 +35,42 @@ export async function POST(request) {
     const saved = await tbServerAppendTransferBatch(batch);
     if (!saved.ok) {
       return NextResponse.json({ ok: false, message: saved.message || 'Không lưu được lịch sử chuyển.' }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ ok: false, message: err?.message || 'Lỗi server.' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    if (!(await tbServerConfigured())) {
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+    }
+    const body = await request.json().catch(() => ({}));
+    const batchId = String(body?.batchId || '');
+    const rowIndex = Number(body?.rowIndex ?? -1);
+    const deleted = await tbServerDeleteTransferRow({ batchId, rowIndex });
+    if (!deleted.ok) {
+      return NextResponse.json({ ok: false, message: deleted.message || 'Không xóa được lịch sử chuyển.' }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ ok: false, message: err?.message || 'Lỗi server.' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request) {
+  try {
+    if (!(await tbServerConfigured())) {
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+    }
+    const body = await request.json().catch(() => ({}));
+    const batchId = String(body?.batchId || '');
+    const rowIndex = Number(body?.rowIndex ?? -1);
+    const confirmed = await tbServerConfirmTransferRow({ batchId, rowIndex });
+    if (!confirmed.ok) {
+      return NextResponse.json({ ok: false, message: confirmed.message || 'Không xác nhận được lịch sử chuyển.' }, { status: 500 });
     }
     return NextResponse.json({ ok: true });
   } catch (err) {
