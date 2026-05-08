@@ -88,6 +88,21 @@ function tbNewRowId() {
   return `tb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function tbHydrateRows(rows) {
+  return (Array.isArray(rows) ? rows : []).map((r) => ({
+    id: r?.id || tbNewRowId(),
+    stt: String(r?.stt || '').trim(),
+    account: String(r?.account || '').trim(),
+    tenKH: String(r?.tenKH || '').trim(),
+    diaChi: String(r?.diaChi || '').trim(),
+    soDt: String(r?.soDt || '').trim(),
+    olt: String(r?.olt || '').trim(),
+    slot: String(r?.slot || '').trim(),
+    port: String(r?.port || '').trim(),
+    nvQL: String(r?.nvQL || '').trim(),
+  }));
+}
+
 function tbStripBuildSuffix(s) {
   return String(s)
     .replace(/\s*Build\/[^\s)]+/gi, '')
@@ -259,6 +274,9 @@ export default function TraCuuSP2Page() {
   const [tbChuyenIds, setTbChuyenIds] = useState(() => new Set());
   const [tbChuyenBatches, setTbChuyenBatches] = useState([]);
   const [tbExporting, setTbExporting] = useState(false);
+  const [tbSharedLoading, setTbSharedLoading] = useState(false);
+  const [tbSharedMeta, setTbSharedMeta] = useState(null);
+  const tbSharedBootRef = useRef(false);
   const syncAbortRef = useRef(null);
   const reportMenuRef = useRef(null);
 
@@ -773,6 +791,48 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  const loadTbSharedRows = async ({ silent = false } = {}) => {
+    if (!silent) setTbSharedLoading(true);
+    try {
+      const res = await fetch('/api/tb-cache', { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        const msg = data?.message || 'Không đọc được dữ liệu dùng chung từ server.';
+        if (!silent) setTbParseMessage(msg);
+        return;
+      }
+      const rows = tbHydrateRows(data.rows);
+      const meta = {
+        fileName: String(data.fileName || ''),
+        uploadedAt: String(data.uploadedAt || ''),
+        count: rows.length,
+      };
+      setTbSharedMeta(meta);
+      if (!rows.length) {
+        if (!silent) setTbParseMessage('Chưa có dữ liệu dùng chung trên server. Hãy upload 1 file Excel trên bất kỳ thiết bị nào.');
+        return;
+      }
+      setTbRows(rows);
+      setTbKetQua(null);
+      setTbTimKiemLoi('');
+      setTbNvQL('');
+      setTbOlt('');
+      setTbSlot('');
+      setTbPort('');
+      if (meta.fileName) setTbFileName(meta.fileName);
+      const timeText = meta.uploadedAt ? new Date(meta.uploadedAt).toLocaleString('vi-VN') : '';
+      if (!silent) {
+        setTbParseMessage(
+          `Đã tải ${rows.length} thuê bao từ dữ liệu dùng chung${timeText ? ` (${timeText})` : ''}.`
+        );
+      }
+    } catch (e) {
+      if (!silent) setTbParseMessage(e?.message || 'Không đọc được dữ liệu dùng chung từ server.');
+    } finally {
+      if (!silent) setTbSharedLoading(false);
+    }
+  };
+
   const handleTbExcelUpload = async (event) => {
     const file = event?.target?.files?.[0];
     if (!file) return;
@@ -833,8 +893,41 @@ export default function TraCuuSP2Page() {
           nvQL,
         });
       }
-      setTbRows(out);
-      setTbParseMessage(out.length ? `Đã nhập ${out.length} thuê bao từ file.` : 'Không có dòng dữ liệu hợp lệ sau tiêu đề.');
+      const hydratedRows = tbHydrateRows(out);
+      setTbRows(hydratedRows);
+      if (!hydratedRows.length) {
+        setTbParseMessage('Không có dòng dữ liệu hợp lệ sau tiêu đề.');
+        return;
+      }
+      let sharedSaved = false;
+      try {
+        const saveRes = await fetch('/api/tb-cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name || '',
+            rows: hydratedRows,
+          }),
+        });
+        const saveData = await saveRes.json().catch(() => ({}));
+        if (saveRes.ok && saveData?.ok) {
+          sharedSaved = true;
+          setTbSharedMeta({
+            fileName: String(saveData.fileName || file.name || ''),
+            uploadedAt: String(saveData.uploadedAt || new Date().toISOString()),
+            count: Number(saveData.count || hydratedRows.length),
+          });
+        } else {
+          setTbSharedMeta(null);
+        }
+      } catch {
+        setTbSharedMeta(null);
+      }
+      setTbParseMessage(
+        sharedSaved
+          ? `Đã nhập ${hydratedRows.length} thuê bao từ file và lưu dùng chung để tra cứu trên thiết bị khác.`
+          : `Đã nhập ${hydratedRows.length} thuê bao từ file (không lưu được dữ liệu dùng chung lên server).`
+      );
     } catch (e) {
       setTbRows([]);
       setTbParseMessage(e?.message || 'Không đọc được file Excel.');
@@ -975,6 +1068,14 @@ export default function TraCuuSP2Page() {
     refreshNoSp2Rows();
     refreshS2CapacityRows();
   }, []);
+
+  useEffect(() => {
+    if (activeMainModule !== TB_MODULE_TB) return;
+    if (tbRows.length) return;
+    if (tbSharedBootRef.current) return;
+    tbSharedBootRef.current = true;
+    loadTbSharedRows({ silent: true });
+  }, [activeMainModule, tbRows.length]);
 
   useEffect(() => {
     if (!ponExportToQl) return;
@@ -2879,7 +2980,21 @@ export default function TraCuuSP2Page() {
                     >
                       Tải file mẫu
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => loadTbSharedRows()}
+                      disabled={tbSharedLoading}
+                      className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs sm:text-sm font-medium text-violet-700 hover:bg-violet-100 min-h-[40px] disabled:opacity-50"
+                    >
+                      {tbSharedLoading ? 'Đang tải dữ liệu chung…' : 'Tải dữ liệu chung'}
+                    </button>
                     {tbFileName && <span className="text-[11px] text-slate-500 w-full sm:w-auto">File: {tbFileName}</span>}
+                    {tbSharedMeta?.uploadedAt && (
+                      <span className="text-[11px] text-slate-500 w-full">
+                        Dữ liệu chung cập nhật: {new Date(tbSharedMeta.uploadedAt).toLocaleString('vi-VN')}
+                        {tbSharedMeta.fileName ? ` · ${tbSharedMeta.fileName}` : ''}
+                      </span>
+                    )}
                   </div>
                   {tbParseMessage && (
                     <p
