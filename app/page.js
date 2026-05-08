@@ -59,6 +59,12 @@ function tbResolveColumnIndices(headerRow) {
   for (const { i, n } of cells) {
     if (!n) continue;
     if (idx.stt == null && (n === 'stt' || n.startsWith('stt'))) idx.stt = i;
+    if (
+      idx.tenKH == null &&
+      (n.includes('ten kh') || n.includes('tenkh') || (n.includes('ten') && n.includes('kh')) || n.includes('ho ten') || n.includes('khach hang'))
+    ) {
+      idx.tenKH = i;
+    }
     if (idx.account == null && (n.includes('acount') || n === 'account' || n.includes('tai khoan'))) idx.account = i;
     if (idx.diaChi == null && (n.includes('dia chi') || n === 'address')) idx.diaChi = i;
     if (idx.soDt == null && (n.includes('so dt') || n.includes('dien thoai') || n === 'sdt' || n.includes('phone'))) idx.soDt = i;
@@ -681,6 +687,7 @@ export default function TraCuuSP2Page() {
         {
           STT: 1,
           Acount: 'VD_ACCOUNT_001',
+          'Tên KH': 'Nguyễn Văn B',
           'Địa chỉ': 'Số nhà …, xã …, tỉnh …',
           'Số ĐT': '0912345678',
           OLT: 'OLT Yên Quang',
@@ -757,6 +764,7 @@ export default function TraCuuSP2Page() {
         out.push({
           id: tbNewRowId(),
           stt: tbCell(row, col.stt),
+          tenKH: tbCell(row, col.tenKH),
           account: tbCell(row, col.account),
           diaChi: tbCell(row, col.diaChi),
           soDt: tbCell(row, col.soDt),
@@ -835,6 +843,7 @@ export default function TraCuuSP2Page() {
     const thoiGian = new Date().toISOString();
     const batchRows = picked.map((r) => ({
       stt: r.stt,
+      tenKH: r.tenKH,
       account: r.account,
       diaChi: r.diaChi,
       soDt: r.soDt,
@@ -866,6 +875,7 @@ export default function TraCuuSP2Page() {
         flat.push({
           STT: flat.length + 1,
           Acount: r.account,
+          'Tên KH': r.tenKH ?? '',
           'Địa chỉ': r.diaChi,
           'Số ĐT': r.soDt,
           OLT: r.olt,
@@ -1759,47 +1769,10 @@ export default function TraCuuSP2Page() {
                 </p>
               </div>
               <div
-                className="flex w-full flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 shrink-0 sm:w-auto sm:max-w-[min(100%,52rem)]"
+                className="grid grid-cols-2 grid-rows-2 gap-1.5 w-full sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 shrink-0 sm:w-auto sm:max-w-[min(100%,52rem)]"
                 ref={reportMenuRef}
               >
-                <div
-                  className="flex w-full justify-end gap-1.5 order-2 sm:order-none sm:w-auto shrink-0"
-                  role="tablist"
-                  aria-label="Chọn module"
-                >
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeMainModule === TB_MODULE_SPLITTER}
-                    aria-label="Tra cứu S2"
-                    title="Tra cứu S2"
-                    onClick={() => setActiveMainModule(TB_MODULE_SPLITTER)}
-                    className={`inline-flex flex-1 sm:flex-initial min-w-0 justify-center items-center gap-1.5 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors min-h-[40px] sm:min-h-[44px] px-2 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight text-center ${
-                      activeMainModule === TB_MODULE_SPLITTER
-                        ? 'bg-white text-sky-700 border-white shadow-sm'
-                        : 'bg-white/20 hover:bg-white/30 text-white border-white/40'
-                    }`}
-                  >
-                    Tra cứu S2
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeMainModule === TB_MODULE_TB}
-                    aria-label="Module tra cứu thuê bao"
-                    title="Tra cứu TB"
-                    onClick={() => setActiveMainModule(TB_MODULE_TB)}
-                    className={`inline-flex flex-1 sm:flex-initial min-w-0 justify-center items-center gap-1.5 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors min-h-[40px] sm:min-h-[44px] px-2 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight text-center ${
-                      activeMainModule === TB_MODULE_TB
-                        ? 'bg-white text-sky-700 border-white shadow-sm'
-                        : 'bg-white/20 hover:bg-white/30 text-white border-white/40'
-                    }`}
-                  >
-                    Tra cứu TB
-                  </button>
-                </div>
-                <div className="flex w-full justify-end gap-1.5 order-1 sm:order-none sm:w-auto shrink-0">
-                  <div className="relative shrink-0">
+                <div className="relative order-1 sm:order-3 min-h-[48px] sm:min-h-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -1814,15 +1787,15 @@ export default function TraCuuSP2Page() {
                       setShowReportPanel(true);
                       setShowReportMenu((v) => !v);
                     }}
-                    className="inline-flex shrink-0 items-center justify-center gap-1.5 sm:gap-2 rounded-lg border font-medium touch-manipulation whitespace-nowrap transition-colors min-h-[40px] sm:min-h-[44px] px-3 py-2 sm:px-4 sm:py-2.5 text-[11px] sm:text-sm bg-white/20 hover:bg-white/30 text-white border-white/40"
+                    className="inline-flex w-full h-full min-h-[48px] sm:min-h-[44px] sm:h-auto sm:w-auto shrink-0 items-center justify-center gap-1 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors px-1.5 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight bg-white/20 hover:bg-white/30 text-white border-white/40"
                     aria-label={`Menu báo cáo - đang chọn ${activeReport.label}`}
                     aria-expanded={showReportMenu}
                   >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h18v4H3V3zm0 7h18v4H3v-4zm0 7h18v4H3v-4z" />
                     </svg>
                     <span>Báo cáo</span>
-                    <svg className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 transition-transform ${showReportMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={`w-3 h-3 sm:w-4 sm:h-4 shrink-0 transition-transform ${showReportMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
@@ -1865,22 +1838,51 @@ export default function TraCuuSP2Page() {
                     }
                     setShowSettings(false);
                   }}
-                  className="inline-flex shrink-0 items-center justify-center gap-1.5 sm:gap-2 rounded-lg border font-medium touch-manipulation whitespace-nowrap transition-colors min-h-[40px] sm:min-h-[44px] px-3 py-2 sm:px-4 sm:py-2.5 text-[11px] sm:text-sm bg-white/20 hover:bg-white/30 text-white border-white/40"
+                  className="inline-flex order-2 sm:order-4 w-full min-h-[48px] sm:min-h-[44px] sm:w-auto shrink-0 items-center justify-center gap-1 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors px-1.5 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight bg-white/20 hover:bg-white/30 text-white border-white/40"
                   aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt và đồng bộ'}
                 >
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                   </svg>
                   <span>{showSettings ? 'Ẩn cài đặt' : 'Cài đặt'}</span>
                   <span className="hidden sm:inline">{showSettings ? '' : ' / Đồng bộ'}</span>
-                  <svg className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className={`w-3 h-3 sm:w-4 sm:h-4 shrink-0 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeMainModule === TB_MODULE_SPLITTER}
+                  aria-label="Tra cứu S2"
+                  title="Tra cứu S2"
+                  onClick={() => setActiveMainModule(TB_MODULE_SPLITTER)}
+                  className={`inline-flex order-3 sm:order-1 w-full min-h-[48px] sm:min-h-[44px] sm:w-auto min-w-0 justify-center items-center gap-1 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors px-1.5 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight text-center ${
+                    activeMainModule === TB_MODULE_SPLITTER
+                      ? 'bg-white text-sky-700 border-white shadow-sm'
+                      : 'bg-white/20 hover:bg-white/30 text-white border-white/40'
+                  }`}
+                >
+                  Tra cứu S2
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeMainModule === TB_MODULE_TB}
+                  aria-label="Module tra cứu thuê bao"
+                  title="Tra cứu TB"
+                  onClick={() => setActiveMainModule(TB_MODULE_TB)}
+                  className={`inline-flex order-4 sm:order-2 w-full min-h-[48px] sm:min-h-[44px] sm:w-auto min-w-0 justify-center items-center gap-1 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors px-1.5 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight text-center ${
+                    activeMainModule === TB_MODULE_TB
+                      ? 'bg-white text-sky-700 border-white shadow-sm'
+                      : 'bg-white/20 hover:bg-white/30 text-white border-white/40'
+                  }`}
+                >
+                  Tra cứu TB
                 </button>
               </div>
             </div>
           </div>
-        </div>
 
           {/* Cài đặt — khu vực quản trị */}
           {showSettings && (
@@ -2807,7 +2809,7 @@ export default function TraCuuSP2Page() {
                 <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">Tra cứu thuê bao từ Excel</h2>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 space-y-3">
                   <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                    File cần có tiêu đề cột: <strong>STT</strong>, <strong>Acount</strong>, <strong>Địa chỉ</strong>, <strong>Số ĐT</strong>, <strong>OLT</strong>, <strong>SLot</strong>, <strong>PORT</strong>, <strong>Nhân viên QL</strong>.
+                    File cần có tiêu đề cột: <strong>STT</strong>, <strong>Acount</strong>, <strong>Tên KH</strong>, <strong>Địa chỉ</strong>, <strong>Số ĐT</strong>, <strong>OLT</strong>, <strong>SLot</strong>, <strong>PORT</strong>, <strong>Nhân viên QL</strong>.
                     Bắt buộc nhận diện được: Nhân viên QL, OLT, SLOT, PORT.
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
@@ -2948,11 +2950,12 @@ export default function TraCuuSP2Page() {
                       <p className="text-slate-500 text-center text-xs sm:text-sm py-6">Không có thuê bao khớp bộ lọc.</p>
                     ) : (
                       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-                        <table className="min-w-[720px] w-full text-[11px] sm:text-xs text-left">
+                        <table className="min-w-[800px] w-full text-[11px] sm:text-xs text-left">
                           <thead>
                             <tr className="bg-slate-100 text-slate-600 border-b border-slate-200">
                               <th className="py-2 px-2 font-semibold">STT</th>
                               <th className="py-2 px-2 font-semibold">Account</th>
+                              <th className="py-2 px-2 font-semibold">Tên KH</th>
                               <th className="py-2 px-2 font-semibold">Địa chỉ</th>
                               <th className="py-2 px-2 font-semibold">Số ĐT</th>
                               <th className="py-2 px-2 font-semibold">OLT</th>
@@ -2966,6 +2969,7 @@ export default function TraCuuSP2Page() {
                               <tr key={r.id} className="border-b border-slate-100 last:border-0 text-slate-800">
                                 <td className="py-1.5 px-2 align-top">{r.stt || '—'}</td>
                                 <td className="py-1.5 px-2 align-top font-medium">{r.account || '—'}</td>
+                                <td className="py-1.5 px-2 align-top max-w-[140px] break-words">{r.tenKH || '—'}</td>
                                 <td className="py-1.5 px-2 align-top max-w-[200px] break-words">{r.diaChi || '—'}</td>
                                 <td className="py-1.5 px-2 align-top whitespace-nowrap">{r.soDt || '—'}</td>
                                 <td className="py-1.5 px-2 align-top">{r.olt || '—'}</td>
@@ -3053,7 +3057,9 @@ export default function TraCuuSP2Page() {
                     />
                     <span className="min-w-0 break-words">
                       <span className="font-medium text-slate-800">{r.account || '—'}</span>
-                      <span className="text-slate-500"> · {r.nvQL || '—'} · Port {r.port ?? '—'}</span>
+                      <span className="text-slate-500">
+                        {r.tenKH ? ` · ${r.tenKH}` : ''} · {r.nvQL || '—'} · Port {r.port ?? '—'}
+                      </span>
                     </span>
                   </li>
                 ))}
