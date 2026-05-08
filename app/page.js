@@ -284,6 +284,7 @@ export default function TraCuuSP2Page() {
   const [tbChuyenBatches, setTbChuyenBatches] = useState([]);
   const [tbTransferLoading, setTbTransferLoading] = useState(false);
   const [tbConfirmingTransferKey, setTbConfirmingTransferKey] = useState('');
+  const [tbDeletingTransferKey, setTbDeletingTransferKey] = useState('');
   const [tbUploading, setTbUploading] = useState(false);
   const [tbUploadProgress, setTbUploadProgress] = useState(null);
   const [tbExporting, setTbExporting] = useState(false);
@@ -926,6 +927,37 @@ export default function TraCuuSP2Page() {
       setTbParseMessage(e?.message || 'Không xác nhận được dòng lịch sử chuyển.');
     } finally {
       setTbConfirmingTransferKey('');
+    }
+  };
+
+  const deleteTbTransferRow = async (batchId, rowIndex) => {
+    const key = `${batchId}-${rowIndex}`;
+    setTbDeletingTransferKey(key);
+    try {
+      const res = await fetch('/api/tb-transfer', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId, rowIndex }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        setTbParseMessage(data?.message || 'Không xóa được dòng lịch sử chuyển.');
+        return;
+      }
+      setTbChuyenBatches((prev) =>
+        prev
+          .map((b) => {
+            if (String(b?.id || '') !== String(batchId || '')) return b;
+            const rows = Array.isArray(b.rows) ? b.rows.filter((_, idx) => idx !== rowIndex) : [];
+            return { ...b, rows };
+          })
+          .filter((b) => Array.isArray(b.rows) && b.rows.length > 0)
+      );
+      setTbParseMessage('Đã xóa 1 dòng lịch sử chuyển địa bàn.');
+    } catch (e) {
+      setTbParseMessage(e?.message || 'Không xóa được dòng lịch sử chuyển.');
+    } finally {
+      setTbDeletingTransferKey('');
     }
   };
 
@@ -3026,7 +3058,7 @@ export default function TraCuuSP2Page() {
                                       <th className="text-left py-1 px-2 font-semibold">Địa bàn mới</th>
                                       <th className="text-left py-1 px-2 font-semibold">Thời gian chuyển</th>
                                       <th className="text-left py-1 pl-2 font-semibold">Thiết bị thao tác</th>
-                                      <th className="text-right py-1 pl-2 font-semibold">Xác nhận</th>
+                                      <th className="text-right py-1 pl-2 font-semibold">Thao tác</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -3052,7 +3084,7 @@ export default function TraCuuSP2Page() {
                                               <button
                                                 type="button"
                                                 onClick={() => confirmTbTransferRow(batch.id, ri)}
-                                                disabled={daXacNhan || tbConfirmingTransferKey === rowKey}
+                                                disabled={daXacNhan || tbConfirmingTransferKey === rowKey || tbDeletingTransferKey === rowKey}
                                                 className={`text-[10px] px-2 py-1 rounded border disabled:opacity-50 ${
                                                   daXacNhan
                                                     ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
@@ -3061,6 +3093,16 @@ export default function TraCuuSP2Page() {
                                               >
                                                 {daXacNhan ? 'Đã xác nhận' : (tbConfirmingTransferKey === rowKey ? 'Đang xác nhận…' : 'Xác nhận')}
                                               </button>
+                                              {!daXacNhan && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => deleteTbTransferRow(batch.id, ri)}
+                                                  disabled={tbDeletingTransferKey === rowKey || tbConfirmingTransferKey === rowKey}
+                                                  className="ml-1 text-[10px] px-2 py-1 rounded border border-rose-300 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                                                >
+                                                  {tbDeletingTransferKey === rowKey ? 'Đang xóa…' : 'Xóa'}
+                                                </button>
+                                              )}
                                             </td>
                                           </tr>
                                         );
