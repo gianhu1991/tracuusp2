@@ -1702,7 +1702,7 @@ export default function TraCuuSP2Page() {
               <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-indigo-100">{syncPhaseLabel}</p>
               {syncProgress.phase === 'tracuu' && (
                 <p className="text-sm sm:text-base font-bold text-amber-200 tabular-nums">
-                  Đã gom được <span className="text-white">{syncProgress.s2Count ?? 0}</span> Spliter cấp 2
+                  Đã gom được <span className="text-white">{syncProgress.s2Count ?? 0}</span> S2
                 </p>
               )}
               <p className="text-xs sm:text-sm font-medium truncate" title={syncProgress.label}>{syncProgress.label}</p>
@@ -1745,39 +1745,42 @@ export default function TraCuuSP2Page() {
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
               <div className="min-w-0 flex-1 pr-0 sm:pr-2">
                 <h1 className="text-base sm:text-2xl font-bold text-white tracking-tight sm:truncate">
-                  {activeMainModule === TB_MODULE_TB ? 'Module tra cứu thuê bao (TB)' : 'Module tra cứu Spliter cấp 2'}
+                  {activeMainModule === TB_MODULE_TB ? 'Module tra cứu thuê bao (TB)' : 'Module tra cứu S2'}
                 </h1>
                 <p className="text-sky-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1 leading-snug hidden sm:block">
                   {activeMainModule === TB_MODULE_TB
                     ? 'Upload Excel, lọc theo nhân viên QL / OLT / Slot / Port, chuyển địa bàn và xuất Excel.'
-                    : 'Hệ thống tra cứu thông tin Spliter cấp 2 theo OLT, Slot và Port'}
+                    : 'Hệ thống tra cứu thông tin S2 theo OLT, Slot và Port'}
                 </p>
                 <p className="text-sky-100/95 text-[10px] leading-snug mt-1 line-clamp-2 sm:hidden">
                   {activeMainModule === TB_MODULE_TB
                     ? 'Excel · NV QL / OLT / Slot / Port · chuyển địa bàn · xuất file'
-                    : 'Tra cứu Spliter cấp 2 theo OLT, Slot, Port'}
+                    : 'Tra cứu S2 theo OLT, Slot, Port'}
                 </p>
               </div>
               <div
-                className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto sm:max-w-[min(100%,52rem)]"
+                className="flex w-full flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 shrink-0 sm:w-auto sm:max-w-[min(100%,52rem)]"
                 ref={reportMenuRef}
               >
-                <div className="flex flex-wrap items-center gap-1.5 shrink-0" role="tablist" aria-label="Chọn module">
+                <div
+                  className="flex w-full justify-end gap-1.5 order-2 sm:order-none sm:w-auto shrink-0"
+                  role="tablist"
+                  aria-label="Chọn module"
+                >
                   <button
                     type="button"
                     role="tab"
                     aria-selected={activeMainModule === TB_MODULE_SPLITTER}
-                    aria-label="Module Spliter cấp 2"
-                    title="Spliter cấp 2"
+                    aria-label="Tra cứu S2"
+                    title="Tra cứu S2"
                     onClick={() => setActiveMainModule(TB_MODULE_SPLITTER)}
-                    className={`rounded-lg px-2 py-1.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-semibold border transition-colors whitespace-nowrap touch-manipulation min-h-[36px] sm:min-h-0 flex items-center ${
+                    className={`inline-flex flex-1 sm:flex-initial min-w-0 justify-center items-center gap-1.5 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors min-h-[40px] sm:min-h-[44px] px-2 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight text-center ${
                       activeMainModule === TB_MODULE_SPLITTER
-                        ? 'bg-white text-sky-700 border-white'
-                        : 'bg-white/10 text-white border-white/30 hover:bg-white/20'
+                        ? 'bg-white text-sky-700 border-white shadow-sm'
+                        : 'bg-white/20 hover:bg-white/30 text-white border-white/40'
                     }`}
                   >
-                    <span className="sm:hidden">S2</span>
-                    <span className="hidden sm:inline">Spliter cấp 2</span>
+                    Tra cứu S2
                   </button>
                   <button
                     type="button"
@@ -1786,17 +1789,17 @@ export default function TraCuuSP2Page() {
                     aria-label="Module tra cứu thuê bao"
                     title="Tra cứu TB"
                     onClick={() => setActiveMainModule(TB_MODULE_TB)}
-                    className={`rounded-lg px-2 py-1.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-semibold border transition-colors whitespace-nowrap touch-manipulation min-h-[36px] sm:min-h-0 flex items-center ${
+                    className={`inline-flex flex-1 sm:flex-initial min-w-0 justify-center items-center gap-1.5 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors min-h-[40px] sm:min-h-[44px] px-2 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight text-center ${
                       activeMainModule === TB_MODULE_TB
-                        ? 'bg-white text-sky-700 border-white'
-                        : 'bg-white/10 text-white border-white/30 hover:bg-white/20'
+                        ? 'bg-white text-sky-700 border-white shadow-sm'
+                        : 'bg-white/20 hover:bg-white/30 text-white border-white/40'
                     }`}
                   >
-                    <span className="sm:hidden">TB</span>
-                    <span className="hidden sm:inline">Tra cứu TB</span>
+                    Tra cứu TB
                   </button>
                 </div>
-                <div className="relative shrink-0">
+                <div className="flex w-full justify-end gap-1.5 order-1 sm:order-none sm:w-auto shrink-0">
+                  <div className="relative shrink-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -1811,7 +1814,7 @@ export default function TraCuuSP2Page() {
                       setShowReportPanel(true);
                       setShowReportMenu((v) => !v);
                     }}
-                    className="inline-flex items-center justify-center gap-1 sm:gap-2 px-2.5 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-[11px] sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation whitespace-nowrap"
+                    className="inline-flex shrink-0 items-center justify-center gap-1.5 sm:gap-2 rounded-lg border font-medium touch-manipulation whitespace-nowrap transition-colors min-h-[40px] sm:min-h-[44px] px-3 py-2 sm:px-4 sm:py-2.5 text-[11px] sm:text-sm bg-white/20 hover:bg-white/30 text-white border-white/40"
                     aria-label={`Menu báo cáo - đang chọn ${activeReport.label}`}
                     aria-expanded={showReportMenu}
                   >
@@ -1862,7 +1865,7 @@ export default function TraCuuSP2Page() {
                     }
                     setShowSettings(false);
                   }}
-                  className="inline-flex shrink-0 items-center justify-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-[11px] sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation whitespace-nowrap"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 sm:gap-2 rounded-lg border font-medium touch-manipulation whitespace-nowrap transition-colors min-h-[40px] sm:min-h-[44px] px-3 py-2 sm:px-4 sm:py-2.5 text-[11px] sm:text-sm bg-white/20 hover:bg-white/30 text-white border-white/40"
                   aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt và đồng bộ'}
                 >
                   <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1877,6 +1880,7 @@ export default function TraCuuSP2Page() {
               </div>
             </div>
           </div>
+        </div>
 
           {/* Cài đặt — khu vực quản trị */}
           {showSettings && (
@@ -1974,7 +1978,7 @@ export default function TraCuuSP2Page() {
                       <p className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-1.5">
                         <span className="font-semibold">Tiến độ</span> trên <strong>đầu trang</strong>
                         {syncProgress.phase === 'tracuu' && (
-                          <> — hiện <strong>{syncProgress.s2Count ?? 0}</strong> Spliter cấp 2 đã gom</>
+                          <> — hiện <strong>{syncProgress.s2Count ?? 0}</strong> S2 đã gom</>
                         )}
                         .
                       </p>
@@ -1985,7 +1989,7 @@ export default function TraCuuSP2Page() {
                         {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
                         {serverSyncMeta.lastSyncTotal != null && ` — ${serverSyncMeta.lastSyncTotal} port`}
                         {serverSyncMeta.lastSyncS2Total != null && (
-                          <> — <span className="font-semibold">{serverSyncMeta.lastSyncS2Total}</span> Spliter cấp 2 đã gom</>
+                          <> — <span className="font-semibold">{serverSyncMeta.lastSyncS2Total}</span> S2 đã gom</>
                         )}
                         {serverSyncMeta.lastSyncErrors > 0 && ` — ${serverSyncMeta.lastSyncErrors} lỗi`}
                         {serverSyncMeta.lastSyncAborted && ' — đã dừng giữa chừng'}
@@ -2636,7 +2640,7 @@ export default function TraCuuSP2Page() {
                         {new Date(lastSyncInfo.lastSyncAt).toLocaleString('vi-VN')}
                         {lastSyncInfo.lastSyncTotal != null && ` — ${lastSyncInfo.lastSyncTotal} port`}
                         {lastSyncInfo.lastSyncS2Total != null && (
-                          <> — {lastSyncInfo.lastSyncS2Total} Spliter cấp 2 đã gom</>
+                          <> — {lastSyncInfo.lastSyncS2Total} S2 đã gom</>
                         )}
                         {lastSyncInfo.lastSyncErrors > 0 && ` — ${lastSyncInfo.lastSyncErrors} lỗi`}
                       </p>
@@ -2677,12 +2681,12 @@ export default function TraCuuSP2Page() {
             </div>
           )}
 
-          {/* Form + kết quả: Spliter hoặc TB */}
+          {/* Form + kết quả: Tra cứu S2 hoặc TB */}
           {activeMainModule === TB_MODULE_SPLITTER ? (
             <>
-          {/* Form tra cứu - Tìm kiếm thông tin Splitter */}
+          {/* Form tra cứu - Tìm kiếm thông tin S2 */}
           <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0">
-            <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">Tìm kiếm thông tin Splitter</h2>
+            <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">Tìm kiếm thông tin S2</h2>
             <form onSubmit={handleTraCuu} className="space-y-3 sm:space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-8">
                 <div className="space-y-0 order-1 sm:order-1">
@@ -2738,7 +2742,7 @@ export default function TraCuuSP2Page() {
                 <div className="w-full overflow-x-auto flex-1 min-h-0 -mx-1 sm:mx-0">
                   <h3 className="text-slate-800 font-bold text-sm sm:text-base mb-2 sm:mb-3 flex flex-wrap items-center gap-2">
                     <span>
-                      Kết quả tra cứu ({Array.isArray(ketQua.data) ? ketQua.data.length : 0} Spliter cấp 2)
+                      Kết quả tra cứu ({Array.isArray(ketQua.data) ? ketQua.data.length : 0} S2)
                     </span>
                     {ketQua.fromCache === 'server' && (
                       <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200">
@@ -2791,7 +2795,7 @@ export default function TraCuuSP2Page() {
                       })}
                     </div>
                   ) : (
-                    <p className="text-slate-500 text-center text-xs sm:text-sm py-6 sm:py-8">Không có bản ghi Splitter cấp 2.</p>
+                    <p className="text-slate-500 text-center text-xs sm:text-sm py-6 sm:py-8">Không có bản ghi S2.</p>
                   )}
                 </div>
               )}
