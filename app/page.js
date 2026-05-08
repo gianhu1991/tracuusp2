@@ -1742,47 +1742,61 @@ export default function TraCuuSP2Page() {
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-slate-200/80 overflow-hidden flex-1 flex flex-col min-h-0 sm:min-h-[80vh]">
           {/* Header - gọn trên mobile */}
           <div className="bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-3 sm:px-8 sm:py-6 shrink-0">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <h1 className="text-base sm:text-2xl font-bold text-white tracking-tight truncate">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="min-w-0 flex-1 pr-0 sm:pr-2">
+                <h1 className="text-base sm:text-2xl font-bold text-white tracking-tight sm:truncate">
                   {activeMainModule === TB_MODULE_TB ? 'Module tra cứu thuê bao (TB)' : 'Module tra cứu Spliter cấp 2'}
                 </h1>
-                <p className="text-sky-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1 hidden sm:block">
+                <p className="text-sky-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1 leading-snug hidden sm:block">
                   {activeMainModule === TB_MODULE_TB
                     ? 'Upload Excel, lọc theo nhân viên QL / OLT / Slot / Port, chuyển địa bàn và xuất Excel.'
                     : 'Hệ thống tra cứu thông tin Spliter cấp 2 theo OLT, Slot và Port'}
                 </p>
-                <div className="mt-2 flex flex-wrap gap-1.5" role="tablist" aria-label="Chọn module">
+                <p className="text-sky-100/95 text-[10px] leading-snug mt-1 line-clamp-2 sm:hidden">
+                  {activeMainModule === TB_MODULE_TB
+                    ? 'Excel · NV QL / OLT / Slot / Port · chuyển địa bàn · xuất file'
+                    : 'Tra cứu Spliter cấp 2 theo OLT, Slot, Port'}
+                </p>
+              </div>
+              <div
+                className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto sm:max-w-[min(100%,52rem)]"
+                ref={reportMenuRef}
+              >
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0" role="tablist" aria-label="Chọn module">
                   <button
                     type="button"
                     role="tab"
                     aria-selected={activeMainModule === TB_MODULE_SPLITTER}
+                    aria-label="Module Spliter cấp 2"
+                    title="Spliter cấp 2"
                     onClick={() => setActiveMainModule(TB_MODULE_SPLITTER)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] sm:text-xs font-semibold border transition-colors ${
+                    className={`rounded-lg px-2 py-1.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-semibold border transition-colors whitespace-nowrap touch-manipulation min-h-[36px] sm:min-h-0 flex items-center ${
                       activeMainModule === TB_MODULE_SPLITTER
                         ? 'bg-white text-sky-700 border-white'
                         : 'bg-white/10 text-white border-white/30 hover:bg-white/20'
                     }`}
                   >
-                    Spliter cấp 2
+                    <span className="sm:hidden">S2</span>
+                    <span className="hidden sm:inline">Spliter cấp 2</span>
                   </button>
                   <button
                     type="button"
                     role="tab"
                     aria-selected={activeMainModule === TB_MODULE_TB}
+                    aria-label="Module tra cứu thuê bao"
+                    title="Tra cứu TB"
                     onClick={() => setActiveMainModule(TB_MODULE_TB)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] sm:text-xs font-semibold border transition-colors ${
+                    className={`rounded-lg px-2 py-1.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-semibold border transition-colors whitespace-nowrap touch-manipulation min-h-[36px] sm:min-h-0 flex items-center ${
                       activeMainModule === TB_MODULE_TB
                         ? 'bg-white text-sky-700 border-white'
                         : 'bg-white/10 text-white border-white/30 hover:bg-white/20'
                     }`}
                   >
-                    Tra cứu TB
+                    <span className="sm:hidden">TB</span>
+                    <span className="hidden sm:inline">Tra cứu TB</span>
                   </button>
                 </div>
-              </div>
-              <div className="relative shrink-0 flex w-full sm:w-auto items-center justify-end gap-2" ref={reportMenuRef}>
-                <div className="flex-1 sm:flex-none">
+                <div className="relative shrink-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -1797,7 +1811,7 @@ export default function TraCuuSP2Page() {
                       setShowReportPanel(true);
                       setShowReportMenu((v) => !v);
                     }}
-                    className="inline-flex w-full justify-center sm:w-auto items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
+                    className="inline-flex items-center justify-center gap-1 sm:gap-2 px-2.5 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-[11px] sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation whitespace-nowrap"
                     aria-label={`Menu báo cáo - đang chọn ${activeReport.label}`}
                     aria-expanded={showReportMenu}
                   >
@@ -1848,7 +1862,7 @@ export default function TraCuuSP2Page() {
                     }
                     setShowSettings(false);
                   }}
-                  className="inline-flex flex-1 justify-center sm:flex-none sm:w-auto items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-[11px] sm:text-sm border border-white/40 min-h-[36px] sm:min-h-[44px] touch-manipulation whitespace-nowrap"
                   aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt và đồng bộ'}
                 >
                   <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
