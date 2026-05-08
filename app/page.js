@@ -900,6 +900,7 @@ export default function TraCuuSP2Page() {
         return;
       }
       let sharedSaved = false;
+      let sharedSaveMessage = '';
       try {
         const saveRes = await fetch('/api/tb-cache', {
           method: 'POST',
@@ -918,15 +919,17 @@ export default function TraCuuSP2Page() {
             count: Number(saveData.count || hydratedRows.length),
           });
         } else {
+          sharedSaveMessage = String(saveData?.message || '');
           setTbSharedMeta(null);
         }
-      } catch {
+      } catch (saveErr) {
+        sharedSaveMessage = String(saveErr?.message || '');
         setTbSharedMeta(null);
       }
       setTbParseMessage(
         sharedSaved
           ? `Đã nhập ${hydratedRows.length} thuê bao từ file và lưu dùng chung để tra cứu trên thiết bị khác.`
-          : `Đã nhập ${hydratedRows.length} thuê bao từ file (không lưu được dữ liệu dùng chung lên server).`
+          : `Đã nhập ${hydratedRows.length} thuê bao từ file (không lưu được dữ liệu dùng chung lên server${sharedSaveMessage ? `: ${sharedSaveMessage}` : ''}).`
       );
     } catch (e) {
       setTbRows([]);
