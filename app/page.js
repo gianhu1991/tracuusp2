@@ -290,7 +290,6 @@ export default function TraCuuSP2Page() {
   const [tbExporting, setTbExporting] = useState(false);
   const [tbSharedLoading, setTbSharedLoading] = useState(false);
   const [tbSharedMeta, setTbSharedMeta] = useState(null);
-  const tbSharedBootRef = useRef(false);
   const tbFileInputRef = useRef(null);
   const syncAbortRef = useRef(null);
   const reportMenuRef = useRef(null);
@@ -1285,9 +1284,35 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     if (activeMainModule !== TB_MODULE_TB) return;
     if (tbRows.length) return;
-    if (tbSharedBootRef.current) return;
-    tbSharedBootRef.current = true;
     loadTbSharedRows({ silent: true });
+  }, [activeMainModule, tbRows.length]);
+
+  useEffect(() => {
+    if (activeMainModule !== TB_MODULE_TB) return undefined;
+    if (tbRows.length) return undefined;
+
+    const onWake = () => {
+      if (document.visibilityState === 'visible') {
+        loadTbSharedRows({ silent: true });
+      }
+    };
+
+    const onFocus = () => {
+      loadTbSharedRows({ silent: true });
+    };
+
+    const interval = window.setInterval(() => {
+      loadTbSharedRows({ silent: true });
+    }, 15000);
+
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [activeMainModule, tbRows.length]);
 
   useEffect(() => {
