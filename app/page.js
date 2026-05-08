@@ -37,10 +37,16 @@ const REPORT_MENU_ITEMS = [
     label: 'Tỷ lệ cổng PON có đúng 1 SP2',
     description: 'Theo dõi tỷ lệ 1 SP2 theo Tổ KT và xuất Excel.',
   },
+  {
+    id: 'tb_chuyen_dia_ban',
+    label: 'Thuê bao cần chuyển địa bàn khác',
+    description: 'Theo dõi lịch sử chuyển địa bàn thuê bao và xuất Excel.',
+  },
 ];
 
 const TB_MODULE_SPLITTER = 'splitter';
 const TB_MODULE_TB = 'tb';
+const TB_SHARED_LOCAL_CACHE_KEY = 'tb_shared_rows_cache_v1';
 
 function tbNormHeader(s) {
   return String(s ?? '')
@@ -794,8 +800,31 @@ export default function TraCuuSP2Page() {
   };
 
   const loadTbSharedRows = async ({ silent = false } = {}) => {
-    if (!silent) setTbSharedLoading(true);
+    setTbSharedLoading(true);
     try {
+      if (typeof window !== 'undefined' && !tbRows.length) {
+        const raw = localStorage.getItem(TB_SHARED_LOCAL_CACHE_KEY);
+        if (raw) {
+          try {
+            const cached = JSON.parse(raw);
+            const cachedRows = tbHydrateRows(cached?.rows);
+            if (cachedRows.length) {
+              setTbRows(cachedRows);
+              setTbSharedMeta({
+                fileName: String(cached?.fileName || ''),
+                uploadedAt: String(cached?.uploadedAt || ''),
+                count: cachedRows.length,
+              });
+              if (!silent) {
+                setTbParseMessage(`Đã nạp nhanh ${cachedRows.length} thuê bao từ bộ nhớ cục bộ, đang đồng bộ bản mới từ server...`);
+              }
+            }
+          } catch {
+            // bỏ qua cache hỏng
+          }
+        }
+      }
+
       const res = await fetch('/api/tb-cache', { cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
@@ -822,6 +851,13 @@ export default function TraCuuSP2Page() {
       setTbSlot('');
       setTbPort('');
       if (meta.fileName) setTbFileName(meta.fileName);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(TB_SHARED_LOCAL_CACHE_KEY, JSON.stringify({
+          fileName: meta.fileName,
+          uploadedAt: meta.uploadedAt,
+          rows,
+        }));
+      }
       const timeText = meta.uploadedAt ? new Date(meta.uploadedAt).toLocaleString('vi-VN') : '';
       if (!silent) {
         setTbParseMessage(
@@ -829,9 +865,9 @@ export default function TraCuuSP2Page() {
         );
       }
     } catch (e) {
-      if (!silent) setTbParseMessage(e?.message || 'Không đọc được dữ liệu dùng chung từ server.');
+      if (!silent && !tbRows.length) setTbParseMessage(e?.message || 'Không đọc được dữ liệu dùng chung từ server.');
     } finally {
-      if (!silent) setTbSharedLoading(false);
+      setTbSharedLoading(false);
     }
   };
 
@@ -909,6 +945,13 @@ export default function TraCuuSP2Page() {
       if (!hydratedRows.length) {
         setTbParseMessage('Không có dòng dữ liệu hợp lệ sau tiêu đề.');
         return;
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(TB_SHARED_LOCAL_CACHE_KEY, JSON.stringify({
+          fileName: file.name || '',
+          uploadedAt: new Date().toISOString(),
+          rows: hydratedRows,
+        }));
       }
       let sharedSaved = false;
       let sharedSaveMessage = '';
@@ -2820,6 +2863,71 @@ export default function TraCuuSP2Page() {
                             </div>
                           )}
                         </>
+                      ) : activeReportId === 'tb_chuyen_dia_ban' ? (
+                        <>
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                            <p className="text-[11px] font-semibold text-slate-700">
+                              Lịch sử chuyển địa bàn thuê bao
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleExportTbChuyenExcel}
+                              disabled={tbExporting || tbChuyenBatches.length === 0}
+                              className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                            >
+                              {tbExporting ? 'Đang xuất…' : 'Xuất Excel'}
+                            </button>
+                          </div>
+                          {tbChuyenBatches.length === 0 ? (
+                            <p className="text-[11px] text-slate-500">
+                              Chưa có dữ liệu lịch sử chuyển địa bàn. Hãy thực hiện chuyển địa bàn trong module Tra cứu TB trước.
+                            </p>
+                          ) : (
+                            <>
+                              <p className="text-[10px] text-slate-500 mb-2">
+                                Đã ghi nhận {tbChuyenBatches.reduce((n, b) => n + b.rows.length, 0)} dòng trong {tbChuyenBatches.length} lần thao tác.
+                              </p>
+                              <div className="overflow-x-auto -mx-1 px-1 max-h-[380px]">
+                                <table className="min-w-[860px] text-[11px]">
+                                  <thead>
+                                    <tr className="border-b border-slate-200 text-slate-600">
+                                      <th className="text-left py-1 pr-2 font-semibold">STT</th>
+                                      <th className="text-left py-1 px-2 font-semibold">Account</th>
+                                      <th className="text-left py-1 px-2 font-semibold">Tên KH</th>
+                                      <th className="text-left py-1 px-2 font-semibold">Địa chỉ</th>
+                                      <th className="text-left py-1 px-2 font-semibold">Địa bàn cũ</th>
+                                      <th className="text-left py-1 px-2 font-semibold">Địa bàn mới</th>
+                                      <th className="text-left py-1 px-2 font-semibold">Thời gian chuyển</th>
+                                      <th className="text-left py-1 pl-2 font-semibold">Thiết bị thao tác</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {tbChuyenBatches.flatMap((batch, bi) =>
+                                      batch.rows.map((r, ri) => {
+                                        const diaBanCu = r.diaBanCu ?? r.nvQLCu;
+                                        const diaBanMoi = r.diaBanMoi ?? r.nvQLMoi;
+                                        const globalStt =
+                                          tbChuyenBatches.slice(0, bi).reduce((n, x) => n + x.rows.length, 0) + ri + 1;
+                                        return (
+                                          <tr key={`${batch.id}-report-${ri}`} className="border-b border-slate-100 last:border-b-0 text-slate-700">
+                                            <td className="py-1.5 pr-2">{globalStt}</td>
+                                            <td className="py-1.5 px-2">{r.account || '—'}</td>
+                                            <td className="py-1.5 px-2">{r.tenKH || '—'}</td>
+                                            <td className="py-1.5 px-2">{r.diaChi || '—'}</td>
+                                            <td className="py-1.5 px-2">{diaBanCu || '—'}</td>
+                                            <td className="py-1.5 px-2">{diaBanMoi || '—'}</td>
+                                            <td className="py-1.5 px-2">{new Date(batch.thoiGian).toLocaleString('vi-VN')}</td>
+                                            <td className="py-1.5 pl-2">{batch.thietBiThaoTac || '—'}</td>
+                                          </tr>
+                                        );
+                                      })
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </>
+                          )}
+                        </>
                       ) : (
                         <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2.5">
                           <p className="text-[11px] font-medium text-slate-700">Báo cáo đang được xây dựng</p>
@@ -3056,6 +3164,11 @@ export default function TraCuuSP2Page() {
                   )}
                 </div>
                 <form onSubmit={handleTbTraCuu} className="space-y-3">
+                  {tbSharedLoading && tbRows.length === 0 && (
+                    <p className="text-[11px] sm:text-xs text-amber-700">
+                      Đang nạp dữ liệu thuê bao dùng chung, vui lòng chờ trong giây lát...
+                    </p>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
                     <div className="space-y-2">
                       <label className="block text-[11px] sm:text-xs font-semibold text-slate-600">Nhân viên QL</label>
@@ -3134,9 +3247,10 @@ export default function TraCuuSP2Page() {
                   </div>
                   <button
                     type="submit"
+                    disabled={tbSharedLoading && tbRows.length === 0}
                     className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-2.5 rounded-lg font-semibold text-white text-xs sm:text-sm bg-sky-600 hover:bg-sky-700 min-h-[40px] sm:min-h-[44px]"
                   >
-                    Tra cứu
+                    {tbSharedLoading && tbRows.length === 0 ? 'Đang nạp dữ liệu...' : 'Tra cứu'}
                   </button>
                   {tbTimKiemLoi && <p className="text-xs text-red-600">{tbTimKiemLoi}</p>}
                 </form>
@@ -3199,66 +3313,6 @@ export default function TraCuuSP2Page() {
                         </table>
                       </div>
                     )}
-                  </div>
-                )}
-                {tbChuyenBatches.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h4 className="text-xs sm:text-sm font-semibold text-slate-800">Lịch sử chuyển địa bàn</h4>
-                      <button
-                        type="button"
-                        onClick={handleExportTbChuyenExcel}
-                        disabled={tbExporting}
-                        className="rounded-lg border border-emerald-500 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-                      >
-                        {tbExporting ? 'Đang xuất…' : 'Xuất Excel'}
-                      </button>
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-slate-500">
-                      Đã ghi nhận {tbChuyenBatches.reduce((n, b) => n + b.rows.length, 0)} dòng trong {tbChuyenBatches.length} lần thao tác. «Thiết bị thao tác» ghi nhận tên/mã chủng loại điện thoại (hoặc «Máy tính (OS)» nếu làm việc trên PC); iPhone/OS che model thường chỉ hiện «iPhone». Trình duyệt / chính sách riêng tư có thể làm không đọc được model cụ thể.
-                    </p>
-                    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm max-h-[min(50vh,420px)] overflow-y-auto">
-                      <table className="min-w-[880px] w-full text-[10px] sm:text-[11px] text-left">
-                        <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-600 border-b border-slate-200">
-                          <tr>
-                            <th className="py-2 px-2 font-semibold whitespace-nowrap">STT</th>
-                            <th className="py-2 px-2 font-semibold whitespace-nowrap">Account</th>
-                            <th className="py-2 px-2 font-semibold">Tên KH</th>
-                            <th className="py-2 px-2 font-semibold">Địa chỉ</th>
-                            <th className="py-2 px-2 font-semibold whitespace-nowrap">Địa bàn cũ</th>
-                            <th className="py-2 px-2 font-semibold whitespace-nowrap">Địa bàn mới</th>
-                            <th className="py-2 px-2 font-semibold whitespace-nowrap">Thời gian chuyển</th>
-                            <th className="py-2 px-2 font-semibold min-w-[140px]">Thiết bị thao tác</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tbChuyenBatches.flatMap((batch, bi) =>
-                            batch.rows.map((r, ri) => {
-                              const diaBanCu = r.diaBanCu ?? r.nvQLCu;
-                              const diaBanMoi = r.diaBanMoi ?? r.nvQLMoi;
-                              const globalStt =
-                                tbChuyenBatches.slice(0, bi).reduce((n, x) => n + x.rows.length, 0) + ri + 1;
-                              return (
-                                <tr key={`${batch.id}-${ri}`} className="border-b border-slate-100 last:border-0 text-slate-800">
-                                  <td className="py-1.5 px-2 align-top whitespace-nowrap">{globalStt}</td>
-                                  <td className="py-1.5 px-2 align-top font-medium whitespace-nowrap">{r.account || '—'}</td>
-                                  <td className="py-1.5 px-2 align-top max-w-[120px] break-words">{r.tenKH || '—'}</td>
-                                  <td className="py-1.5 px-2 align-top max-w-[160px] break-words">{r.diaChi || '—'}</td>
-                                  <td className="py-1.5 px-2 align-top max-w-[100px] break-words">{diaBanCu || '—'}</td>
-                                  <td className="py-1.5 px-2 align-top max-w-[100px] break-words">{diaBanMoi || '—'}</td>
-                                  <td className="py-1.5 px-2 align-top whitespace-nowrap text-slate-600">
-                                    {new Date(batch.thoiGian).toLocaleString('vi-VN')}
-                                  </td>
-                                  <td className="py-1.5 px-2 align-top text-slate-600 break-words max-w-[220px]">
-                                    {batch.thietBiThaoTac || '—'}
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
                   </div>
                 )}
               </div>
