@@ -275,6 +275,8 @@ export default function TraCuuSP2Page() {
   const [tbSlot, setTbSlot] = useState('');
   const [tbPort, setTbPort] = useState('');
   const [tbKetQua, setTbKetQua] = useState(null);
+  const [tbPage, setTbPage] = useState(1);
+  const [tbPageSize, setTbPageSize] = useState(10);
   const [tbTimKiemLoi, setTbTimKiemLoi] = useState('');
   const [tbShowChuyenModal, setTbShowChuyenModal] = useState(false);
   const [tbChuyenTargetNv, setTbChuyenTargetNv] = useState('');
@@ -1042,6 +1044,11 @@ export default function TraCuuSP2Page() {
   const tbByNvOltSlot = !tbSlot ? tbByNvOlt : tbByNvOlt.filter((r) => String(r.slot) === String(tbSlot));
   const tbPortChoices = [...new Set(tbByNvOltSlot.map((r) => r.port).filter(Boolean))].sort((a, b) =>
     String(a).localeCompare(String(b), 'vi', { numeric: true }));
+  const tbResultRows = Array.isArray(tbKetQua) ? tbKetQua : [];
+  const tbTotalPages = Math.max(1, Math.ceil(tbResultRows.length / tbPageSize));
+  const tbCurrentPage = Math.min(tbPage, tbTotalPages);
+  const tbStart = (tbCurrentPage - 1) * tbPageSize;
+  const pagedTbRows = tbResultRows.slice(tbStart, tbStart + tbPageSize);
 
   const openTbChuyenModal = () => {
     if (!Array.isArray(tbKetQua) || tbKetQua.length === 0) return;
@@ -1155,6 +1162,10 @@ export default function TraCuuSP2Page() {
     tbSharedBootRef.current = true;
     loadTbSharedRows({ silent: true });
   }, [activeMainModule, tbRows.length]);
+
+  useEffect(() => {
+    setTbPage(1);
+  }, [tbKetQua, tbPageSize]);
 
   useEffect(() => {
     if (!ponExportToQl) return;
@@ -2984,7 +2995,7 @@ export default function TraCuuSP2Page() {
           )}
 
           {/* Form + kết quả: Tra cứu S2 hoặc TB */}
-          {activeMainModule === TB_MODULE_SPLITTER ? (
+          {!showReportPanel && (activeMainModule === TB_MODULE_SPLITTER ? (
             <>
           {/* Form tra cứu - Tìm kiếm thông tin S2 */}
           <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0">
@@ -3267,19 +3278,35 @@ export default function TraCuuSP2Page() {
                       <h3 className="text-slate-800 font-bold text-sm sm:text-base">
                         Kết quả tra cứu ({tbKetQua.length} thuê bao)
                       </h3>
-                      {tbKetQua.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={openTbChuyenModal}
-                          className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs sm:text-sm font-medium px-3 py-2 min-h-[40px]"
-                        >
-                          Chuyển địa bàn
-                        </button>
-                      )}
+                      <div className="flex w-full sm:w-auto flex-wrap items-center gap-2">
+                        {tbKetQua.length > 0 && (
+                          <select
+                            value={String(tbPageSize)}
+                            onChange={(e) => setTbPageSize(Number(e.target.value) || 10)}
+                            className="w-full sm:w-auto rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs sm:text-sm text-slate-700 min-h-[40px]"
+                            title="Số thuê bao hiển thị mỗi trang"
+                          >
+                            <option value="10">10 thuê bao/trang</option>
+                            <option value="20">20 thuê bao/trang</option>
+                            <option value="50">50 thuê bao/trang</option>
+                            <option value="100">100 thuê bao/trang</option>
+                          </select>
+                        )}
+                        {tbKetQua.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={openTbChuyenModal}
+                            className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs sm:text-sm font-medium px-3 py-2 min-h-[40px]"
+                          >
+                            Chuyển địa bàn
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {tbKetQua.length === 0 ? (
                       <p className="text-slate-500 text-center text-xs sm:text-sm py-6">Không có thuê bao khớp bộ lọc.</p>
                     ) : (
+                      <>
                       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
                         <table className="min-w-[800px] w-full text-[11px] sm:text-xs text-left">
                           <thead>
@@ -3296,7 +3323,7 @@ export default function TraCuuSP2Page() {
                             </tr>
                           </thead>
                           <tbody>
-                            {tbKetQua.map((r) => (
+                            {pagedTbRows.map((r) => (
                               <tr key={r.id} className="border-b border-slate-100 last:border-0 text-slate-800">
                                 <td className="py-1.5 px-2 align-top">{r.stt || '—'}</td>
                                 <td className="py-1.5 px-2 align-top font-medium">{r.account || '—'}</td>
@@ -3312,12 +3339,39 @@ export default function TraCuuSP2Page() {
                           </tbody>
                         </table>
                       </div>
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-[11px] text-slate-600">
+                          Hiển thị {tbStart + 1}-{Math.min(tbStart + tbPageSize, tbResultRows.length)} / {tbResultRows.length} thuê bao
+                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setTbPage((p) => Math.max(1, p - 1))}
+                            disabled={tbCurrentPage <= 1}
+                            className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Trang trước
+                          </button>
+                          <span className="text-[11px] text-slate-600">
+                            Trang {tbCurrentPage}/{tbTotalPages}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setTbPage((p) => Math.min(tbTotalPages, p + 1))}
+                            disabled={tbCurrentPage >= tbTotalPages}
+                            className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Trang sau
+                          </button>
+                        </div>
+                      </div>
+                      </>
                     )}
                   </div>
                 )}
               </div>
             </>
-          )}
+          ))}
         </div>
       </div>
       {tbShowChuyenModal && Array.isArray(tbKetQua) && tbKetQua.length > 0 && (
