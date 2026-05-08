@@ -282,6 +282,7 @@ export default function TraCuuSP2Page() {
   const [tbChuyenTargetNv, setTbChuyenTargetNv] = useState('');
   const [tbChuyenIds, setTbChuyenIds] = useState(() => new Set());
   const [tbChuyenBatches, setTbChuyenBatches] = useState([]);
+  const [tbTransferLoading, setTbTransferLoading] = useState(false);
   const [tbExporting, setTbExporting] = useState(false);
   const [tbSharedLoading, setTbSharedLoading] = useState(false);
   const [tbSharedMeta, setTbSharedMeta] = useState(null);
@@ -873,6 +874,24 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  const loadTbTransferHistory = async ({ silent = true } = {}) => {
+    if (!silent) setTbTransferLoading(true);
+    try {
+      const res = await fetch('/api/tb-transfer', { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        if (!silent) setTbParseMessage(data?.message || 'Không đọc được lịch sử chuyển địa bàn từ server.');
+        return;
+      }
+      const batches = Array.isArray(data?.batches) ? data.batches : [];
+      setTbChuyenBatches(batches);
+    } catch (e) {
+      if (!silent) setTbParseMessage(e?.message || 'Không đọc được lịch sử chuyển địa bàn từ server.');
+    } finally {
+      if (!silent) setTbTransferLoading(false);
+    }
+  };
+
   const handleTbFileSelect = (event) => {
     const file = event?.target?.files?.[0] || null;
     setTbSelectedFile(file);
@@ -1088,7 +1107,8 @@ export default function TraCuuSP2Page() {
       diaBanCu: r.nvQL,
       diaBanMoi: target,
     }));
-    setTbChuyenBatches((prev) => [...prev, { id: tbNewRowId(), thoiGian, thietBiThaoTac, rows: batchRows }]);
+    const newBatch = { id: tbNewRowId(), thoiGian, thietBiThaoTac, rows: batchRows };
+    setTbChuyenBatches((prev) => [...prev, newBatch]);
     setTbRows((rows) =>
       rows.map((row) => {
         const hit = picked.find((p) => p.id === row.id);
@@ -1099,8 +1119,29 @@ export default function TraCuuSP2Page() {
     setTbKetQua((cur) =>
       Array.isArray(cur) ? cur.map((row) => (tbChuyenIds.has(row.id) ? { ...row, nvQL: target } : row)) : cur
     );
+    try {
+      const saveRes = await fetch('/api/tb-transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch: newBatch }),
+      });
+      const saveData = await saveRes.json().catch(() => ({}));
+      if (!saveRes.ok || !saveData?.ok) {
+        setTbParseMessage(
+          `Đã chuyển ${picked.length} thuê bao sang «${target}», nhưng không lưu được lịch sử server: ${saveData?.message || saveRes.statusText || 'Lỗi không rõ'}`
+        );
+        setTbShowChuyenModal(false);
+        return;
+      }
+    } catch (saveErr) {
+      setTbParseMessage(
+        `Đã chuyển ${picked.length} thuê bao sang «${target}», nhưng không lưu được lịch sử server: ${saveErr?.message || 'Lỗi mạng'}`
+      );
+      setTbShowChuyenModal(false);
+      return;
+    }
     setTbShowChuyenModal(false);
-    setTbParseMessage(`Đã chuyển ${picked.length} thuê bao sang «${target}». Có thể xuất Excel ở mục lịch sử bên dưới.`);
+    setTbParseMessage(`Đã chuyển ${picked.length} thuê bao sang «${target}». Có thể xem/xuất ở mục Báo cáo.`);
   };
 
   const handleExportTbChuyenExcel = async () => {
@@ -1162,6 +1203,11 @@ export default function TraCuuSP2Page() {
     tbSharedBootRef.current = true;
     loadTbSharedRows({ silent: true });
   }, [activeMainModule, tbRows.length]);
+
+  useEffect(() => {
+    if (activeMainModule !== TB_MODULE_TB) return;
+    loadTbTransferHistory({ silent: true });
+  }, [activeMainModule]);
 
   useEffect(() => {
     setTbPage(1);
@@ -1642,7 +1688,9 @@ export default function TraCuuSP2Page() {
 
   const handleLockAuth = () => {
     setAuthUnlocked(false);
+    setShowSettings(false);
     setShowReportPanel(false);
+    setShowReportMenu(false);
     setUnlockToOpenReport(false);
     if (typeof window !== 'undefined') sessionStorage.removeItem(STORAGE_AUTH_UNLOCKED);
   };
@@ -2102,7 +2150,12 @@ export default function TraCuuSP2Page() {
                   aria-selected={activeMainModule === TB_MODULE_SPLITTER}
                   aria-label="Tra cứu S2"
                   title="Tra cứu S2"
-                  onClick={() => setActiveMainModule(TB_MODULE_SPLITTER)}
+                  onClick={() => {
+                    setActiveMainModule(TB_MODULE_SPLITTER);
+                    setShowSettings(false);
+                    setShowReportPanel(false);
+                    setShowReportMenu(false);
+                  }}
                   className={`inline-flex order-3 sm:order-1 w-full min-h-[48px] sm:min-h-[44px] sm:w-auto min-w-0 justify-center items-center gap-1 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors px-1.5 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight text-center ${
                     activeMainModule === TB_MODULE_SPLITTER
                       ? 'bg-white text-sky-700 border-white shadow-sm'
@@ -2117,7 +2170,12 @@ export default function TraCuuSP2Page() {
                   aria-selected={activeMainModule === TB_MODULE_TB}
                   aria-label="Module tra cứu thuê bao"
                   title="Tra cứu TB"
-                  onClick={() => setActiveMainModule(TB_MODULE_TB)}
+                  onClick={() => {
+                    setActiveMainModule(TB_MODULE_TB);
+                    setShowSettings(false);
+                    setShowReportPanel(false);
+                    setShowReportMenu(false);
+                  }}
                   className={`inline-flex order-4 sm:order-2 w-full min-h-[48px] sm:min-h-[44px] sm:w-auto min-w-0 justify-center items-center gap-1 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors px-1.5 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight text-center ${
                     activeMainModule === TB_MODULE_TB
                       ? 'bg-white text-sky-700 border-white shadow-sm'
@@ -2890,9 +2948,13 @@ export default function TraCuuSP2Page() {
                             </button>
                           </div>
                           {tbChuyenBatches.length === 0 ? (
-                            <p className="text-[11px] text-slate-500">
-                              Chưa có dữ liệu lịch sử chuyển địa bàn. Hãy thực hiện chuyển địa bàn trong module Tra cứu TB trước.
-                            </p>
+                            tbTransferLoading ? (
+                              <p className="text-[11px] text-slate-500">Đang tải lịch sử chuyển địa bàn...</p>
+                            ) : (
+                              <p className="text-[11px] text-slate-500">
+                                Chưa có dữ liệu lịch sử chuyển địa bàn. Hãy thực hiện chuyển địa bàn trong module Tra cứu TB trước.
+                              </p>
+                            )
                           ) : (
                             <>
                               <p className="text-[10px] text-slate-500 mb-2">
