@@ -262,6 +262,7 @@ export default function TraCuuSP2Page() {
   const [activeMainModule, setActiveMainModule] = useState(TB_MODULE_SPLITTER);
   const [tbRows, setTbRows] = useState([]);
   const [tbFileName, setTbFileName] = useState('');
+  const [tbSelectedFile, setTbSelectedFile] = useState(null);
   const [tbParseMessage, setTbParseMessage] = useState('');
   const [tbNvQL, setTbNvQL] = useState('');
   const [tbOlt, setTbOlt] = useState('');
@@ -277,6 +278,7 @@ export default function TraCuuSP2Page() {
   const [tbSharedLoading, setTbSharedLoading] = useState(false);
   const [tbSharedMeta, setTbSharedMeta] = useState(null);
   const tbSharedBootRef = useRef(false);
+  const tbFileInputRef = useRef(null);
   const syncAbortRef = useRef(null);
   const reportMenuRef = useRef(null);
 
@@ -833,8 +835,17 @@ export default function TraCuuSP2Page() {
     }
   };
 
-  const handleTbExcelUpload = async (event) => {
-    const file = event?.target?.files?.[0];
+  const handleTbFileSelect = (event) => {
+    const file = event?.target?.files?.[0] || null;
+    setTbSelectedFile(file);
+    if (file) {
+      setTbFileName(file.name || '');
+      setTbParseMessage('');
+    }
+  };
+
+  const handleTbExcelUpload = async () => {
+    const file = tbSelectedFile;
     if (!file) return;
     setTbFileName(file.name || '');
     setTbParseMessage('');
@@ -956,7 +967,8 @@ export default function TraCuuSP2Page() {
       setTbRows([]);
       setTbParseMessage(e?.message || 'Không đọc được file Excel.');
     } finally {
-      if (event?.target) event.target.value = '';
+      setTbSelectedFile(null);
+      if (tbFileInputRef.current) tbFileInputRef.current.value = '';
     }
   };
 
@@ -2993,10 +3005,21 @@ export default function TraCuuSP2Page() {
                     Bắt buộc nhận diện được: Nhân viên QL, OLT, SLOT, PORT.
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
-                    <label className="inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-sky-700 cursor-pointer min-h-[40px]">
-                      Upload Excel (.xlsx / .xls)
-                      <input type="file" accept=".xlsx,.xls" onChange={handleTbExcelUpload} className="hidden" />
-                    </label>
+                    <input
+                      ref={tbFileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleTbFileSelect}
+                      className="block w-full sm:w-auto rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm text-slate-700 min-h-[40px] file:mr-3 file:rounded-md file:border-0 file:bg-sky-100 file:px-2.5 file:py-1.5 file:text-xs file:font-semibold file:text-sky-700 hover:file:bg-sky-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleTbExcelUpload}
+                      disabled={!tbSelectedFile}
+                      className="inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-sky-700 min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Upload
+                    </button>
                     <button
                       type="button"
                       onClick={handleDownloadTbMau}
