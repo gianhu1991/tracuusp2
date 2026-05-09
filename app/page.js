@@ -4,7 +4,7 @@ import { memo, useState, useEffect, useRef } from 'react';
 import { authFingerprint, getPortCache, getSyncMeta, sp2CacheKey } from '../lib/sp2-local-cache';
 import { runFullSp2Sync } from '../lib/sp2-full-sync';
 
-const PLACEHOLDER = '-- Chọn --';
+const PLACEHOLDER = '';
 
 /** TTVT mặc định theo OneBSS (trang tra cứu splitter theo port OLT). */
 const TTVT_MAC_DINH = 'Trung tâm viễn thông Nho Quan';
