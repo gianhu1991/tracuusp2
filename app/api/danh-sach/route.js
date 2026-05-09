@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStoredAuth } from '../../../lib/auth-store';
+import { oneBssEnvelopeOk, oneBssLooksLikeSessionOrAuthError } from '../../../lib/onebss-auth-retry';
 
 const BASE_ECMS = 'https://api-onebss.vnpt.vn/web-ecms';
 /** Tổ kỹ thuật + Trạm BTS (chọn Tổ KT và Trạm BTS). */
@@ -101,8 +102,11 @@ export async function GET(request) {
     // Authorization: từ request hoặc cấu hình server
     const authHeader = (request.headers.get('Authorization') || request.headers.get('authorization') || '').trim();
     const authEnv = process.env.ONE_BSS_AUTHORIZATION || process.env.AUTHORIZATION || '';
-    const authRedis = await getStoredAuth();
-    const auth = authHeader || authEnv || authRedis || '';
+    const authStored = await getStoredAuth();
+    const authStoredTrim = (authStored || '').trim();
+    const authEnvTrim = (authEnv || '').trim();
+    /** Ưu tiên header (token trên máy); nếu hết hạn sẽ thử lại bằng token lưu server. */
+    let auth = authHeader || authEnvTrim || authStoredTrim || '';
 
     if (!loai) {
       return NextResponse.json({ message: 'Thiếu loai' }, { status: 400 });
@@ -120,8 +124,22 @@ export async function GET(request) {
       return NextResponse.json({ message: 'loai không hợp lệ' }, { status: 400 });
     }
 
-    const res = await callOneBssList({ auth, loai: loaiKey, toKyThuat, tramBts, olt, cardOlt });
-    const data = await res.json().catch(() => ({}));
+    let res = await callOneBssList({ auth, loai: loaiKey, toKyThuat, tramBts, olt, cardOlt });
+    let data = await res.json().catch(() => ({}));
+
+    const needRetry =
+      authHeader &&
+      authStoredTrim &&
+      authStoredTrim !== authHeader &&
+      (!res.ok || !oneBssEnvelopeOk(data)) &&
+      oneBssLooksLikeSessionOrAuthError(res.status, data);
+
+    if (needRetry) {
+      log('Thử lại danh sách với Authorization từ server (token client có thể đã hết hạn)', { loai: loaiKey });
+      auth = authStoredTrim || authEnvTrim;
+      res = await callOneBssList({ auth, loai: loaiKey, toKyThuat, tramBts, olt, cardOlt });
+      data = await res.json().catch(() => ({}));
+    }
 
     if (!res.ok) {
       log('Kết quả lỗi', { loai: loaiKey, status: res.status, data });

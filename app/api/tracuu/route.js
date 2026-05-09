@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStoredAuth } from '../../../lib/auth-store';
+import { oneBssEnvelopeOk, oneBssLooksLikeSessionOrAuthError } from '../../../lib/onebss-auth-retry';
 
 /** URL mặc định API tra cứu splitter theo port OLT - OneBSS VNPT */
 const DEFAULT_BACKEND_URL = 'https://api-onebss.vnpt.vn/web-ecms/tracuu/ds_splitter_theo_port_olt';
@@ -34,20 +35,42 @@ export async function POST(request) {
 
     const backendUrl = process.env.BACKEND_URL || process.env.TRACUU_BACKEND_URL || body.backendUrl || DEFAULT_BACKEND_URL;
     const authFromHeader = (request.headers.get('Authorization') || request.headers.get('authorization') || '').trim();
-    const authRedis = await getStoredAuth();
-    const authorization = authFromHeader || body.authorization || process.env.ONE_BSS_AUTHORIZATION || process.env.AUTHORIZATION || process.env.TRACUU_AUTHORIZATION || authRedis || '';
+    const authStored = await getStoredAuth();
+    const authStoredTrim = (authStored || '').trim();
+    const authFromBody = String(body.authorization || '').trim();
+    const authEnv =
+      process.env.ONE_BSS_AUTHORIZATION || process.env.AUTHORIZATION || process.env.TRACUU_AUTHORIZATION || '';
+    let authorization =
+      authFromHeader || authFromBody || authEnv || authStoredTrim || '';
 
     const url = backendUrl.startsWith('http') ? backendUrl : DEFAULT_BACKEND_URL;
     console.log('[TracuuSP2 API tracuu] Request', { url, payload: Object.keys(payload), hasAuth: !!authorization });
-    const res = await fetch(url, {
+
+    const doFetch = (auth) => fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(authorization ? { Authorization: authorization } : {}),
+        ...(auth ? { Authorization: auth } : {}),
       },
       body: JSON.stringify(payload),
     });
-    const data = await res.json().catch(() => ({}));
+
+    let res = await doFetch(authorization);
+    let data = await res.json().catch(() => ({}));
+
+    const needRetry =
+      authFromHeader &&
+      authStoredTrim &&
+      authStoredTrim !== authFromHeader &&
+      (!res.ok || !oneBssEnvelopeOk(data)) &&
+      oneBssLooksLikeSessionOrAuthError(res.status, data);
+
+    if (needRetry) {
+      console.log('[TracuuSP2 API tracuu] Thử lại với Authorization từ server (token client có thể đã hết hạn)');
+      authorization = authStoredTrim || authEnv || '';
+      res = await doFetch(authorization);
+      data = await res.json().catch(() => ({}));
+    }
     let list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? data?.danhSach);
     if (!Array.isArray(list)) list = [];
     // Chỉ lấy Splitter cấp 2: Cap_Sp = 2 (chấp nhận CAP_SP, cap_sp, kiểu số hoặc chuỗi)
