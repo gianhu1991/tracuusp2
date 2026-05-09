@@ -85,6 +85,13 @@ function pickDefaultToQlItem(list) {
   return byLabel || arr[0] || null;
 }
 
+function sanitizeSelectOptions(list) {
+  return (Array.isArray(list) ? list : []).filter((item) => {
+    const v = defaultDropOptionValue(item);
+    return String(v ?? '').trim() !== '';
+  });
+}
+
 const DropRow = memo(
   function DropRowInner({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
     return (
@@ -1632,8 +1639,8 @@ export default function TraCuuSP2Page() {
       LOG('loadDanhSach ToQL', { status: resToQL.status, ok: resToQL.ok, data: dataToQL, list: normaliseList(dataToQL).length });
       const rawTtvt = normaliseList(dataTtvt);
       const rawToQL = normaliseList(dataToQL);
-      const listTtvtFinal = resTtvt.ok && rawTtvt.length > 0 ? rawTtvt : FALLBACK_TTVT_LIST;
-      const listToQLFinal = resToQL.ok && rawToQL.length > 0 ? rawToQL : FALLBACK_TO_KY_THUAT;
+      const listTtvtFinal = sanitizeSelectOptions(resTtvt.ok && rawTtvt.length > 0 ? rawTtvt : FALLBACK_TTVT_LIST);
+      const listToQLFinal = sanitizeSelectOptions(resToQL.ok && rawToQL.length > 0 ? rawToQL : FALLBACK_TO_KY_THUAT);
       setListTtvt(listTtvtFinal);
       setListToQL(listToQLFinal);
       const nhoQuan = pickDefaultToQlItem(listToQLFinal);
@@ -1666,8 +1673,9 @@ export default function TraCuuSP2Page() {
   // Sau khi có danh sách Trạm BTS cho tổ đang chọn, tự chọn phần tử đầu nếu chưa chọn.
   useEffect(() => {
     if (!toQL || veTinh) return;
-    if (!Array.isArray(listVeTinh) || listVeTinh.length === 0) return;
-    const first = listVeTinh[0];
+    const valid = sanitizeSelectOptions(listVeTinh);
+    if (!valid.length) return;
+    const first = valid[0];
     const next = optionValue(first);
     if (next) setVeTinh(next);
   }, [toQL, veTinh, listVeTinh]);
@@ -1675,8 +1683,9 @@ export default function TraCuuSP2Page() {
   // Sau khi có danh sách OLT của Trạm BTS đang chọn, tự chọn phần tử đầu nếu chưa chọn.
   useEffect(() => {
     if (!veTinh || thietBiOlt) return;
-    if (!Array.isArray(listThietBiOlt) || listThietBiOlt.length === 0) return;
-    const first = listThietBiOlt[0];
+    const valid = sanitizeSelectOptions(listThietBiOlt);
+    if (!valid.length) return;
+    const first = valid[0];
     const next = optionValue(first);
     if (next) setThietBiOlt(next);
   }, [veTinh, thietBiOlt, listThietBiOlt]);
@@ -1702,7 +1711,7 @@ export default function TraCuuSP2Page() {
       })
       .then(({ ok, status, data }) => {
         LOG('VeTinh data', data, 'list length', normaliseList(data).length);
-        const list = normaliseList(data);
+        const list = sanitizeSelectOptions(normaliseList(data));
         const badPayload = data?.message && !Array.isArray(data) && !data?.data;
         if (ok && !badPayload && list.length > 0) {
           setListError('');
@@ -1710,9 +1719,10 @@ export default function TraCuuSP2Page() {
           return;
         }
         const fromBrowse = browseSnapshotRef.current?.tramByTo?.[toQL];
-        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+        const fromBrowseClean = sanitizeSelectOptions(fromBrowse);
+        if (fromBrowseClean.length > 0) {
           setListError('');
-          setListVeTinh(fromBrowse);
+          setListVeTinh(fromBrowseClean);
           return;
         }
         if (!ok) {
@@ -1724,9 +1734,10 @@ export default function TraCuuSP2Page() {
       })
       .catch((e) => {
         const fromBrowse = browseSnapshotRef.current?.tramByTo?.[toQL];
-        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+        const fromBrowseClean = sanitizeSelectOptions(fromBrowse);
+        if (fromBrowseClean.length > 0) {
           setListError('');
-          setListVeTinh(fromBrowse);
+          setListVeTinh(fromBrowseClean);
           return;
         }
         LOG('VeTinh error', e);
@@ -1753,7 +1764,7 @@ export default function TraCuuSP2Page() {
     fetch(url, { headers: { Authorization: auth.trim() }, cache: 'no-store' })
       .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
-        const listOlt = normaliseList(data);
+        const listOlt = sanitizeSelectOptions(normaliseList(data));
         LOG('OLT data', { ok, len: listOlt.length });
         const badPayload = data?.message && !Array.isArray(data) && !data?.data;
         if (ok && !badPayload && listOlt.length > 0) {
@@ -1763,9 +1774,10 @@ export default function TraCuuSP2Page() {
         }
         const key = `${toQL}|${veTinh}`;
         const fromBrowse = browseSnapshotRef.current?.oltByTram?.[key];
-        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+        const fromBrowseClean = sanitizeSelectOptions(fromBrowse);
+        if (fromBrowseClean.length > 0) {
           setListError('');
-          setListThietBiOlt(fromBrowse);
+          setListThietBiOlt(fromBrowseClean);
           return;
         }
         if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Thiết bị OLT.');
@@ -1774,9 +1786,10 @@ export default function TraCuuSP2Page() {
       .catch((e) => {
         const key = `${toQL}|${veTinh}`;
         const fromBrowse = browseSnapshotRef.current?.oltByTram?.[key];
-        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+        const fromBrowseClean = sanitizeSelectOptions(fromBrowse);
+        if (fromBrowseClean.length > 0) {
           setListError('');
-          setListThietBiOlt(fromBrowse);
+          setListThietBiOlt(fromBrowseClean);
           return;
         }
         LOG('OLT error', e);
