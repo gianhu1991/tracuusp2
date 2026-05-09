@@ -1491,14 +1491,6 @@ export default function TraCuuSP2Page() {
     setS2LookupPage(1);
   }, [s2LookupRows, s2LookupPageSize]);
 
-  useEffect(() => {
-    if (!listToQL.length) return;
-    const exists = listToQL.some((item) => optionValue(item) === String(toQL || ''));
-    if (exists && toQL) return;
-    const def = pickDefaultToQlItem(listToQL);
-    if (def) setToQL(optionValue(def));
-  }, [listToQL, toQL]);
-
   /** Khi chưa có danh sách Tổ KT từ API nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
   useEffect(() => {
     if (!browseSnapshot?.toKyThuat?.length) return;
@@ -1630,6 +1622,24 @@ export default function TraCuuSP2Page() {
     loadDanhSach();
     refreshBrowseSnapshot();
   }, [authorization]);
+
+  // Sau khi có danh sách Trạm BTS cho tổ đang chọn, tự chọn phần tử đầu nếu chưa chọn.
+  useEffect(() => {
+    if (!toQL || veTinh) return;
+    if (!Array.isArray(listVeTinh) || listVeTinh.length === 0) return;
+    const first = listVeTinh[0];
+    const next = optionValue(first);
+    if (next) setVeTinh(next);
+  }, [toQL, veTinh, listVeTinh]);
+
+  // Sau khi có danh sách OLT của Trạm BTS đang chọn, tự chọn phần tử đầu nếu chưa chọn.
+  useEffect(() => {
+    if (!veTinh || thietBiOlt) return;
+    if (!Array.isArray(listThietBiOlt) || listThietBiOlt.length === 0) return;
+    const first = listThietBiOlt[0];
+    const next = optionValue(first);
+    if (next) setThietBiOlt(next);
+  }, [veTinh, thietBiOlt, listThietBiOlt]);
 
   useEffect(() => {
     if (!toQL) {
