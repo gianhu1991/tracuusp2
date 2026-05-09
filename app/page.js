@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { memo, useState, useEffect, useRef } from 'react';
 import { authFingerprint, getPortCache, getSyncMeta, sp2CacheKey } from '../lib/sp2-local-cache';
 import { runFullSp2Sync } from '../lib/sp2-full-sync';
 
@@ -47,6 +47,46 @@ const REPORT_MENU_ITEMS = [
 const TB_MODULE_SPLITTER = 'splitter';
 const TB_MODULE_TB = 'tb';
 const TB_SHARED_LOCAL_CACHE_KEY = 'tb_shared_rows_cache_v1';
+
+function defaultDropOptionValue(item) {
+  return item?.id ?? item?.value ?? item?.ma ?? item?.code ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? '';
+}
+
+function defaultDropOptionLabel(item) {
+  return item?.TEN_DV ?? item?.TEN_OLT ?? item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(defaultDropOptionValue(item) || '');
+}
+
+const DropRow = memo(
+  function DropRowInner({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
+    return (
+      <div className="flex items-center gap-1.5 sm:gap-2 py-1 sm:py-1.5">
+        <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.target.checked)} className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 shrink-0 w-4 h-4 sm:w-auto sm:h-auto" />
+        <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider shrink-0 min-w-[70px] sm:min-w-[90px]">{label}{required && '*'}</label>
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1.5 sm:px-3 sm:py-2 text-slate-700 text-xs sm:text-sm focus:ring-2 focus:ring-sky-500 min-h-[36px] sm:min-h-[40px]"
+        >
+          <option value="">{PLACEHOLDER}</option>
+          {(options || []).map((item, i) => {
+            const val = ov ? ov(item) : defaultDropOptionValue(item);
+            const strVal = (val !== undefined && val !== null && val !== '') ? String(val) : '';
+            return (
+              <option key={strVal ? strVal : `opt-${i}`} value={strVal}>{ol ? ol(item) : defaultDropOptionLabel(item)}</option>
+            );
+          })}
+        </select>
+      </div>
+    );
+  },
+  (prev, next) => (
+    prev.label === next.label &&
+    prev.required === next.required &&
+    prev.checked === next.checked &&
+    prev.value === next.value &&
+    prev.options === next.options
+  )
+);
 
 function tbNormHeader(s) {
   return String(s ?? '')
@@ -292,7 +332,36 @@ export default function TraCuuSP2Page() {
   const [tbSharedMeta, setTbSharedMeta] = useState(null);
   const tbFileInputRef = useRef(null);
   const syncAbortRef = useRef(null);
+  const syncProgressLatestRef = useRef(null);
+  const syncProgressTimerRef = useRef(null);
+  const syncProgressLastAtRef = useRef(0);
   const reportMenuRef = useRef(null);
+
+  const clearSyncProgressTimer = () => {
+    if (syncProgressTimerRef.current) {
+      clearTimeout(syncProgressTimerRef.current);
+      syncProgressTimerRef.current = null;
+    }
+  };
+
+  const pushSyncProgress = (next, { force = false } = {}) => {
+    syncProgressLatestRef.current = next;
+    const now = Date.now();
+    if (force || now - syncProgressLastAtRef.current >= 250) {
+      syncProgressLastAtRef.current = now;
+      clearSyncProgressTimer();
+      setSyncProgress(next);
+      return;
+    }
+    if (!syncProgressTimerRef.current) {
+      const waitMs = Math.max(20, 250 - (now - syncProgressLastAtRef.current));
+      syncProgressTimerRef.current = setTimeout(() => {
+        syncProgressTimerRef.current = null;
+        syncProgressLastAtRef.current = Date.now();
+        if (syncProgressLatestRef.current) setSyncProgress(syncProgressLatestRef.current);
+      }, waitMs);
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -300,6 +369,8 @@ export default function TraCuuSP2Page() {
       setAuthUnlocked(sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) === '1');
     }
   }, []);
+
+  useEffect(() => () => clearSyncProgressTimer(), []);
 
   useEffect(() => {
     if (!authUnlocked) return;
@@ -1821,6 +1892,9 @@ export default function TraCuuSP2Page() {
     const auth = (authOverride && authOverride.trim()) || (authorization && authorization.trim()) || '';
     if (syncRunning) return { skipped: true };
     setListError('');
+    clearSyncProgressTimer();
+    syncProgressLatestRef.current = null;
+    syncProgressLastAtRef.current = 0;
     syncAbortRef.current = new AbortController();
     setSyncRunning(true);
     setSyncProgress({ phase: 'scan', done: 0, total: 0, label: 'Đang chuẩn bị…' });
@@ -1829,7 +1903,7 @@ export default function TraCuuSP2Page() {
       const result = await runFullSp2Sync({
         auth,
         signal: syncAbortRef.current.signal,
-        onProgress: (p) => setSyncProgress(p),
+        onProgress: (p) => pushSyncProgress(p),
         delayMs: 35,
         concurrency: 5,
         server: pwd ? { adminPassword: pwd, batchSize: 25 } : null,
@@ -1855,6 +1929,7 @@ export default function TraCuuSP2Page() {
       setListError(err.message || 'Lỗi đồng bộ toàn bộ.');
       return { skipped: false, error: err };
     } finally {
+      clearSyncProgressTimer();
       setSyncRunning(false);
       syncAbortRef.current = null;
       setSyncProgress(null);
@@ -2108,29 +2183,6 @@ export default function TraCuuSP2Page() {
   const s2LookupCurrentPage = Math.min(s2LookupPage, s2LookupTotalPages);
   const s2LookupStart = (s2LookupCurrentPage - 1) * s2LookupPageSize;
   const pagedS2LookupRows = s2LookupRows.slice(s2LookupStart, s2LookupStart + s2LookupPageSize);
-
-  function DropRow({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
-    return (
-      <div className="flex items-center gap-1.5 sm:gap-2 py-1 sm:py-1.5">
-        <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.target.checked)} className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 shrink-0 w-4 h-4 sm:w-auto sm:h-auto" />
-        <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider shrink-0 min-w-[70px] sm:min-w-[90px]">{label}{required && '*'}</label>
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="flex-1 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-1.5 sm:px-3 sm:py-2 text-slate-700 text-xs sm:text-sm focus:ring-2 focus:ring-sky-500 min-h-[36px] sm:min-h-[40px]"
-        >
-          <option value="">{PLACEHOLDER}</option>
-          {(options || []).map((item, i) => {
-            const val = ov ? ov(item) : optionValue(item);
-            const strVal = (val !== undefined && val !== null && val !== '') ? String(val) : '';
-            return (
-              <option key={strVal ? strVal : `opt-${i}`} value={strVal}>{ol ? ol(item) : optionLabel(item)}</option>
-            );
-          })}
-        </select>
-      </div>
-    );
-  }
 
   return (
     <main className="min-h-screen bg-gradient-to-r from-sky-50/80 via-slate-50 to-blue-50/80 py-2 px-2 sm:py-6 sm:px-4 lg:px-6">
