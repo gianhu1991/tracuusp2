@@ -8,6 +8,12 @@ const PLACEHOLDER = '-- Chọn --';
 
 /** TTVT mặc định theo OneBSS (trang tra cứu splitter theo port OLT). */
 const TTVT_MAC_DINH = 'Trung tâm viễn thông Nho Quan';
+/** Trùng `app/api/danh-sach/route.js` — dùng khi API lỗi, chưa deploy, hoặc trình duyệt cache response cũ. */
+const FALLBACK_TTVT_LIST = [{ ma: TTVT_MAC_DINH, ten: TTVT_MAC_DINH }];
+const FALLBACK_TO_KY_THUAT = [
+  { id: 'd4febad9-f7b4-41a4-85ab-1e8fc1fd754a', donviId: 1002688, ten: 'Tổ Kỹ thuật Địa bàn Gia Viễn' },
+  { id: '5f0ad13b-53ee-4869-a66f-4023cba821a7', donviId: 1002689, ten: 'Tổ Kỹ thuật Địa bàn Nho Quan' },
+];
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
@@ -1557,26 +1563,27 @@ export default function TraCuuSP2Page() {
     LOG('loadDanhSach request', { urlTtvt, urlToQL, hasAuth: !!auth?.trim() });
     try {
       const headers = { Authorization: (auth && auth.trim()) || '' };
+      const fetchOpts = { headers, cache: 'no-store' };
       const [resTtvt, resToQL] = await Promise.all([
-        fetch(urlTtvt, { headers }),
-        fetch(urlToQL, { headers }),
+        fetch(urlTtvt, fetchOpts),
+        fetch(urlToQL, fetchOpts),
       ]);
       const dataTtvt = await resTtvt.json().catch(() => ({}));
       const dataToQL = await resToQL.json().catch(() => ({}));
       LOG('loadDanhSach TTVT', { status: resTtvt.status, ok: resTtvt.ok, data: dataTtvt, list: normaliseList(dataTtvt).length });
       LOG('loadDanhSach ToQL', { status: resToQL.status, ok: resToQL.ok, data: dataToQL, list: normaliseList(dataToQL).length });
-      if (resTtvt.ok) setListTtvt(normaliseList(dataTtvt));
-      else setListTtvt([]);
-      const listToQLData = normaliseList(dataToQL);
-      if (resToQL.ok) {
-        setListToQL(listToQLData);
-        const nhoQuan = listToQLData.find((item) => {
-          const label = optionLabel(item);
-          return label && String(label).toLowerCase().includes('nho quan');
-        });
-        if (nhoQuan != null) setToQL(optionValue(nhoQuan));
-      } else setListToQL([]);
-      if (!resTtvt.ok && !resToQL.ok) {
+      const rawTtvt = normaliseList(dataTtvt);
+      const rawToQL = normaliseList(dataToQL);
+      const listTtvtFinal = resTtvt.ok && rawTtvt.length > 0 ? rawTtvt : FALLBACK_TTVT_LIST;
+      const listToQLFinal = resToQL.ok && rawToQL.length > 0 ? rawToQL : FALLBACK_TO_KY_THUAT;
+      setListTtvt(listTtvtFinal);
+      setListToQL(listToQLFinal);
+      const nhoQuan = listToQLFinal.find((item) => {
+        const label = optionLabel(item);
+        return label && String(label).toLowerCase().includes('nho quan');
+      });
+      if (nhoQuan != null) setToQL(optionValue(nhoQuan));
+      if (!resTtvt.ok && !resToQL.ok && rawTtvt.length === 0 && rawToQL.length === 0) {
         const msg = dataTtvt?.message || dataToQL?.message;
         const is404 = resTtvt.status === 404 || resToQL.status === 404;
         const is502 = resTtvt.status === 502 || resToQL.status === 502;
@@ -1587,8 +1594,13 @@ export default function TraCuuSP2Page() {
     } catch (e) {
       LOG('loadDanhSach error', e);
       setListError(e.message || 'Lỗi tải danh sách.');
-      setListTtvt([]);
-      setListToQL([]);
+      setListTtvt(FALLBACK_TTVT_LIST);
+      setListToQL(FALLBACK_TO_KY_THUAT);
+      const nhoQuan = FALLBACK_TO_KY_THUAT.find((item) => {
+        const label = optionLabel(item);
+        return label && String(label).toLowerCase().includes('nho quan');
+      });
+      if (nhoQuan != null) setToQL(optionValue(nhoQuan));
     } finally {
       setLoadingList(false);
     }
