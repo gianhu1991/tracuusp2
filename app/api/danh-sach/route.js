@@ -111,17 +111,18 @@ export async function GET(request) {
     if (!loai) {
       return NextResponse.json({ message: 'Thiếu loai' }, { status: 400 });
     }
-    if (!auth) {
-      return NextResponse.json(
-        { message: 'Thiếu Authorization.' },
-        { status: 400 }
-      );
-    }
-
     const validLoai = ['to_ky_thuat', 'ttvt', 'tram_bts', 've_tinh', 'card_olt', 'olt', 'port_olt'];
     const loaiKey = loai === 've_tinh' ? 'tram_bts' : loai;
     if (!validLoai.includes(loaiKey)) {
       return NextResponse.json({ message: 'loai không hợp lệ' }, { status: 400 });
+    }
+
+    // ttvt/to_ky_thuat là danh mục cố định, không cần Authorization.
+    if (!auth && loaiKey !== 'ttvt' && loaiKey !== 'to_ky_thuat') {
+      return NextResponse.json(
+        { message: 'Thiếu Authorization.' },
+        { status: 400 }
+      );
     }
 
     let res = await callOneBssList({ auth, loai: loaiKey, toKyThuat, tramBts, olt, cardOlt });
