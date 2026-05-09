@@ -1672,22 +1672,26 @@ export default function TraCuuSP2Page() {
 
   // Sau khi có danh sách Trạm BTS cho tổ đang chọn, tự chọn phần tử đầu nếu chưa chọn.
   useEffect(() => {
-    if (!toQL || veTinh) return;
+    if (!toQL) return;
     const valid = sanitizeSelectOptions(listVeTinh);
     if (!valid.length) return;
-    const first = valid[0];
-    const next = optionValue(first);
-    if (next) setVeTinh(next);
+    const current = String(veTinh || '');
+    const exists = current && valid.some((item) => optionValue(item) === current);
+    if (exists) return;
+    const next = optionValue(valid[0]);
+    if (next && next !== current) setVeTinh(next);
   }, [toQL, veTinh, listVeTinh]);
 
   // Sau khi có danh sách OLT của Trạm BTS đang chọn, tự chọn phần tử đầu nếu chưa chọn.
   useEffect(() => {
-    if (!veTinh || thietBiOlt) return;
+    if (!veTinh) return;
     const valid = sanitizeSelectOptions(listThietBiOlt);
     if (!valid.length) return;
-    const first = valid[0];
-    const next = optionValue(first);
-    if (next) setThietBiOlt(next);
+    const current = String(thietBiOlt || '');
+    const exists = current && valid.some((item) => optionValue(item) === current);
+    if (exists) return;
+    const next = optionValue(valid[0]);
+    if (next && next !== current) setThietBiOlt(next);
   }, [veTinh, thietBiOlt, listThietBiOlt]);
 
   useEffect(() => {
