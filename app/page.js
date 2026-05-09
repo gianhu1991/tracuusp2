@@ -57,11 +57,13 @@ const TB_MODULE_TB = 'tb';
 const TB_SHARED_LOCAL_CACHE_KEY = 'tb_shared_rows_cache_v1';
 
 function defaultDropOptionValue(item) {
-  return item?.id ?? item?.value ?? item?.ma ?? item?.code ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? '';
+  return item?.donviId ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? item?.CARD_ID ?? item?.SLOT_ID ?? item?.PORTVL_ID ??
+    item?.VITRI ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
 }
 
 function defaultDropOptionLabel(item) {
-  return item?.TEN_DV ?? item?.TEN_OLT ?? item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(defaultDropOptionValue(item) || '');
+  return item?.TEN_DV ?? item?.TEN_OLT ?? item?.TEN_TB ?? item?.TEN ?? item?.ten ?? item?.name ?? item?.label ?? item?.title ??
+    String(defaultDropOptionValue(item) || '');
 }
 
 function normalizePlainText(v) {
@@ -1491,6 +1493,23 @@ export default function TraCuuSP2Page() {
     setS2LookupPage(1);
   }, [s2LookupRows, s2LookupPageSize]);
 
+  // Đồng bộ key của toQL khi nguồn dữ liệu đổi kiểu (uuid <-> donviId) để dropdown không rơi về "-- Chọn --".
+  useEffect(() => {
+    if (!Array.isArray(listToQL) || listToQL.length === 0) return;
+    const current = String(toQL || '').trim();
+    if (!current) return;
+    const hasExact = listToQL.some((item) => optionValue(item) === current);
+    if (hasExact) return;
+    const matched = listToQL.find((item) =>
+      String(item?.id ?? '').trim() === current ||
+      String(item?.donviId ?? item?.DONVI_ID ?? '').trim() === current
+    );
+    if (matched) {
+      const next = optionValue(matched);
+      if (next && next !== current) setToQL(next);
+    }
+  }, [listToQL, toQL]);
+
   /** Khi chưa có danh sách Tổ KT từ API nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
   useEffect(() => {
     if (!browseSnapshot?.toKyThuat?.length) return;
@@ -1568,6 +1587,27 @@ export default function TraCuuSP2Page() {
     if (!found) return key;
     const label = optionLabel(found);
     return label ? `${label} (${key})` : key;
+  }
+
+  function oltOptionLabel(item) {
+    if (item == null) return '';
+    if (typeof item === 'string' || typeof item === 'number') {
+      const id = String(item);
+      const key = `${toQL}|${veTinh}`;
+      const pool = Array.isArray(browseSnapshot?.oltByTram?.[key]) ? browseSnapshot.oltByTram[key] : [];
+      const found = pool.find((x) => String(x?.THIETBI_ID ?? x?.OLT_ID ?? x?.id ?? x?.value ?? '') === id);
+      const name = found?.TEN_OLT ?? found?.TEN_TB ?? found?.ten ?? found?.name ?? found?.label ?? found?.title;
+      return name ? String(name) : id;
+    }
+    const direct = item?.TEN_OLT ?? item?.TEN_TB ?? item?.ten ?? item?.name ?? item?.label ?? item?.title;
+    if (direct != null && String(direct).trim()) return String(direct);
+    const id = String(item?.THIETBI_ID ?? item?.OLT_ID ?? item?.id ?? item?.value ?? '');
+    if (!id) return '';
+    const key = `${toQL}|${veTinh}`;
+    const pool = Array.isArray(browseSnapshot?.oltByTram?.[key]) ? browseSnapshot.oltByTram[key] : [];
+    const found = pool.find((x) => String(x?.THIETBI_ID ?? x?.OLT_ID ?? x?.id ?? x?.value ?? '') === id);
+    const name = found?.TEN_OLT ?? found?.TEN_TB ?? found?.ten ?? found?.name ?? found?.label ?? found?.title;
+    return name ? String(name) : id;
   }
 
   const LOG = (tag, ...args) => { try { console.log('[TracuuSP2]', tag, ...args); } catch (_) {} };
@@ -3331,7 +3371,7 @@ export default function TraCuuSP2Page() {
                   <DropRow label="Trạm BTS" checked={useVeTinh} onCheck={setUseVeTinh} value={veTinh} onChange={setVeTinh} options={listVeTinh} />
                 </div>
                 <div className="space-y-0 order-2 sm:order-2">
-                  <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} />
+                  <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} optionValue={(item) => { if (typeof item === 'string' || typeof item === 'number') return String(item); const v = item?.THIETBI_ID ?? item?.OLT_ID ?? item?.id ?? item?.value ?? item?.code ?? ''; return v !== undefined && v !== null ? String(v) : ''; }} optionLabel={oltOptionLabel} />
                   <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={listCardOlt} optionValue={(item) => { if (typeof item === 'string') return item; const keyVal = item?.KEY; const idFromKey = (typeof keyVal === 'string' && keyVal.includes('#')) ? (keyVal.split('#')[1]?.trim() || keyVal) : null; const v = idFromKey ?? item?.CARD_ID ?? item?.THIETBI_ID ?? item?.SLOT_ID ?? item?.PORTVL_ID ?? item?.VITRI ?? item?.TEN_TB ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} />
                   <div>
                     <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={listPortOlt} optionValue={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const v = item?.PORTVL_ID ?? item?.VITRI ?? item?.id ?? item?.value ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} optionLabel={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const vitri = item?.VITRI; if (vitri !== undefined && vitri !== null) return String(vitri); return item?.PORTVL_ID != null ? String(item.PORTVL_ID) : (item?.TEN_TB ?? optionLabel(item) ?? ''); }} />
