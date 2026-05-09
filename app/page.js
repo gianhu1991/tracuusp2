@@ -1625,7 +1625,7 @@ export default function TraCuuSP2Page() {
     const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
     const url = `/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`;
     LOG('VeTinh request', url, 'toQL', toQL);
-    fetch(url, { headers: { Authorization: auth.trim() } })
+    fetch(url, { headers: { Authorization: auth.trim() }, cache: 'no-store' })
       .then((r) => {
         LOG('VeTinh response', r.status, r.ok);
         return r.json().catch(() => ({})).then((data) => ({ ok: r.ok, status: r.status, data }));
@@ -1634,7 +1634,7 @@ export default function TraCuuSP2Page() {
         LOG('VeTinh data', data, 'list length', normaliseList(data).length);
         const list = normaliseList(data);
         const badPayload = data?.message && !Array.isArray(data) && !data?.data;
-        if (ok && !badPayload) {
+        if (ok && !badPayload && list.length > 0) {
           setListError('');
           setListVeTinh(list);
           return;
@@ -1680,13 +1680,13 @@ export default function TraCuuSP2Page() {
     const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
     const url = `/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
     LOG('OLT request', url, 'veTinh (DONVI_ID)', veTinh);
-    fetch(url, { headers: { Authorization: auth.trim() } })
+    fetch(url, { headers: { Authorization: auth.trim() }, cache: 'no-store' })
       .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         const listOlt = normaliseList(data);
         LOG('OLT data', { ok, len: listOlt.length });
         const badPayload = data?.message && !Array.isArray(data) && !data?.data;
-        if (ok && !badPayload) {
+        if (ok && !badPayload && listOlt.length > 0) {
           setListError('');
           setListThietBiOlt(listOlt);
           return;
@@ -1726,15 +1726,14 @@ export default function TraCuuSP2Page() {
     const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
     const url = `/api/danh-sach?loai=card_olt&olt=${encodeURIComponent(thietBiOlt)}`;
     LOG('Card OLT request', url, 'thietBiOlt (THIETBI_ID)', thietBiOlt);
-    fetch(url, { headers: { Authorization: auth.trim() } })
+    fetch(url, { headers: { Authorization: auth.trim() }, cache: 'no-store' })
       .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         const list = normaliseList(data);
         LOG('Card OLT data', { ok, len: list.length });
         const badPayload = data?.message && !Array.isArray(data) && !data?.data;
-        if (ok && !badPayload) {
-          if (list.length === 0) setListError('Không có Card OLT cho thiết bị này.');
-          else setListError('');
+        if (ok && !badPayload && list.length > 0) {
+          setListError('');
           setListCardOlt(list);
           return;
         }
@@ -1775,13 +1774,13 @@ export default function TraCuuSP2Page() {
     const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
     const url = `/api/danh-sach?loai=port_olt&cardOlt=${encodeURIComponent(cardOlt)}`;
     LOG('Port OLT request', url);
-    fetch(url, { headers: { Authorization: auth.trim() } })
+    fetch(url, { headers: { Authorization: auth.trim() }, cache: 'no-store' })
       .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         const list = normaliseList(data);
         LOG('Port OLT data', { ok, len: list.length });
         const badPayload = data?.message && !Array.isArray(data) && !data?.data;
-        if (ok && !badPayload) {
+        if (ok && !badPayload && list.length > 0) {
           setListError('');
           setListPortOlt(list);
           return;
