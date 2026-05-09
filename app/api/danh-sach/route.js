@@ -11,9 +11,22 @@ const URL_OLT_THEO_VE_TINH = BASE_ECMS + '/danhmuc/layDsOltTheoVeTinh';
 const URL_CARD_OLT_THEO_OLT = BASE_ECMS + '/danhmuc/layDsCardOltTheoOlt';
 /** Danh sách Port OLT theo Card OLT (danhmuc). */
 const URL_PORT_OLT_THEO_CARD_OLT = BASE_ECMS + '/danhmuc/layDsPortOltTheoCardOlt';
+const FIXED_TO_KY_THUAT = [
+  { id: 'd4febad9-f7b4-41a4-85ab-1e8fc1fd754a', donviId: 1002688, ten: 'Tổ Kỹ thuật Địa bàn Gia Viễn' },
+  { id: '5f0ad13b-53ee-4869-a66f-4023cba821a7', donviId: 1002689, ten: 'Tổ Kỹ thuật Địa bàn Nho Quan' },
+];
 
 function log(tag, ...args) {
   try { console.log('[TracuuSP2 API danh-sach]', tag, ...args); } catch (_) {}
+}
+
+function resolveToKyThuatDonviId(input) {
+  const raw = String(input ?? '').trim();
+  if (!raw) return null;
+  const direct = Number(raw);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const found = FIXED_TO_KY_THUAT.find((item) => String(item.id) === raw);
+  return found ? Number(found.donviId) : null;
 }
 
 async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) {
@@ -60,19 +73,15 @@ async function callOneBssList({ auth, loai, toKyThuat, tramBts, olt, cardOlt }) 
 
   // Tổ KT (to_ky_thuat): 2 tổ kỹ thuật, layDsVeTinh cần body { id: số } (donviId)
   if (loai === 'to_ky_thuat') {
-    const fixedToQL = [
-      { id: 'd4febad9-f7b4-41a4-85ab-1e8fc1fd754a', donviId: 1002688, ten: 'Tổ Kỹ thuật Địa bàn Gia Viễn' },
-      { id: '5f0ad13b-53ee-4869-a66f-4023cba821a7', donviId: 1002689, ten: 'Tổ Kỹ thuật Địa bàn Nho Quan' },
-    ];
-    log('to_ky_thuat fixed', fixedToQL.length);
-    return new Response(JSON.stringify(fixedToQL), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    log('to_ky_thuat fixed', FIXED_TO_KY_THUAT.length);
+    return new Response(JSON.stringify(FIXED_TO_KY_THUAT), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
 
   // Trạm BTS (tram_bts): OneBSS layDsVeTinh nhận body { id: number } (donviId tổ KT)
   if (loai === 'tram_bts') {
     const url = process.env.URL_LAY_DS_VE_TINH || URL_LAY_DS_VE_TINH;
-    const idNum = toKyThuat === '' || toKyThuat == null ? null : Number(toKyThuat);
-    const body = idNum !== null && !Number.isNaN(idNum) ? { id: idNum } : {};
+    const idNum = resolveToKyThuatDonviId(toKyThuat);
+    const body = idNum !== null ? { id: idNum } : {};
     log('layDsVeTinh POST', url, body);
     const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
     const txt = await res.clone().text().catch(() => '');
