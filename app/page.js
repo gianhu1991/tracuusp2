@@ -17,6 +17,8 @@ const FALLBACK_TO_KY_THUAT = [
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
+const DEFAULT_TO_QL_DONVI_ID = '1002689'; // Tổ Kỹ thuật Địa bàn Nho Quan
+const DEFAULT_TO_QL_ID = '5f0ad13b-53ee-4869-a66f-4023cba821a7';
 const REPORT_MENU_ITEMS = [
   {
     id: 's2_lookup',
@@ -60,6 +62,25 @@ function defaultDropOptionValue(item) {
 
 function defaultDropOptionLabel(item) {
   return item?.TEN_DV ?? item?.TEN_OLT ?? item?.ten ?? item?.name ?? item?.label ?? item?.title ?? String(defaultDropOptionValue(item) || '');
+}
+
+function normalizePlainText(v) {
+  return String(v || '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+function pickDefaultToQlItem(list) {
+  const arr = Array.isArray(list) ? list : [];
+  if (!arr.length) return null;
+  const byDonviId = arr.find((item) => String(item?.donviId ?? item?.DONVI_ID ?? '') === DEFAULT_TO_QL_DONVI_ID);
+  if (byDonviId) return byDonviId;
+  const byId = arr.find((item) => String(item?.id ?? item?.value ?? '') === DEFAULT_TO_QL_ID);
+  if (byId) return byId;
+  const byLabel = arr.find((item) => normalizePlainText(defaultDropOptionLabel(item)).includes('nho quan'));
+  return byLabel || arr[0] || null;
 }
 
 const DropRow = memo(
@@ -1470,6 +1491,14 @@ export default function TraCuuSP2Page() {
     setS2LookupPage(1);
   }, [s2LookupRows, s2LookupPageSize]);
 
+  useEffect(() => {
+    if (!listToQL.length) return;
+    const exists = listToQL.some((item) => optionValue(item) === String(toQL || ''));
+    if (exists && toQL) return;
+    const def = pickDefaultToQlItem(listToQL);
+    if (def) setToQL(optionValue(def));
+  }, [listToQL, toQL]);
+
   /** Khi chưa có danh sách Tổ KT từ API nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
   useEffect(() => {
     if (!browseSnapshot?.toKyThuat?.length) return;
@@ -1477,10 +1506,7 @@ export default function TraCuuSP2Page() {
     const list = browseSnapshot.toKyThuat;
     setListToQL(list);
     setListError('');
-    const nhoQuan = list.find((item) => {
-      const label = optionLabel(item);
-      return label && String(label).toLowerCase().includes('nho quan');
-    });
+    const nhoQuan = pickDefaultToQlItem(list);
     if (nhoQuan != null) setToQL(optionValue(nhoQuan));
   }, [browseSnapshot, listToQL.length]);
 
@@ -1578,10 +1604,7 @@ export default function TraCuuSP2Page() {
       const listToQLFinal = resToQL.ok && rawToQL.length > 0 ? rawToQL : FALLBACK_TO_KY_THUAT;
       setListTtvt(listTtvtFinal);
       setListToQL(listToQLFinal);
-      const nhoQuan = listToQLFinal.find((item) => {
-        const label = optionLabel(item);
-        return label && String(label).toLowerCase().includes('nho quan');
-      });
+      const nhoQuan = pickDefaultToQlItem(listToQLFinal);
       if (nhoQuan != null) setToQL(optionValue(nhoQuan));
       if (!resTtvt.ok && !resToQL.ok && rawTtvt.length === 0 && rawToQL.length === 0) {
         const msg = dataTtvt?.message || dataToQL?.message;
@@ -1596,10 +1619,7 @@ export default function TraCuuSP2Page() {
       setListError(e.message || 'Lỗi tải danh sách.');
       setListTtvt(FALLBACK_TTVT_LIST);
       setListToQL(FALLBACK_TO_KY_THUAT);
-      const nhoQuan = FALLBACK_TO_KY_THUAT.find((item) => {
-        const label = optionLabel(item);
-        return label && String(label).toLowerCase().includes('nho quan');
-      });
+      const nhoQuan = pickDefaultToQlItem(FALLBACK_TO_KY_THUAT);
       if (nhoQuan != null) setToQL(optionValue(nhoQuan));
     } finally {
       setLoadingList(false);
