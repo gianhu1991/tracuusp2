@@ -24,6 +24,7 @@ export async function GET() {
       uploadedAt: String(payload.uploadedAt || ''),
       rows: Array.isArray(payload.rows) ? payload.rows : [],
       partialRecovery: Boolean(payload.partialRecovery),
+      emptyReason: typeof payload.emptyReason === 'string' ? payload.emptyReason : '',
     });
   } catch (err) {
     return NextResponse.json({ ok: false, message: err?.message || 'Lỗi server.', rows: [] }, { status: 500 });

@@ -952,7 +952,17 @@ export default function TraCuuSP2Page() {
       };
       setTbSharedMeta(meta);
       if (!rows.length) {
-        if (!silent) setTbParseMessage('Chưa có dữ liệu dùng chung trên server. Hãy upload 1 file Excel trên bất kỳ thiết bị nào.');
+        if (!silent) {
+          if (data.emptyReason === 'meta_no_rows') {
+            setTbParseMessage(
+              'Trên server vẫn còn bản ghi đồng bộ nhưng không còn dòng thuê bao đi kèm (có thể đã xóa tay hoặc lỗi lưu). Hãy upload lại file Excel.'
+            );
+          } else {
+            setTbParseMessage(
+              'Chưa có dữ liệu dùng chung trên server. Hãy upload 1 file Excel trên bất kỳ thiết bị nào (hoặc kiểm tra biến môi trường Supabase trên Vercel dùng đúng project có dữ liệu).'
+            );
+          }
+        }
         return;
       }
       setTbRows(rows);
