@@ -4,6 +4,9 @@ import {
   sp2ServerGetBrowseSnapshot,
   sp2ServerLookupS2Rows,
 } from '../../../lib/sp2-server-cache';
+import { getStoredAuth } from '../../../lib/auth-store';
+
+const DEFAULT_BACKEND_URL = 'https://api-onebss.vnpt.vn/web-ecms/tracuu/ds_splitter_theo_port_olt';
 
 function pickFirst(...vals) {
   for (const v of vals) {
@@ -146,6 +149,89 @@ function enrichPortRows(rows, maps) {
   });
 }
 
+function pickFirstDefined(item, keys) {
+  for (const key of keys) {
+    if (item?.[key] !== undefined && item?.[key] !== null && String(item[key]).trim() !== '') {
+      return item[key];
+    }
+  }
+  return undefined;
+}
+
+function normalizeS2Text(v) {
+  return String(v || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '');
+}
+
+function isCap2(item) {
+  const cap = item?.CAP_SP ?? item?.cap_sp ?? item?.Cap_Sp;
+  if (cap === undefined || cap === null) return false;
+  return cap === 2 || cap === '2' || Number(cap) === 2 || String(cap).trim() === '2';
+}
+
+function mapOnlineRowsForQuery(query, sourceRows = []) {
+  const queryNorm = normalizeS2Text(query);
+  return (Array.isArray(sourceRows) ? sourceRows : [])
+    .filter((item) => isCap2(item))
+    .map((item) => {
+      const toQL = String(
+        pickFirstDefined(item, ['TO_ID', 'TOKT_ID', 'DONVI_ID', 'toQL', 'to_id', 'tokt_id']) || ''
+      ).trim();
+      const veTinh = String(
+        pickFirstDefined(item, ['TRAMTB_ID', 'TRAM_ID', 'veTinh', 'tramtb_id']) || ''
+      ).trim();
+      const thietBiOlt = String(
+        pickFirstDefined(item, ['OLT_ID', 'THIETBI_ID', 'thietBiOlt', 'olt_id']) || ''
+      ).trim();
+      const cardOlt = String(
+        pickFirstDefined(item, ['CARDOLT_ID', 'CARD_ID', 'SLOT_ID', 'cardOlt']) || ''
+      ).trim();
+      const portOlt = String(
+        pickFirstDefined(item, ['PORTVL_ID', 'PORT_ID', 'VITRI', 'portOlt']) || ''
+      ).trim();
+      const kyHieu = String(
+        pickFirstDefined(item, ['KYHIEU', 'KY_HIEU', 'ky_hieu', 'MA_SP', 'ID_SPLITTER']) || ''
+      ).trim();
+      const tenSplitter = String(
+        pickFirstDefined(item, ['TEN_KC', 'TEN_SPLITTER', 'TEN_SP', 'ten', 'name', 'TEN']) || ''
+      ).trim();
+      return {
+        queryS2: String(query || ''),
+        toQL,
+        veTinh,
+        thietBiOlt,
+        cardOlt,
+        portOlt,
+        kyHieu,
+        tenSplitter,
+        matchType: normalizeS2Text(kyHieu) === queryNorm || normalizeS2Text(tenSplitter) === queryNorm ? 'exact' : 'partial',
+        source: 'online',
+        cacheKey: '',
+      };
+    });
+}
+
+async function lookupOnlineByS2({ s2, authorization, backendUrl }) {
+  const payload = { ky_hieu: s2, dia_chi: null };
+  const res = await fetch(backendUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authorization ? { Authorization: authorization } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, message: data?.message || data?.error || `Online lookup failed (${res.status}).`, rows: [] };
+  }
+  let list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? data?.danhSach);
+  if (!Array.isArray(list)) list = [];
+  return { ok: true, rows: mapOnlineRowsForQuery(s2, list) };
+}
+
 export async function POST(request) {
   try {
     const configured = await sp2ServerConfigured();
@@ -166,14 +252,44 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, message: 'Danh sách S2 quá lớn. Tối đa 2000 dòng/lần tra cứu.', rows: [] }, { status: 400 });
     }
 
-    const lookupRes = await sp2ServerLookupS2Rows(cleaned);
-    if (!lookupRes.ok) {
-      return NextResponse.json({ ok: false, message: lookupRes.message || 'Lỗi tra cứu S2.', rows: [] }, { status: 500 });
+    const authFromHeader = (request.headers.get('Authorization') || request.headers.get('authorization') || '').trim();
+    const authStored = await getStoredAuth();
+    const authorization = authFromHeader || String(body?.authorization || '').trim() ||
+      process.env.ONE_BSS_AUTHORIZATION || process.env.AUTHORIZATION || process.env.TRACUU_AUTHORIZATION || authStored || '';
+    const backendUrl = process.env.BACKEND_URL || process.env.TRACUU_BACKEND_URL || DEFAULT_BACKEND_URL;
+    const onlineRows = [];
+    const needCacheSet = new Set(cleaned);
+
+    // Co Authorization: uu tien tra online truoc, cache chi fallback cho ma khong co ket qua online.
+    if (authorization) {
+      for (const code of cleaned) {
+        try {
+          const online = await lookupOnlineByS2({ s2: code, authorization, backendUrl });
+          if (!online.ok) continue;
+          if (Array.isArray(online.rows) && online.rows.length > 0) {
+            onlineRows.push(...online.rows);
+            needCacheSet.delete(code);
+          }
+        } catch {
+          // Neu online loi, se fallback cache ben duoi.
+        }
+      }
     }
 
+    let cacheRows = [];
+    const needCache = Array.from(needCacheSet);
+    if (needCache.length > 0) {
+      const lookupRes = await sp2ServerLookupS2Rows(needCache);
+      if (!lookupRes.ok) {
+        return NextResponse.json({ ok: false, message: lookupRes.message || 'Lỗi tra cứu S2.', rows: [] }, { status: 500 });
+      }
+      cacheRows = Array.isArray(lookupRes.rows) ? lookupRes.rows : [];
+    }
+
+    const mergedRows = [...onlineRows, ...cacheRows];
     const browseRes = await sp2ServerGetBrowseSnapshot();
     const maps = buildBrowseNameMaps(browseRes?.ok ? browseRes?.snapshot : null);
-    const rows = enrichPortRows(lookupRes.rows, maps);
+    const rows = enrichPortRows(mergedRows, maps);
     const foundSet = new Set(rows.map((r) => String(r?.queryS2 || '').trim()).filter(Boolean));
     const notFound = cleaned.filter((item) => !foundSet.has(item));
     return NextResponse.json({ ok: true, rows, notFound });

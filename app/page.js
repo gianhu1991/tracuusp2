@@ -1817,14 +1817,15 @@ export default function TraCuuSP2Page() {
     } catch (_) {}
   };
 
-  const handleDongBoToanBo = async () => {
-    const auth = (authorization && authorization.trim()) || '';
+  const startFullSync = async ({ authOverride = '', adminPasswordOverride = '' } = {}) => {
+    const auth = (authOverride && authOverride.trim()) || (authorization && authorization.trim()) || '';
+    if (syncRunning) return { skipped: true };
     setListError('');
     syncAbortRef.current = new AbortController();
     setSyncRunning(true);
     setSyncProgress({ phase: 'scan', done: 0, total: 0, label: 'Đang chuẩn bị…' });
     try {
-      const pwd = adminPasswordForSync.trim();
+      const pwd = (adminPasswordOverride && adminPasswordOverride.trim()) || adminPasswordForSync.trim();
       const result = await runFullSp2Sync({
         auth,
         signal: syncAbortRef.current.signal,
@@ -1848,14 +1849,20 @@ export default function TraCuuSP2Page() {
       } else if (result.errors > 0) {
         setListError(`Đồng bộ xong với ${result.errors} lỗi (tra cứu API) trên ${result.total} port. Có thể chạy lại.`);
       }
+      return { skipped: false, result };
     } catch (err) {
       LOG('Đồng bộ toàn bộ', err);
       setListError(err.message || 'Lỗi đồng bộ toàn bộ.');
+      return { skipped: false, error: err };
     } finally {
       setSyncRunning(false);
       syncAbortRef.current = null;
       setSyncProgress(null);
     }
+  };
+
+  const handleDongBoToanBo = async () => {
+    await startFullSync();
   };
 
   const handleSaveToServer = async (e) => {
@@ -1870,10 +1877,33 @@ export default function TraCuuSP2Page() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
+        const syncAuth = authorization?.trim() || '';
+        const syncAdminPwd = adminPasswordForServer?.trim() || '';
         setSaveToServerStatus('ok');
-        setSaveToServerMessage(data.message || 'Đã lưu.');
+        setSaveToServerMessage('Đã lưu. Đang tự động đồng bộ dữ liệu S2...');
         setAdminPasswordForServer('');
         setShowSettings(false);
+        if (!syncRunning && syncAuth) {
+          startFullSync({ authOverride: syncAuth, adminPasswordOverride: syncAdminPwd })
+            .then((r) => {
+              if (r?.skipped) {
+                setSaveToServerMessage('Đã lưu. Đồng bộ đang chạy sẵn, tiếp tục dùng tra cứu bình thường.');
+                return;
+              }
+              if (r?.error) {
+                setSaveToServerMessage(`Đã lưu nhưng tự đồng bộ lỗi: ${r.error?.message || 'Không xác định'}`);
+                return;
+              }
+              setSaveToServerMessage('Đã lưu và tự động đồng bộ hoàn tất. Bạn vẫn có thể tra cứu trong lúc đồng bộ.');
+            })
+            .catch((syncErr) => {
+              setSaveToServerMessage(`Đã lưu nhưng tự đồng bộ lỗi: ${syncErr?.message || 'Không xác định'}`);
+            });
+        } else if (!syncAuth) {
+          setSaveToServerMessage('Đã lưu. Không thể tự đồng bộ vì Authorization đang trống.');
+        } else {
+          setSaveToServerMessage('Đã lưu. Đồng bộ đang chạy sẵn, tiếp tục dùng tra cứu bình thường.');
+        }
       } else {
         setSaveToServerStatus('error');
         setSaveToServerMessage(data.message || 'Không lưu được.');
