@@ -23,6 +23,7 @@ export async function GET() {
       fileName: String(payload.fileName || ''),
       uploadedAt: String(payload.uploadedAt || ''),
       rows: Array.isArray(payload.rows) ? payload.rows : [],
+      partialRecovery: Boolean(payload.partialRecovery),
     });
   } catch (err) {
     return NextResponse.json({ ok: false, message: err?.message || 'Lỗi server.', rows: [] }, { status: 500 });

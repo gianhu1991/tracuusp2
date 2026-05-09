@@ -976,8 +976,11 @@ export default function TraCuuSP2Page() {
       }
       const timeText = meta.uploadedAt ? new Date(meta.uploadedAt).toLocaleString('vi-VN') : '';
       if (!silent) {
+        const base = `Đã tải ${rows.length} thuê bao từ dữ liệu dùng chung${timeText ? ` (${timeText})` : ''}.`;
         setTbParseMessage(
-          `Đã tải ${rows.length} thuê bao từ dữ liệu dùng chung${timeText ? ` (${timeText})` : ''}.`
+          data.partialRecovery
+            ? `${base} Upload trước chưa chốt trên server — chỉ còn phần đã lưu (có thể upload lại để đồng bộ đủ).`
+            : base
         );
       }
     } catch (e) {
