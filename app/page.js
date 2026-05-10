@@ -410,6 +410,21 @@ export default function TraCuuSP2Page() {
     }
   }, []);
 
+  /** Phiên sessionStorage không có cookie httpOnly → đồng bộ lại trạng thái khóa. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) !== '1') return;
+    fetch('/api/admin/unlock', { credentials: 'include', cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.gateEnabled && !data?.unlocked) {
+          setAuthUnlocked(false);
+          sessionStorage.removeItem(STORAGE_AUTH_UNLOCKED);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => () => clearSyncProgressTimer(), []);
 
   useEffect(() => {
@@ -420,6 +435,11 @@ export default function TraCuuSP2Page() {
       setUnlockToOpenReport(false);
       if (typeof window !== 'undefined') sessionStorage.removeItem(STORAGE_AUTH_UNLOCKED);
       setAuthPasswordError('Phiên đã hết hạn. Vui lòng thử lại.');
+      fetch('/api/admin/lock', { method: 'POST', credentials: 'include' }).catch(() => {});
+      setTbUploadGate((g) => ({
+        ...g,
+        status: g.gateEnabled ? 'locked' : 'unlocked',
+      }));
     }, AUTH_AUTO_LOCK_MS);
     return () => clearTimeout(t);
   }, [authUnlocked]);
@@ -1004,28 +1024,40 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  /** Cùng API/mật khẩu với Cài đặt / Báo cáo (`UNLOCK_PASSWORD`); đặt cookie httpOnly cho upload TB. */
+  const unlockAdminWithPassword = async (password) => {
+    try {
+      const res = await fetch('/api/admin/unlock', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) {
+        return { ok: false, message: String(j?.message || 'Không thể mở khóa.') };
+      }
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, message: err?.message || 'Không xác thực được.' };
+    }
+  };
+
   const submitTbUploadGate = async (e) => {
     e.preventDefault();
     setTbUploadGateError('');
     setTbUploadGateSubmitting(true);
     try {
-      const res = await fetch('/api/tb-upload-auth', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: tbUploadGatePassword }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.ok) {
-        setTbUploadGateError(String(data?.message || 'Không mở khóa được.'));
+      const data = await unlockAdminWithPassword(tbUploadGatePassword);
+      if (!data.ok) {
+        setTbUploadGateError(data.message);
         return;
       }
       setTbUploadGateError('');
       setTbUploadGatePassword('');
-      setTbUploadGate({
-        status: 'unlocked',
-        gateEnabled: data.gateEnabled !== false,
-      });
+      setAuthUnlocked(true);
+      if (typeof window !== 'undefined') sessionStorage.setItem(STORAGE_AUTH_UNLOCKED, '1');
+      setTbUploadGate({ status: 'unlocked', gateEnabled: true });
     } catch {
       setTbUploadGateError('Lỗi mạng khi gửi mật khẩu.');
     } finally {
@@ -1444,7 +1476,7 @@ export default function TraCuuSP2Page() {
     let cancelled = false;
     setTbUploadGate({ status: 'checking', gateEnabled: false });
     setTbUploadGateError('');
-    fetch('/api/tb-upload-auth', { credentials: 'include', cache: 'no-store' })
+    fetch('/api/admin/unlock', { credentials: 'include', cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
@@ -2021,14 +2053,9 @@ export default function TraCuuSP2Page() {
     setAuthPasswordError('');
     setAuthUnlocking(true);
     try {
-      const res = await fetch('/api/admin/unlock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: authPasswordInput }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j.ok) {
-        setAuthPasswordError(j?.message || 'Không thể mở khóa.');
+      const r = await unlockAdminWithPassword(authPasswordInput);
+      if (!r.ok) {
+        setAuthPasswordError(r.message);
         return;
       }
       setAuthUnlocked(true);
@@ -2036,11 +2063,10 @@ export default function TraCuuSP2Page() {
       setShowReportPanel(Boolean(unlockToOpenReport));
       if (typeof window !== 'undefined') sessionStorage.setItem(STORAGE_AUTH_UNLOCKED, '1');
       setAuthPasswordInput('');
+      setTbUploadGate({ status: 'unlocked', gateEnabled: true });
       if (unlockToOpenReport) {
         setUnlockToOpenReport(false);
       }
-    } catch (err) {
-      setAuthPasswordError(err?.message || 'Không xác thực được.');
     } finally {
       setAuthUnlocking(false);
     }
@@ -2053,6 +2079,11 @@ export default function TraCuuSP2Page() {
     setShowReportMenu(false);
     setUnlockToOpenReport(false);
     if (typeof window !== 'undefined') sessionStorage.removeItem(STORAGE_AUTH_UNLOCKED);
+    fetch('/api/admin/lock', { method: 'POST', credentials: 'include' }).catch(() => {});
+    setTbUploadGate((g) => ({
+      ...g,
+      status: g.gateEnabled ? 'locked' : 'unlocked',
+    }));
   };
 
   const saveAuth = (value) => {
@@ -3585,7 +3616,7 @@ export default function TraCuuSP2Page() {
                   {tbUploadGate.gateEnabled && tbUploadGate.status === 'locked' && (
                     <form onSubmit={submitTbUploadGate} className="space-y-3 max-w-md">
                       <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                        Khu vực upload và đồng bộ file Excel TB được bảo vệ. Nhập mật khẩu để hiện menu chọn file, upload và tải dữ liệu chung.
+                        Khu vực này dùng <strong>cùng mã mở khóa</strong> với Cài đặt / Báo cáo. Nhập mã để hiện menu upload và đồng bộ dữ liệu chung — hoặc mở khóa từ Cài đặt trước rồi quay lại tab TB.
                       </p>
                       {tbUploadGateError ? (
                         <p className="text-[11px] sm:text-xs text-red-600">{tbUploadGateError}</p>

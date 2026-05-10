@@ -8,7 +8,7 @@ import {
   tbServerSaveSharedChunk,
   tbServerFinalizeSharedUpload,
 } from '../../../lib/tb-server-cache';
-import { assertTbUploadGateCookie, tbUploadGateCookieName } from '../../../lib/tb-upload-gate';
+import { assertAdminUnlockCookie, adminUnlockCookieName } from '../../../lib/admin-unlock-cookie';
 
 export async function GET() {
   try {
@@ -38,7 +38,7 @@ export async function POST(request) {
     if (!(await tbServerConfigured())) {
       return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
     }
-    const gate = assertTbUploadGateCookie(cookies().get(tbUploadGateCookieName())?.value);
+    const gate = assertAdminUnlockCookie(cookies().get(adminUnlockCookieName())?.value);
     if (!gate.ok) {
       return NextResponse.json({ ok: false, message: gate.message }, { status: 403 });
     }
