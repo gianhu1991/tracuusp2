@@ -1065,6 +1065,18 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  const handleTbUploadLock = async () => {
+    try {
+      await fetch('/api/admin/lock', { method: 'POST', credentials: 'include' });
+    } catch {
+      /* bỏ qua */
+    }
+    setTbUploadGate((g) => ({
+      ...g,
+      status: g.gateEnabled ? 'locked' : 'unlocked',
+    }));
+  };
+
   const loadTbTransferHistory = async ({ silent = true } = {}) => {
     if (!silent) setTbTransferLoading(true);
     try {
@@ -3609,39 +3621,67 @@ export default function TraCuuSP2Page() {
             <>
               <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0 space-y-4">
                 <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">Tra cứu thuê bao từ Excel</h2>
-                <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 space-y-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 space-y-3 relative">
+                  {tbUploadGate.gateEnabled && tbUploadGate.status === 'unlocked' ? (
+                    <button
+                      type="button"
+                      onClick={handleTbUploadLock}
+                      title="Khóa lại khu vực upload (trên trình duyệt này)"
+                      aria-label="Khóa upload TB"
+                      className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10 inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-800 touch-manipulation"
+                    >
+                      <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </button>
+                  ) : null}
                   {tbUploadGate.status === 'checking' && (
                     <p className="text-xs sm:text-sm text-slate-600 py-2">Đang kiểm tra quyền upload...</p>
                   )}
                   {tbUploadGate.gateEnabled && tbUploadGate.status === 'locked' && (
-                    <form onSubmit={submitTbUploadGate} className="space-y-3 max-w-md">
-                      <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                        Khu vực này dùng <strong>cùng mã mở khóa</strong> với Cài đặt / Báo cáo. Nhập mã để hiện menu upload và đồng bộ dữ liệu chung — hoặc mở khóa từ Cài đặt trước rồi quay lại tab TB.
-                      </p>
+                    <form
+                      onSubmit={submitTbUploadGate}
+                      className="space-y-4 max-w-md mx-auto py-4 sm:py-6 px-1"
+                    >
+                      <div className="text-center space-y-1.5">
+                        <h3 className="text-base sm:text-lg font-semibold text-slate-800 leading-snug">
+                          Nhập mật khẩu để Upload dữ liệu mới
+                        </h3>
+                        <p className="text-[11px] sm:text-xs text-slate-500">Cùng mã mở khóa với Cài đặt / Báo cáo.</p>
+                      </div>
                       {tbUploadGateError ? (
-                        <p className="text-[11px] sm:text-xs text-red-600">{tbUploadGateError}</p>
+                        <p className="text-[11px] sm:text-xs text-red-600 text-center">{tbUploadGateError}</p>
                       ) : null}
-                      <label className="block text-[11px] sm:text-xs font-semibold text-slate-600">Mật khẩu</label>
-                      <input
-                        type="password"
-                        autoComplete="current-password"
-                        value={tbUploadGatePassword}
-                        onChange={(e) => setTbUploadGatePassword(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 min-h-[40px]"
-                        placeholder="Nhập mật khẩu"
-                      />
-                      <button
-                        type="submit"
-                        disabled={tbUploadGateSubmitting || !tbUploadGatePassword.trim()}
-                        className="inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-4 py-2 text-xs sm:text-sm font-medium hover:bg-sky-700 min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {tbUploadGateSubmitting ? 'Đang xác nhận...' : 'Mở khóa upload'}
-                      </button>
+                      <div className="space-y-2">
+                        <label className="sr-only" htmlFor="tb-upload-gate-password">
+                          Mật khẩu
+                        </label>
+                        <input
+                          id="tb-upload-gate-password"
+                          type="password"
+                          autoComplete="current-password"
+                          value={tbUploadGatePassword}
+                          onChange={(e) => setTbUploadGatePassword(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 min-h-[44px]"
+                          placeholder="Mật khẩu"
+                        />
+                        <button
+                          type="submit"
+                          disabled={tbUploadGateSubmitting || !tbUploadGatePassword.trim()}
+                          className="w-full inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {tbUploadGateSubmitting ? 'Đang xác nhận...' : 'Xác nhận'}
+                        </button>
+                      </div>
                     </form>
                   )}
                   {(tbUploadGate.status === 'unlocked' || !tbUploadGate.gateEnabled) && tbUploadGate.status !== 'checking' ? (
                     <>
-                      <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
+                      <p
+                        className={`text-[11px] sm:text-xs text-slate-600 leading-relaxed ${
+                          tbUploadGate.gateEnabled ? 'pr-11 sm:pr-14' : ''
+                        }`}
+                      >
                         File cần có tiêu đề cột: <strong>STT</strong>, <strong>Acount</strong>, <strong>Tên KH</strong>, <strong>Địa chỉ</strong>, <strong>Số ĐT</strong>, <strong>OLT</strong>, <strong>SLot</strong>, <strong>PORT</strong>, <strong>Nhân viên QL</strong>.
                         Bắt buộc nhận diện được: Nhân viên QL, OLT, SLOT, PORT.
                       </p>
