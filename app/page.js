@@ -3685,37 +3685,35 @@ export default function TraCuuSP2Page() {
                   {tbUploadPanelExpanded && tbUploadGate.status !== 'checking' ? (
                     <div id="tb-upload-panel-body" className="space-y-3 pt-2 border-t border-slate-200/90">
                   {tbUploadGate.gateEnabled && tbUploadGate.status === 'locked' && (
-                    <form
-                      onSubmit={submitTbUploadGate}
-                      className="space-y-4 max-w-md mx-auto py-2 sm:py-4 px-1"
-                    >
-                      <p className="text-center text-[11px] sm:text-xs text-slate-500">
-                        Cùng mã mở khóa với Cài đặt / Báo cáo.
-                      </p>
-                      {tbUploadGateError ? (
-                        <p className="text-[11px] sm:text-xs text-red-600 text-center">{tbUploadGateError}</p>
-                      ) : null}
-                      <div className="space-y-2">
-                        <label className="sr-only" htmlFor="tb-upload-gate-password">
-                          Mật khẩu
+                    <form onSubmit={submitTbUploadGate} className="space-y-3 max-w-xs py-2 sm:py-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5" htmlFor="tb-upload-gate-password">
+                          Nhập mật khẩu để Upload dữ liệu mới
                         </label>
+                        <p className="text-[11px] text-slate-500 leading-snug">Cùng mã mở khóa với Cài đặt / Báo cáo.</p>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <input
                           id="tb-upload-gate-password"
                           type="password"
                           autoComplete="current-password"
                           value={tbUploadGatePassword}
-                          onChange={(e) => setTbUploadGatePassword(e.target.value)}
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 min-h-[44px]"
-                          placeholder="Mật khẩu"
+                          onChange={(e) => {
+                            setTbUploadGatePassword(e.target.value);
+                            setTbUploadGateError('');
+                          }}
+                          placeholder="Mã mở khóa"
+                          className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 placeholder-slate-400 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
                         />
                         <button
                           type="submit"
                           disabled={tbUploadGateSubmitting || !tbUploadGatePassword.trim()}
-                          className="w-full inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="rounded-lg bg-sky-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-700 min-h-[44px] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {tbUploadGateSubmitting ? 'Đang xác nhận...' : 'Xác nhận'}
+                          {tbUploadGateSubmitting ? 'Đang kiểm tra…' : 'Xác nhận'}
                         </button>
                       </div>
+                      {tbUploadGateError ? <p className="text-xs text-red-600">{tbUploadGateError}</p> : null}
                     </form>
                   )}
                   {(tbUploadGate.status === 'unlocked' || !tbUploadGate.gateEnabled) && tbUploadGate.status !== 'checking' ? (
