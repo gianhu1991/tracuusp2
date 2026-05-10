@@ -3627,22 +3627,23 @@ export default function TraCuuSP2Page() {
           ) : (
             <>
               <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0 space-y-4">
-                <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">Tra cứu thuê bao từ Excel</h2>
-                <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 space-y-2">
-                  {tbUploadGate.status === 'checking' ? (
-                    <p className="text-xs sm:text-sm text-slate-600 py-2 px-1">Đang kiểm tra quyền upload...</p>
-                  ) : (
-                    <div className="flex items-center gap-1 sm:gap-2 min-h-[44px]">
+                <div className="flex items-center justify-between gap-2 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">
+                  <h2 className="text-sm sm:text-base font-semibold text-slate-800 min-w-0 flex-1 leading-snug pr-2">
+                    Tra cứu thuê bao từ Excel
+                  </h2>
+                  {tbUploadGate.status !== 'checking' ? (
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
                         aria-expanded={tbUploadPanelExpanded}
                         aria-controls="tb-upload-panel-body"
                         onClick={() => setTbUploadPanelExpanded((v) => !v)}
-                        title={tbUploadPanelExpanded ? 'Thu gọn' : 'Mở để upload / nhập mật khẩu'}
-                        className="shrink-0 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900 touch-manipulation"
+                        title={tbUploadPanelExpanded ? 'Thu gọn upload' : 'Mở upload hoặc nhập mật khẩu'}
+                        aria-label={tbUploadPanelExpanded ? 'Thu gọn' : 'Mở panel upload'}
+                        className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-50 hover:text-slate-900 touch-manipulation"
                       >
                         <svg
-                          className={`w-5 h-5 transition-transform duration-200 ${tbUploadPanelExpanded ? 'rotate-180' : ''}`}
+                          className={`w-4 h-4 transition-transform duration-200 ${tbUploadPanelExpanded ? 'rotate-180' : ''}`}
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -3650,19 +3651,6 @@ export default function TraCuuSP2Page() {
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
-                      </button>
-                      <button
-                        type="button"
-                        aria-expanded={tbUploadPanelExpanded}
-                        aria-controls="tb-upload-panel-body"
-                        onClick={() => setTbUploadPanelExpanded((v) => !v)}
-                        className="flex-1 text-left min-w-0 rounded-lg px-2 py-2 hover:bg-slate-100/70 transition-colors"
-                      >
-                        <span className="font-semibold text-slate-800 text-sm sm:text-base leading-snug">
-                          {tbUploadGate.gateEnabled && tbUploadGate.status === 'locked'
-                            ? 'Nhập mật khẩu để Upload dữ liệu mới'
-                            : 'Upload & đồng bộ dữ liệu Excel'}
-                        </span>
                       </button>
                       {tbUploadGate.gateEnabled && tbUploadGate.status === 'unlocked' ? (
                         <button
@@ -3673,24 +3661,28 @@ export default function TraCuuSP2Page() {
                           }}
                           title="Khóa lại khu vực upload (trên trình duyệt này)"
                           aria-label="Khóa upload TB"
-                          className="shrink-0 inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-800 touch-manipulation"
+                          className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-50 hover:text-slate-800 touch-manipulation"
                         >
-                          <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                           </svg>
                         </button>
                       ) : null}
                     </div>
-                  )}
-                  {tbUploadPanelExpanded && tbUploadGate.status !== 'checking' ? (
-                    <div id="tb-upload-panel-body" className="space-y-3 pt-2 border-t border-slate-200/90">
+                  ) : null}
+                </div>
+                {tbUploadGate.status === 'checking' ? (
+                  <p className="text-xs sm:text-sm text-slate-600 -mt-2">Đang kiểm tra quyền upload...</p>
+                ) : null}
+                {tbUploadPanelExpanded && tbUploadGate.status !== 'checking' ? (
+                  <div id="tb-upload-panel-body" className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 space-y-3">
                   {tbUploadGate.gateEnabled && tbUploadGate.status === 'locked' && (
                     <form onSubmit={submitTbUploadGate} className="space-y-3 max-w-xs py-2 sm:py-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1.5" htmlFor="tb-upload-gate-password">
-                          Nhập mật khẩu để Upload dữ liệu mới
+                          Mã mở khóa
                         </label>
-                        <p className="text-[11px] text-slate-500 leading-snug">Cùng mã mở khóa với Cài đặt / Báo cáo.</p>
+                        <p className="text-[11px] text-slate-500 leading-snug">Cùng mã với Cài đặt / Báo cáo.</p>
                       </div>
                       <div className="flex flex-col sm:flex-row gap-2">
                         <input
@@ -3791,7 +3783,6 @@ export default function TraCuuSP2Page() {
                   ) : null}
                     </div>
                   ) : null}
-                </div>
                 <form onSubmit={handleTbTraCuu} className="space-y-3">
                   {tbSharedLoading && tbRows.length === 0 && (
                     <p className="text-[11px] sm:text-xs text-amber-700">
