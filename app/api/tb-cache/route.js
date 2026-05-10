@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import {
   tbServerConfigured,
   tbServerGetSharedRows,
@@ -7,6 +8,7 @@ import {
   tbServerSaveSharedChunk,
   tbServerFinalizeSharedUpload,
 } from '../../../lib/tb-server-cache';
+import { assertTbUploadGateCookie, tbUploadGateCookieName } from '../../../lib/tb-upload-gate';
 
 export async function GET() {
   try {
@@ -35,6 +37,10 @@ export async function POST(request) {
   try {
     if (!(await tbServerConfigured())) {
       return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+    }
+    const gate = assertTbUploadGateCookie(cookies().get(tbUploadGateCookieName())?.value);
+    if (!gate.ok) {
+      return NextResponse.json({ ok: false, message: gate.message }, { status: 403 });
     }
     const body = await request.json().catch(() => ({}));
     const mode = String(body?.mode || '').trim().toLowerCase();

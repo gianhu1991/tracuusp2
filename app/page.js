@@ -366,6 +366,10 @@ export default function TraCuuSP2Page() {
   const [tbExporting, setTbExporting] = useState(false);
   const [tbSharedLoading, setTbSharedLoading] = useState(false);
   const [tbSharedMeta, setTbSharedMeta] = useState(null);
+  const [tbUploadGate, setTbUploadGate] = useState({ status: 'checking', gateEnabled: false });
+  const [tbUploadGatePassword, setTbUploadGatePassword] = useState('');
+  const [tbUploadGateError, setTbUploadGateError] = useState('');
+  const [tbUploadGateSubmitting, setTbUploadGateSubmitting] = useState(false);
   const tbFileInputRef = useRef(null);
   const syncAbortRef = useRef(null);
   const syncProgressLatestRef = useRef(null);
@@ -1000,6 +1004,35 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  const submitTbUploadGate = async (e) => {
+    e.preventDefault();
+    setTbUploadGateError('');
+    setTbUploadGateSubmitting(true);
+    try {
+      const res = await fetch('/api/tb-upload-auth', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: tbUploadGatePassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        setTbUploadGateError(String(data?.message || 'Không mở khóa được.'));
+        return;
+      }
+      setTbUploadGateError('');
+      setTbUploadGatePassword('');
+      setTbUploadGate({
+        status: 'unlocked',
+        gateEnabled: data.gateEnabled !== false,
+      });
+    } catch {
+      setTbUploadGateError('Lỗi mạng khi gửi mật khẩu.');
+    } finally {
+      setTbUploadGateSubmitting(false);
+    }
+  };
+
   const loadTbTransferHistory = async ({ silent = true } = {}) => {
     if (!silent) setTbTransferLoading(true);
     try {
@@ -1092,6 +1125,10 @@ export default function TraCuuSP2Page() {
   const handleTbExcelUpload = async () => {
     const file = tbSelectedFile;
     if (!file) return;
+    if (tbUploadGate.gateEnabled && tbUploadGate.status !== 'unlocked') {
+      setTbParseMessage('Vui lòng nhập mật khẩu để mở khóa khu vực upload.');
+      return;
+    }
     setTbUploading(true);
     setTbUploadProgress({ phase: 'Đang đọc file Excel...', current: 0, total: 1, percent: 0 });
     setTbFileName(file.name || '');
@@ -1183,6 +1220,7 @@ export default function TraCuuSP2Page() {
           const chunk = hydratedRows.slice(start, end);
           const saveRes = await fetch('/api/tb-cache', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               mode: 'chunk',
@@ -1400,6 +1438,35 @@ export default function TraCuuSP2Page() {
     refreshNoSp2Rows();
     refreshS2CapacityRows();
   }, []);
+
+  useEffect(() => {
+    if (activeMainModule !== TB_MODULE_TB) return undefined;
+    let cancelled = false;
+    setTbUploadGate({ status: 'checking', gateEnabled: false });
+    setTbUploadGateError('');
+    fetch('/api/tb-upload-auth', { credentials: 'include', cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (!data?.gateEnabled) {
+          setTbUploadGate({ status: 'unlocked', gateEnabled: false });
+          return;
+        }
+        setTbUploadGate({
+          status: data.unlocked ? 'unlocked' : 'locked',
+          gateEnabled: true,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTbUploadGate({ status: 'locked', gateEnabled: true });
+          setTbUploadGateError('Không kiểm tra được khóa upload. Thử tải lại trang.');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMainModule]);
 
   useEffect(() => {
     if (activeMainModule !== TB_MODULE_TB) return;
@@ -3512,75 +3579,108 @@ export default function TraCuuSP2Page() {
               <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0 space-y-4">
                 <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">Tra cứu thuê bao từ Excel</h2>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 space-y-3">
-                  <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                    File cần có tiêu đề cột: <strong>STT</strong>, <strong>Acount</strong>, <strong>Tên KH</strong>, <strong>Địa chỉ</strong>, <strong>Số ĐT</strong>, <strong>OLT</strong>, <strong>SLot</strong>, <strong>PORT</strong>, <strong>Nhân viên QL</strong>.
-                    Bắt buộc nhận diện được: Nhân viên QL, OLT, SLOT, PORT.
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      ref={tbFileInputRef}
-                      type="file"
-                      accept=".xlsx,.xls"
-                      onChange={handleTbFileSelect}
-                      className="block w-full sm:w-auto rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm text-slate-700 min-h-[40px] file:mr-3 file:rounded-md file:border-0 file:bg-sky-100 file:px-2.5 file:py-1.5 file:text-xs file:font-semibold file:text-sky-700 hover:file:bg-sky-200"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleTbExcelUpload}
-                      disabled={!tbSelectedFile || tbUploading}
-                      className="inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-sky-700 min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {tbUploading ? 'Đang upload...' : 'Upload'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDownloadTbMau}
-                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]"
-                    >
-                      Tải file mẫu
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => loadTbSharedRows()}
-                      disabled={tbSharedLoading}
-                      className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs sm:text-sm font-medium text-violet-700 hover:bg-violet-100 min-h-[40px] disabled:opacity-50"
-                    >
-                      {tbSharedLoading ? 'Đang tải dữ liệu chung…' : 'Tải dữ liệu chung'}
-                    </button>
-                    {tbFileName && <span className="text-[11px] text-slate-500 w-full sm:w-auto">File: {tbFileName}</span>}
-                    {tbSharedMeta?.uploadedAt && (
-                      <span className="text-[11px] text-slate-500 w-full">
-                        Dữ liệu chung cập nhật: {new Date(tbSharedMeta.uploadedAt).toLocaleString('vi-VN')}
-                        {tbSharedMeta.fileName ? ` · ${tbSharedMeta.fileName}` : ''}
-                      </span>
-                    )}
-                  </div>
-                  {tbUploadProgress && (
-                    <div className="space-y-1">
-                      <p className="text-[11px] sm:text-xs text-sky-700">
-                        {tbUploadProgress.phase}
-                        {tbUploadProgress.total > 1 ? ` ${tbUploadProgress.current}/${tbUploadProgress.total} chunk` : ''}
-                        {typeof tbUploadProgress.percent === 'number' ? ` (${tbUploadProgress.percent}%)` : ''}
+                  {tbUploadGate.status === 'checking' && (
+                    <p className="text-xs sm:text-sm text-slate-600 py-2">Đang kiểm tra quyền upload...</p>
+                  )}
+                  {tbUploadGate.gateEnabled && tbUploadGate.status === 'locked' && (
+                    <form onSubmit={submitTbUploadGate} className="space-y-3 max-w-md">
+                      <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
+                        Khu vực upload và đồng bộ file Excel TB được bảo vệ. Nhập mật khẩu để hiện menu chọn file, upload và tải dữ liệu chung.
                       </p>
-                      <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-                        <div
-                          className="h-full bg-sky-600 transition-all"
-                          style={{ width: `${Math.max(0, Math.min(100, Number(tbUploadProgress.percent || 0)))}%` }}
+                      {tbUploadGateError ? (
+                        <p className="text-[11px] sm:text-xs text-red-600">{tbUploadGateError}</p>
+                      ) : null}
+                      <label className="block text-[11px] sm:text-xs font-semibold text-slate-600">Mật khẩu</label>
+                      <input
+                        type="password"
+                        autoComplete="current-password"
+                        value={tbUploadGatePassword}
+                        onChange={(e) => setTbUploadGatePassword(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 min-h-[40px]"
+                        placeholder="Nhập mật khẩu"
+                      />
+                      <button
+                        type="submit"
+                        disabled={tbUploadGateSubmitting || !tbUploadGatePassword.trim()}
+                        className="inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-4 py-2 text-xs sm:text-sm font-medium hover:bg-sky-700 min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {tbUploadGateSubmitting ? 'Đang xác nhận...' : 'Mở khóa upload'}
+                      </button>
+                    </form>
+                  )}
+                  {(tbUploadGate.status === 'unlocked' || !tbUploadGate.gateEnabled) && tbUploadGate.status !== 'checking' ? (
+                    <>
+                      <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
+                        File cần có tiêu đề cột: <strong>STT</strong>, <strong>Acount</strong>, <strong>Tên KH</strong>, <strong>Địa chỉ</strong>, <strong>Số ĐT</strong>, <strong>OLT</strong>, <strong>SLot</strong>, <strong>PORT</strong>, <strong>Nhân viên QL</strong>.
+                        Bắt buộc nhận diện được: Nhân viên QL, OLT, SLOT, PORT.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          ref={tbFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleTbFileSelect}
+                          className="block w-full sm:w-auto rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm text-slate-700 min-h-[40px] file:mr-3 file:rounded-md file:border-0 file:bg-sky-100 file:px-2.5 file:py-1.5 file:text-xs file:font-semibold file:text-sky-700 hover:file:bg-sky-200"
                         />
+                        <button
+                          type="button"
+                          onClick={handleTbExcelUpload}
+                          disabled={!tbSelectedFile || tbUploading}
+                          className="inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-sky-700 min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {tbUploading ? 'Đang upload...' : 'Upload'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDownloadTbMau}
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]"
+                        >
+                          Tải file mẫu
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => loadTbSharedRows()}
+                          disabled={tbSharedLoading}
+                          className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs sm:text-sm font-medium text-violet-700 hover:bg-violet-100 min-h-[40px] disabled:opacity-50"
+                        >
+                          {tbSharedLoading ? 'Đang tải dữ liệu chung…' : 'Tải dữ liệu chung'}
+                        </button>
+                        {tbFileName && <span className="text-[11px] text-slate-500 w-full sm:w-auto">File: {tbFileName}</span>}
+                        {tbSharedMeta?.uploadedAt && (
+                          <span className="text-[11px] text-slate-500 w-full">
+                            Dữ liệu chung cập nhật: {new Date(tbSharedMeta.uploadedAt).toLocaleString('vi-VN')}
+                            {tbSharedMeta.fileName ? ` · ${tbSharedMeta.fileName}` : ''}
+                          </span>
+                        )}
                       </div>
-                    </div>
-                  )}
-                  {tbParseMessage && (
-                    <p
-                      className={`text-[11px] sm:text-xs ${
-                        /Thiếu|Lỗi|Không đọc|Chỉ hỗ trợ|Không có dòng|File không|Chưa có thuê bao nào được chuyển/i.test(tbParseMessage)
-                          ? 'text-red-600'
-                          : 'text-emerald-800'
-                      }`}
-                    >
-                      {tbParseMessage}
-                    </p>
-                  )}
+                      {tbUploadProgress && (
+                        <div className="space-y-1">
+                          <p className="text-[11px] sm:text-xs text-sky-700">
+                            {tbUploadProgress.phase}
+                            {tbUploadProgress.total > 1 ? ` ${tbUploadProgress.current}/${tbUploadProgress.total} chunk` : ''}
+                            {typeof tbUploadProgress.percent === 'number' ? ` (${tbUploadProgress.percent}%)` : ''}
+                          </p>
+                          <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
+                            <div
+                              className="h-full bg-sky-600 transition-all"
+                              style={{ width: `${Math.max(0, Math.min(100, Number(tbUploadProgress.percent || 0)))}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {tbParseMessage && (
+                        <p
+                          className={`text-[11px] sm:text-xs ${
+                            /Thiếu|Lỗi|Không đọc|Chỉ hỗ trợ|Không có dòng|File không|Chưa có thuê bao nào được chuyển|mật khẩu|mở khóa/i.test(tbParseMessage)
+                              ? 'text-red-600'
+                              : 'text-emerald-800'
+                          }`}
+                        >
+                          {tbParseMessage}
+                        </p>
+                      )}
+                    </>
+                  ) : null}
                 </div>
                 <form onSubmit={handleTbTraCuu} className="space-y-3">
                   {tbSharedLoading && tbRows.length === 0 && (
