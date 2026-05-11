@@ -2280,10 +2280,14 @@ export default function TraCuuSP2Page() {
         return;
       }
 
-      // Neu co Authorization thi uu tien goi API truoc, cache chi la fallback.
-      if (authTrim && !boQuaCache) {
+      // Uu tien goi API truoc (Authorization tren client neu co; server /api/tracuu con lay tu getStoredAuth / env).
+      // Cache chung / cache cuc bo chi la fallback khi API loi hoac khong co du lieu hop le.
+      if (!boQuaCache) {
         try {
-          const headers = { 'Content-Type': 'application/json', Authorization: authTrim };
+          const headers = {
+            'Content-Type': 'application/json',
+            ...(authTrim ? { Authorization: authTrim } : {}),
+          };
           const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
           const data = await res.json().catch(() => ({}));
           LOG('Tra cứu', 'Response (API ưu tiên)', { status: res.status, ok: res.ok, data });
