@@ -58,12 +58,16 @@ export async function POST(request) {
     let res = await doFetch(authorization);
     let data = await res.json().catch(() => ({}));
 
+    const envelopeBad = (d) =>
+      !Array.isArray(d) && d != null && typeof d === 'object' && !oneBssEnvelopeOk(d);
+
+    /** Giống /api/danh-sach: token trên client hết hạn nhưng server còn token khác → thử lại. */
     const needRetry =
       authFromHeader &&
       authStoredTrim &&
       authStoredTrim !== authFromHeader &&
-      (!res.ok || !oneBssEnvelopeOk(data)) &&
-      oneBssLooksLikeSessionOrAuthError(res.status, data);
+      (!res.ok || envelopeBad(data)) &&
+      (oneBssLooksLikeSessionOrAuthError(res.status, data) || envelopeBad(data));
 
     if (needRetry) {
       console.log('[TracuuSP2 API tracuu] Thử lại với Authorization từ server (token client có thể đã hết hạn)');
@@ -93,6 +97,41 @@ export async function POST(request) {
         { status: res.status }
       );
     }
+
+    /**
+     * OneBSS thường HTTP 200 nhưng error !== "200" hoặc message kiểu "hết hạn".
+     * Trước đây route vẫn trả 200 → client tưởng thành công và không fallback cache/Supabase.
+     */
+    if (envelopeBad(data)) {
+      console.log('[TracuuSP2 API tracuu] Envelope OneBSS lỗi — trả 400 để client dùng cache', {
+        error: data?.error,
+        message: data?.message,
+      });
+      return NextResponse.json(
+        {
+          message:
+            data.message ||
+            data.message_detail ||
+            data.error ||
+            'Lỗi OneBSS (phiên có thể đã hết hạn).',
+        },
+        { status: 400 }
+      );
+    }
+    if (oneBssLooksLikeSessionOrAuthError(res.status, data)) {
+      console.log('[TracuuSP2 API tracuu] Nội dung giống lỗi phiên — trả 400 để client dùng cache');
+      return NextResponse.json(
+        {
+          message:
+            data.message ||
+            data.message_detail ||
+            data.error ||
+            'Phiên đăng nhập không hợp lệ.',
+        },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(Array.isArray(data) ? listCap2 : { ...data, data: listCap2 });
   } catch (err) {
     console.log('[TracuuSP2 API tracuu] Exception', err?.message, err);

@@ -2280,6 +2280,24 @@ export default function TraCuuSP2Page() {
         return;
       }
 
+      // Chưa nhập Authorization trên trình duyệt: ưu tiên cache (vẫn tra cứu được khi token để trống nếu đã đồng bộ).
+      if (!boQuaCache && !authTrim) {
+        const srvFirst = await fetchServerPortCache(keyBody);
+        if (srvFirst !== undefined && srvFirst !== null) {
+          const hint =
+            srvFirst.length === 0 ? null : 'Đang dùng cache chung (chưa nhập Authorization trên trình duyệt).';
+          setKetQua({ data: srvFirst, message: hint, fromCache: 'server' });
+          return;
+        }
+        const localFirst = await getPortCache(cacheKey, fp);
+        if (localFirst !== null) {
+          const hint =
+            localFirst.length === 0 ? null : 'Đang dùng cache trình duyệt (chưa nhập Authorization trên trình duyệt).';
+          setKetQua({ data: localFirst, message: hint, fromCache: 'local' });
+          return;
+        }
+      }
+
       // Uu tien goi API truoc (Authorization tren client neu co; server /api/tracuu con lay tu getStoredAuth / env).
       // Cache chung / cache cuc bo chi la fallback khi API loi hoac khong co du lieu hop le.
       if (!boQuaCache) {
@@ -2330,7 +2348,10 @@ export default function TraCuuSP2Page() {
         }
       }
 
-      const headers = { 'Content-Type': 'application/json', Authorization: authTrim };
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(authTrim ? { Authorization: authTrim } : {}),
+      };
       const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({}));
       LOG('Tra cứu', 'Response', { status: res.status, ok: res.ok, data });
