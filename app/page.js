@@ -2280,25 +2280,7 @@ export default function TraCuuSP2Page() {
         return;
       }
 
-      // Chưa nhập Authorization trên trình duyệt: ưu tiên cache (vẫn tra cứu được khi token để trống nếu đã đồng bộ).
-      if (!boQuaCache && !authTrim) {
-        const srvFirst = await fetchServerPortCache(keyBody);
-        if (srvFirst !== undefined && srvFirst !== null) {
-          const hint =
-            srvFirst.length === 0 ? null : 'Đang dùng cache chung (chưa nhập Authorization trên trình duyệt).';
-          setKetQua({ data: srvFirst, message: hint, fromCache: 'server' });
-          return;
-        }
-        const localFirst = await getPortCache(cacheKey, fp);
-        if (localFirst !== null) {
-          const hint =
-            localFirst.length === 0 ? null : 'Đang dùng cache trình duyệt (chưa nhập Authorization trên trình duyệt).';
-          setKetQua({ data: localFirst, message: hint, fromCache: 'local' });
-          return;
-        }
-      }
-
-      // Uu tien goi API truoc (Authorization tren client neu co; server /api/tracuu con lay tu getStoredAuth / env).
+      // Ưu tiên gọi API: client gửi Authorization nếu có; không có thì /api/tracuu vẫn dùng token Supabase (đồng bộ) hoặc biến môi trường — mọi máy tra được giống nhau sau khi quản trị đã lưu token lên server. Cache chỉ dùng khi API lỗi hoặc không có dữ liệu hợp lệ (nhánh fallback bên dưới).
       // Cache chung / cache cuc bo chi la fallback khi API loi hoac khong co du lieu hop le.
       if (!boQuaCache) {
         try {
