@@ -2,6 +2,7 @@
 
 import { memo, useState, useEffect, useRef } from 'react';
 import { authFingerprint, getPortCache, getSyncMeta, sp2CacheKey } from '../lib/sp2-local-cache';
+import { authorizationSeemsUnexpired } from '../lib/authorization-expiry';
 import { runFullSp2Sync } from '../lib/sp2-full-sync';
 
 const PLACEHOLDER = '';
@@ -17,6 +18,8 @@ const FALLBACK_TO_KY_THUAT = [
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
+/** Đồng bộ S2 định kỳ khi token còn hạn (JWT). */
+const AUTH_AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_TO_QL_DONVI_ID = '1002689'; // Tổ Kỹ thuật Địa bàn Nho Quan
 const DEFAULT_TO_QL_ID = '5f0ad13b-53ee-4869-a66f-4023cba821a7';
 const REPORT_MENU_ITEMS = [
@@ -373,6 +376,8 @@ export default function TraCuuSP2Page() {
   const [tbUploadPanelExpanded, setTbUploadPanelExpanded] = useState(false);
   const tbFileInputRef = useRef(null);
   const syncAbortRef = useRef(null);
+  const syncRunningRef = useRef(false);
+  const startFullSyncRef = useRef(null);
   const syncProgressLatestRef = useRef(null);
   const syncProgressTimerRef = useRef(null);
   const syncProgressLastAtRef = useRef(0);
@@ -427,6 +432,10 @@ export default function TraCuuSP2Page() {
   }, []);
 
   useEffect(() => () => clearSyncProgressTimer(), []);
+
+  useEffect(() => {
+    syncRunningRef.current = syncRunning;
+  }, [syncRunning]);
 
   useEffect(() => {
     if (!authUnlocked) return;
@@ -2067,6 +2076,22 @@ export default function TraCuuSP2Page() {
     });
   }, [browseSnapshot, cardOlt]);
 
+  /** Đồng bộ toàn bộ S2 mỗi 5 phút khi JWT Authorization còn hạn; tab ẩn thì bỏ qua tick. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const authTrim = (authorization || '').trim();
+    if (!authorizationSeemsUnexpired(authTrim)) return undefined;
+    const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (syncRunningRef.current) return;
+      const latest = (typeof window !== 'undefined' && localStorage.getItem(STORAGE_AUTH)) || '';
+      if (!authorizationSeemsUnexpired(String(latest).trim())) return;
+      const fn = startFullSyncRef.current;
+      if (typeof fn === 'function') void Promise.resolve(fn()).catch(() => {});
+    }, AUTH_AUTO_SYNC_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [authorization]);
+
   const handleUnlockAuth = async (e) => {
     e.preventDefault();
     setAuthPasswordError('');
@@ -2163,6 +2188,8 @@ export default function TraCuuSP2Page() {
       setSyncProgress(null);
     }
   };
+
+  startFullSyncRef.current = startFullSync;
 
   const handleDongBoToanBo = async () => {
     await startFullSync();
@@ -2679,6 +2706,9 @@ export default function TraCuuSP2Page() {
                     <p className="text-xs font-semibold text-slate-700">Đồng bộ toàn bộ S2 &amp; cache tra cứu</p>
                     <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
                       Quét Tổ KT → Trạm → OLT → Card → Port. Số port lớn có thể mất nhiều phút.
+                    </p>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Nếu Authorization là JWT còn hạn, trang sẽ tự chạy đồng bộ lại mỗi 5 phút (chỉ khi tab đang hiển thị; không chạy trùng lúc đang đồng bộ tay).
                     </p>
                     <div className="max-w-lg">
                       <label className="block text-[11px] sm:text-xs text-slate-600">
