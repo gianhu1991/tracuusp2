@@ -8,6 +8,7 @@ import {
   authHeadersForOneBss,
   getAuthAddressFromJwt,
 } from '../lib/authorization-expiry';
+import { formatProposalCoord, getNvDiaBanOptions } from '../lib/s2-proposal-nv-list';
 import { runFullSp2Sync } from '../lib/sp2-full-sync';
 
 const PLACEHOLDER = '';
@@ -76,22 +77,6 @@ const REPORT_MENU_ITEMS = [
     description: 'Danh sÃ¡ch Ä‘á» xuáº¥t cáº£i táº¡o S2 kÃ¨m Ä‘á»‹a chá»‰ vÃ  tá»a Ä‘á»™ GPS lÃºc ghi nháº­n.',
   },
 ];
-
-/** Danh sÃ¡ch NV Ä‘á»‹a bÃ n (cÃ³ thá»ƒ ghi Ä‘Ã¨ báº±ng NEXT_PUBLIC_S2_PROPOSAL_NV_LIST, phÃ¢n tÃ¡ch báº±ng dáº¥u pháº©y). */
-function getNvDiaBanOptions() {
-  const raw = typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_S2_PROPOSAL_NV_LIST : '';
-  const fromEnv = String(raw || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (fromEnv.length) return fromEnv;
-  return [
-    'Nguyá»…n VÄƒn A â€” Äá»‹a bÃ n Nho Quan',
-    'Tráº§n VÄƒn B â€” Äá»‹a bÃ n Nho Quan',
-    'LÃª VÄƒn C â€” Äá»‹a bÃ n Gia Viá»…n',
-    'Pháº¡m VÄƒn D â€” Äá»‹a bÃ n Gia Viá»…n',
-  ];
-}
 
 function getCurrentPositionAsync() {
   return new Promise((resolve, reject) => {
@@ -3815,29 +3800,41 @@ export default function TraCuuSP2Page() {
                             <p className="text-[11px] text-slate-500">ChÆ°a cÃ³ Ä‘á» xuáº¥t. Tra cá»©u S2 vÃ  báº¥m Â«Äá» xuáº¥tÂ» cáº¡nh nÃºt Copy.</p>
                           ) : (
                             <div className="overflow-x-auto -mx-1 px-1 max-h-[420px]">
-                              <table className="min-w-[720px] text-[11px] w-full">
+                              <table className="min-w-[960px] text-[11px] w-full">
                                 <thead>
                                   <tr className="border-b border-slate-200 text-slate-600">
                                     <th className="text-left py-1 pr-2 font-semibold">STT</th>
-                                    <th className="text-left py-1 px-2 font-semibold">TÃªn Spliter cáº¥p 2</th>
-                                    <th className="text-left py-1 px-2 font-semibold">Äá»‹a chá»‰</th>
-                                    <th className="text-left py-1 pl-2 font-semibold">Tá»a Ä‘á»™</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Tên Spliter cấp 2</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Địa chỉ</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Long</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Lat</th>
+                                    <th className="text-left py-1 px-2 font-semibold">NV địa bàn</th>
+                                    <th className="text-left py-1 pl-2 font-semibold">Nội dung đề xuất</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {s2Proposals.map((row, idx) => (
                                     <tr key={row.id || idx} className="border-b border-slate-100 text-slate-700">
-                                      <td className="py-1.5 pr-2">{idx + 1}</td>
-                                      <td className="py-1.5 px-2 break-words max-w-[220px]">{row.tenSp2 || 'â€”'}</td>
-                                      <td className="py-1.5 px-2 break-words max-w-[200px]">{row.diaChi || 'â€”'}</td>
-                                      <td className="py-1.5 pl-2 whitespace-nowrap">{row.toaDo || 'â€”'}</td>
+                                      <td className="py-1.5 pr-2 align-top">{idx + 1}</td>
+                                      <td className="py-1.5 px-2 break-words max-w-[200px] align-top">{row.tenSp2 || '—'}</td>
+                                      <td className="py-1.5 px-2 break-words max-w-[160px] align-top">{row.diaChi || '—'}</td>
+                                      <td className="py-1.5 px-2 whitespace-nowrap align-top font-mono text-[10px]">
+                                        {formatProposalCoord(row.longitude)}
+                                      </td>
+                                      <td className="py-1.5 px-2 whitespace-nowrap align-top font-mono text-[10px]">
+                                        {formatProposalCoord(row.latitude)}
+                                      </td>
+                                      <td className="py-1.5 px-2 break-words max-w-[120px] align-top">{row.tenNvDiaBan || '—'}</td>
+                                      <td className="py-1.5 pl-2 break-words max-w-[240px] align-top">{row.deXuat || '—'}</td>
                                     </tr>
                                   ))}
                                 </tbody>
                               </table>
                             </div>
                           )}
-                          <p className="text-[10px] text-slate-500 mt-2">Tá»a Ä‘á»™ = GPS lÃºc LÆ°u. Äá»‹a chá»‰ tá»« JWT Authorization.</p>
+                          <p className="text-[10px] text-slate-500 mt-2">
+                            Long/Lat = GPS lúc bấm Lưu. Địa chỉ từ JWT Authorization.
+                          </p>
                         </>
                       ) : activeReportId === 'tb_chuyen_dia_ban' ? (
                         <>
