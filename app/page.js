@@ -625,6 +625,17 @@ export default function TraCuuSP2Page() {
   }, [showReportMenu]);
 
   useEffect(() => {
+    if (typeof document === 'undefined' || !showReportMenu) return;
+    const mq = window.matchMedia('(max-width: 639px)');
+    if (!mq.matches) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [showReportMenu]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
@@ -3002,9 +3013,9 @@ export default function TraCuuSP2Page() {
       )}
       <div className={`w-full max-w-[1600px] mx-auto min-h-0 flex flex-col sm:min-h-[calc(100vh-2rem)] ${syncRunning && syncProgress ? 'pt-[88px] sm:pt-[100px]' : ''}`}>
         {/* Card chính - vừa màn hình mobile */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-slate-200/80 overflow-hidden flex-1 flex flex-col min-h-0 sm:min-h-[80vh]">
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-slate-200/80 flex-1 flex flex-col min-h-0 sm:min-h-[80vh] overflow-hidden">
           {/* Header - gọn trên mobile */}
-          <div className="bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-3 sm:px-8 sm:py-6 shrink-0">
+          <div className="bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-3 sm:px-8 sm:py-6 shrink-0 overflow-visible relative z-30">
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
               <div className="min-w-0 flex-1 pr-0 sm:pr-2">
                 <h1 className="text-base sm:text-2xl font-bold text-white tracking-tight sm:truncate">
@@ -3053,27 +3064,50 @@ export default function TraCuuSP2Page() {
                     </svg>
                   </button>
                   {showReportMenu && (
-                    <div className="absolute left-0 right-0 sm:left-auto sm:right-0 mt-2 w-auto sm:w-[290px] sm:max-w-[92vw] rounded-xl border border-slate-200 bg-white shadow-xl z-20">
-                      <div className="py-1">
-                        {REPORT_MENU_ITEMS.map((item) => (
+                    <>
+                      <div
+                        className="fixed inset-0 z-[90] bg-black/35 sm:hidden"
+                        aria-hidden
+                        onClick={() => setShowReportMenu(false)}
+                      />
+                      <div
+                        className="fixed z-[100] inset-x-0 bottom-0 max-h-[min(85dvh,32rem)] overflow-y-auto overscroll-y-contain rounded-t-2xl border border-slate-200 border-b-0 bg-white shadow-2xl sm:absolute sm:z-50 sm:inset-x-auto sm:bottom-auto sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[min(320px,92vw)] sm:max-h-[min(70vh,28rem)] sm:rounded-xl sm:border-b"
+                        role="menu"
+                        aria-label="Danh sách báo cáo"
+                      >
+                        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-slate-100 bg-white px-3 py-2.5 sm:hidden">
+                          <p className="text-sm font-semibold text-slate-800">Chọn báo cáo</p>
                           <button
-                            key={item.id}
                             type="button"
-                            onClick={() => {
-                              setActiveReportId(item.id);
-                              setShowReportMenu(false);
-                              setShowSettings(true);
-                              setShowReportPanel(true);
-                              setUnlockToOpenReport(false);
-                            }}
-                            className={`w-full text-left px-3 py-2.5 hover:bg-slate-50 ${activeReportId === item.id ? 'bg-sky-50' : ''}`}
+                            onClick={() => setShowReportMenu(false)}
+                            className="rounded-lg px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                            aria-label="Đóng menu báo cáo"
                           >
-                            <p className="text-xs font-semibold text-slate-700">{item.label}</p>
-                            <p className="text-[11px] text-slate-500 mt-0.5">{item.description}</p>
+                            Đóng
                           </button>
-                        ))}
+                        </div>
+                        <div className="py-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-1">
+                          {REPORT_MENU_ITEMS.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setActiveReportId(item.id);
+                                setShowReportMenu(false);
+                                setShowSettings(true);
+                                setShowReportPanel(true);
+                                setUnlockToOpenReport(false);
+                              }}
+                              className={`w-full text-left px-3 py-2.5 hover:bg-slate-50 active:bg-slate-100 ${activeReportId === item.id ? 'bg-sky-50' : ''}`}
+                            >
+                              <p className="text-xs font-semibold text-slate-700">{item.label}</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{item.description}</p>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    </>
                   )}
                 </div>
                 <button
