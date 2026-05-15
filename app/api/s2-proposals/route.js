@@ -27,7 +27,7 @@ export async function POST(request) {
     const tenSp2 = String(body?.tenSp2 || '').trim();
     const tenNvDiaBan = String(body?.tenNvDiaBan || '').trim();
     const deXuat = String(body?.deXuat || '').trim();
-    const diaChi = String(body?.diaChi || '').trim();
+    let diaChi = String(body?.diaChi || '').trim();
     const toaDo = String(body?.toaDo || '').trim();
     const latitude = body?.latitude == null || body?.latitude === '' ? null : Number(body.latitude);
     const longitude = body?.longitude == null || body?.longitude === '' ? null : Number(body.longitude);

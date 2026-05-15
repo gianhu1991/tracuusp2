@@ -2576,7 +2576,7 @@ export default function TraCuuSP2Page() {
     setProposalError('');
     try {
       const { latitude, longitude } = await getCurrentPositionAsync();
-      const diaChi = resolveAuthAddressForProposal();
+      const diaChiJwt = resolveAuthAddressForProposal();
       const toaDo = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
       const res = await fetch('/api/s2-proposals', {
         method: 'POST',
@@ -2585,7 +2585,7 @@ export default function TraCuuSP2Page() {
           tenSp2,
           tenNvDiaBan,
           deXuat,
-          diaChi,
+          diaChi: diaChiJwt,
           latitude,
           longitude,
           toaDo,
@@ -3924,7 +3924,7 @@ export default function TraCuuSP2Page() {
                             </div>
                           )}
                           <p className="text-[10px] text-slate-500 mt-2">
-                            Long/Lat = GPS lúc bấm Lưu. Địa chỉ từ JWT Authorization.
+                            Long/Lat = GPS lúc bấm Lưu. Địa chỉ lấy từ cache đồng bộ (DIACHI của S2) nếu có; nếu không thì từ JWT.
                           </p>
                         </>
                       ) : activeReportId === 'tb_chuyen_dia_ban' ? (
