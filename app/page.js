@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { memo, useState, useEffect, useRef } from 'react';
 import { authFingerprint, getPortCache, getSyncMeta, sp2CacheKey } from '../lib/sp2-local-cache';
@@ -224,7 +224,7 @@ function mergeBrowseOptions(prev, from, selectedValue) {
   const next = sanitizeSelectOptions(from);
   if (!next.length) return prev;
   const sel = String(selectedValue || '');
-  if (sel && next.some((item) => optionValue(item) === sel)) return next;
+  if (sel && next.some((item) => defaultDropOptionValue(item) === sel)) return next;
   return prev.length > 0 ? prev : next;
 }
 
