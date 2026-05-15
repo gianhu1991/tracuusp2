@@ -29,6 +29,8 @@ $$;
 
 Meta đồng bộ có thể ghi vào `app_config` (key `sp2_sync_meta`), tùy triển khai.
 
+Đề xuất cải tạo S2 lưu tại `app_config` (key `s2_renovation_proposals_v1`, JSON). Không cần tạo bảng mới nếu đã có `app_config`.
+
 ## Biến môi trường (Vercel)
 
 Thêm URL và khóa API Supabase theo **Project Settings → API** của project (Project URL, service role). Các biến bổ sung cho app do quản trị cấu hình trực tiếp trên Vercel, không liệt kê trong file này.
