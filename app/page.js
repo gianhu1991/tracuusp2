@@ -419,7 +419,13 @@ export default function TraCuuSP2Page() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setAuthorization(localStorage.getItem(STORAGE_AUTH) || '');
+      const raw = (localStorage.getItem(STORAGE_AUTH) || '').trim();
+      if (raw && !authorizationSeemsUnexpired(raw)) {
+        localStorage.removeItem(STORAGE_AUTH);
+        setAuthorization('');
+      } else {
+        setAuthorization(raw);
+      }
       setAuthUnlocked(sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) === '1');
     }
   }, []);
@@ -1676,7 +1682,9 @@ export default function TraCuuSP2Page() {
     if (nhoQuan != null) setToQL(optionValue(nhoQuan));
   }, [browseSnapshot, listToQL.length]);
 
-  /** @returns {Promise<undefined | null | unknown[]>} undefined=không dùng được server; null=chưa có dòng; mảng=đã cache */
+  /**
+   * @returns {Promise<{ kind: 'hit'|'miss'|'unconfigured'|'error', data?: unknown[], message?: string }>}
+   */
   async function fetchServerPortCache(keyBody) {
     try {
       const q = new URLSearchParams({
@@ -1687,13 +1695,20 @@ export default function TraCuuSP2Page() {
         portOlt: keyBody.portOlt || '',
       });
       const res = await fetch(`/api/sp2-cache?${q}`);
-      if (res.status === 503) return undefined;
       const j = await res.json().catch(() => ({}));
-      if (!j.ok) return undefined;
-      if (!j.hit) return null;
-      return Array.isArray(j.data) ? j.data : [];
-    } catch {
-      return undefined;
+      if (res.status === 503 || j?.message?.includes('Chưa cấu hình Supabase')) {
+        return {
+          kind: 'unconfigured',
+          message: j?.message || 'Chưa cấu hình Supabase trên server (kiểm tra biến môi trường Vercel).',
+        };
+      }
+      if (!j.ok) {
+        return { kind: 'error', message: j?.message || 'Lỗi đọc cache Supabase.' };
+      }
+      if (!j.hit) return { kind: 'miss' };
+      return { kind: 'hit', data: Array.isArray(j.data) ? j.data : [] };
+    } catch (e) {
+      return { kind: 'error', message: e?.message || 'Không kết nối được cache server.' };
     }
   }
 
@@ -2313,18 +2328,23 @@ export default function TraCuuSP2Page() {
 
       if (chiTrongCache) {
         const srv = await fetchServerPortCache(keyBody);
-        if (srv !== undefined && srv !== null) {
+        if (srv.kind === 'hit') {
+          const arr = srv.data ?? [];
           const message =
-            srv.length === 0
+            arr.length === 0
               ? 'Không có bản ghi trong cache chung (Supabase) cho port đã chọn.'
               : null;
-          setKetQua({ data: srv, message, fromCache: 'server' });
+          setKetQua({ data: arr, message, fromCache: 'server' });
+          return;
+        }
+        if (srv.kind === 'unconfigured') {
+          setLoi(srv.message || 'Chưa cấu hình Supabase trên server.');
           return;
         }
         const cached = await getPortCache(cacheKey, fp);
         if (cached === null) {
           setLoi(
-            'Chưa có dữ liệu đồng bộ cho bộ lọc này. Quản trị có thể chạy đồng bộ đầy đủ lên server, hoặc tắt «Chỉ tra cứu từ cache».'
+            'Chưa có dữ liệu đồng bộ cho bộ lọc này. Quản trị chạy «Đồng bộ toàn bộ S2» kèm mã ghi cache chung, hoặc tắt «Chỉ tra cứu từ cache».'
           );
           return;
         }
@@ -2339,25 +2359,30 @@ export default function TraCuuSP2Page() {
       const clientAuthValid = authorizationSeemsUnexpired(authTrim);
       const clientAuthExpired = !!(authTrim && !clientAuthValid);
       const noClientAuth = !authTrim;
+      let supabaseDiag = null;
 
-      /** Ưu tiên OneBSS khi JWT còn hạn; hết hạn / không có token trên máy → Supabase (dữ liệu đã đồng bộ). */
       const applyCacheFallback = async () => {
         const srv = await fetchServerPortCache(keyBody);
-        if (srv !== undefined && srv !== null) {
+        if (srv.kind === 'unconfigured' || srv.kind === 'error') {
+          supabaseDiag = srv.message || 'Không đọc được cache Supabase.';
+          return false;
+        }
+        if (srv.kind === 'hit') {
+          const arr = srv.data ?? [];
           const expiredHint =
             clientAuthExpired
-              ? srv.length === 0
+              ? arr.length === 0
                 ? 'Authorization đã hết hạn. Không có bản ghi trong cache Supabase cho port này.'
                 : 'Authorization đã hết hạn — đang dùng cache đồng bộ (Supabase).'
-              : noClientAuth && srv.length > 0
+              : noClientAuth && arr.length > 0
                 ? 'Đang dùng cache đồng bộ (Supabase) — không cần Authorization trên trình duyệt.'
                 : null;
           const cacheMsg =
-            srv.length === 0 && !clientAuthExpired
+            arr.length === 0 && !clientAuthExpired && !noClientAuth
               ? 'Không có bản ghi trong cache chung. Bật «Luôn gọi API» để hỏi lại OneBSS.'
               : null;
           const message = [expiredHint, apiFallbackNotice, cacheMsg].filter(Boolean).join(' ') || null;
-          setKetQua({ data: srv, message, fromCache: 'server' });
+          setKetQua({ data: arr, message, fromCache: 'server' });
           return true;
         }
         const cached = await getPortCache(cacheKey, fp);
@@ -2376,15 +2401,27 @@ export default function TraCuuSP2Page() {
         return false;
       };
 
-      /** Máy khác / sau deploy: chưa dán Authorization → đọc Supabase trước (nếu đã đồng bộ lên server). */
-      if (!boQuaCache && (clientAuthExpired || noClientAuth)) {
-        if (await applyCacheFallback()) return;
-        if (clientAuthExpired) {
+      const failWithoutCache = () => {
+        if (supabaseDiag) {
           setLoi(
-            'Authorization đã hết hạn và chưa có dữ liệu đồng bộ trên server cho port này. Quản trị cần đồng bộ S2 lên Supabase (có mã cache chung) hoặc cập nhật Authorization.'
+            `${supabaseDiag} Tra cứu không cần Authorization chỉ hoạt động khi đã cấu hình Supabase và đồng bộ dữ liệu lên server.`
           );
           return;
         }
+        if (clientAuthExpired) {
+          setLoi(
+            'Authorization đã hết hạn và chưa có dữ liệu đồng bộ trên Supabase cho port này. Quản trị cần «Đồng bộ toàn bộ S2» (có mã cache chung) hoặc cập nhật Authorization.'
+          );
+          return;
+        }
+        setLoi(
+          'Chưa có dữ liệu cache trên Supabase cho port đã chọn. Quản trị cần chạy «Đồng bộ toàn bộ S2» và nhập mã ghi cache chung — không chỉ đồng bộ trên một trình duyệt.'
+        );
+      };
+
+      /** Cache Supabase trước (trừ «Luôn gọi API») — máy khác / sau deploy không cần dán Authorization nếu đã đồng bộ. */
+      if (!boQuaCache) {
+        if (await applyCacheFallback()) return;
       }
 
       if (!boQuaCache && clientAuthValid) {
@@ -2416,6 +2453,34 @@ export default function TraCuuSP2Page() {
           apiFallbackNotice = err?.message || 'Không gọi được API, đã chuyển sang cache.';
         }
         if (await applyCacheFallback()) return;
+        failWithoutCache();
+        return;
+      }
+
+      if (!boQuaCache && !clientAuthValid) {
+        try {
+          const res = await fetch('/api/tracuu', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok) {
+            const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? []);
+            const arr = Array.isArray(list) ? list : [];
+            if (arr.length > 0) {
+              setKetQua({ data: arr, message: data?.message || null, fromCache: 'api' });
+              return;
+            }
+          } else {
+            apiFallbackNotice = data?.message || data?.error || `API lỗi (${res.status}).`;
+          }
+        } catch (err) {
+          apiFallbackNotice = err?.message || 'Không gọi được API.';
+        }
+        if (await applyCacheFallback()) return;
+        failWithoutCache();
+        return;
       }
 
       const headers = {
@@ -2426,12 +2491,15 @@ export default function TraCuuSP2Page() {
       const data = await res.json().catch(() => ({}));
       LOG('Tra cứu', 'Response', { status: res.status, ok: res.ok, data });
       if (!res.ok) {
+        if (await applyCacheFallback()) return;
         setLoi(data.message || data.error || 'Có lỗi khi tra cứu.');
         return;
       }
       const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? []);
-      const message = data?.message || (list.length === 0 ? 'Không có bản ghi nào. Thử chọn đủ Tổ KT, Trạm BTS, Thiết bị OLT, Port OLT và kiểm tra Authorization.' : null);
-      setKetQua({ data: Array.isArray(list) ? list : [], message, fromCache: 'api' });
+      const arr = Array.isArray(list) ? list : [];
+      if (arr.length === 0 && (await applyCacheFallback())) return;
+      const message = data?.message || (arr.length === 0 ? 'Không có bản ghi nào từ API.' : null);
+      setKetQua({ data: arr, message, fromCache: 'api' });
     } catch (err) {
       LOG('Tra cứu', 'Lỗi', err);
       setLoi(err.message || 'Lỗi kết nối.');
@@ -3633,8 +3701,18 @@ export default function TraCuuSP2Page() {
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">
-                  Dữ liệu lấy từ API hoặc cache. Có thể dùng tùy chọn bên dưới để ưu tiên nguồn dữ liệu.
+                  Mặc định đọc cache Supabase (nếu đã đồng bộ lên server). JWT còn hạn thì có thể gọi thêm OneBSS; bật «Luôn gọi API» để bỏ qua cache.
                 </p>
+                {serverSyncMeta?.lastSyncAt ? (
+                  <p className="text-[11px] text-emerald-700 mt-1">
+                    Cache chung: đồng bộ lúc {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
+                    {serverSyncMeta.lastSyncTotal != null ? ` — ${serverSyncMeta.lastSyncTotal} port` : ''}.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-amber-700 mt-1">
+                    Chưa có lịch sử đồng bộ trên Supabase. Máy khác chỉ tra được sau khi quản trị chạy «Đồng bộ toàn bộ S2» kèm mã ghi cache chung (không chỉ đồng bộ trên một trình duyệt).
+                  </p>
+                )}
               </div>
             </form>
             <div className="mt-2 flex flex-wrap items-center gap-2">
