@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStoredAuth } from '../../../lib/auth-store';
+import { pickAuthorizationForApi } from '../../../lib/authorization-expiry';
 import { oneBssEnvelopeOk, oneBssLooksLikeSessionOrAuthError } from '../../../lib/onebss-auth-retry';
 
 /** URL mặc định API tra cứu splitter theo port OLT - OneBSS VNPT */
@@ -40,8 +41,11 @@ export async function POST(request) {
     const authFromBody = String(body.authorization || '').trim();
     const authEnv =
       process.env.ONE_BSS_AUTHORIZATION || process.env.AUTHORIZATION || process.env.TRACUU_AUTHORIZATION || '';
-    let authorization =
-      authFromHeader || authFromBody || authEnv || authStoredTrim || '';
+    let authorization = pickAuthorizationForApi(
+      authFromHeader || authFromBody,
+      authStoredTrim,
+      authEnv
+    );
 
     const url = backendUrl.startsWith('http') ? backendUrl : DEFAULT_BACKEND_URL;
     console.log('[TracuuSP2 API tracuu] Request', { url, payload: Object.keys(payload), hasAuth: !!authorization });

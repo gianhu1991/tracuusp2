@@ -5,6 +5,7 @@ import {
   sp2ServerLookupS2Rows,
 } from '../../../lib/sp2-server-cache';
 import { getStoredAuth } from '../../../lib/auth-store';
+import { pickAuthorizationForApi } from '../../../lib/authorization-expiry';
 
 const DEFAULT_BACKEND_URL = 'https://api-onebss.vnpt.vn/web-ecms/tracuu/ds_splitter_theo_port_olt';
 
@@ -254,8 +255,13 @@ export async function POST(request) {
 
     const authFromHeader = (request.headers.get('Authorization') || request.headers.get('authorization') || '').trim();
     const authStored = await getStoredAuth();
-    const authorization = authFromHeader || String(body?.authorization || '').trim() ||
-      process.env.ONE_BSS_AUTHORIZATION || process.env.AUTHORIZATION || process.env.TRACUU_AUTHORIZATION || authStored || '';
+    const authEnv =
+      process.env.ONE_BSS_AUTHORIZATION || process.env.AUTHORIZATION || process.env.TRACUU_AUTHORIZATION || '';
+    const authorization = pickAuthorizationForApi(
+      authFromHeader || String(body?.authorization || '').trim(),
+      authStored,
+      authEnv
+    );
     const backendUrl = process.env.BACKEND_URL || process.env.TRACUU_BACKEND_URL || DEFAULT_BACKEND_URL;
     const onlineRows = [];
     const needCacheSet = new Set(cleaned);

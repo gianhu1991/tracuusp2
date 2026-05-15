@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStoredAuth } from '../../../lib/auth-store';
+import { authorizationSeemsUnexpired, pickAuthorizationForApi } from '../../../lib/authorization-expiry';
 import { oneBssEnvelopeOk, oneBssLooksLikeSessionOrAuthError } from '../../../lib/onebss-auth-retry';
 
 const BASE_ECMS = 'https://api-onebss.vnpt.vn/web-ecms';
@@ -114,8 +115,8 @@ export async function GET(request) {
     const authStored = await getStoredAuth();
     const authStoredTrim = (authStored || '').trim();
     const authEnvTrim = (authEnv || '').trim();
-    /** Ưu tiên header (token trên máy); nếu hết hạn sẽ thử lại bằng token lưu server. */
-    let auth = authHeader || authEnvTrim || authStoredTrim || '';
+  /** JWT client còn hạn → client; không thì token lưu server / env (máy khác không cần dán token). */
+    let auth = pickAuthorizationForApi(authHeader, authStoredTrim, authEnvTrim);
 
     if (!loai) {
       return NextResponse.json({ message: 'Thiếu loai' }, { status: 400 });
@@ -137,10 +138,11 @@ export async function GET(request) {
     let res = await callOneBssList({ auth, loai: loaiKey, toKyThuat, tramBts, olt, cardOlt });
     let data = await res.json().catch(() => ({}));
 
+    const clientHeaderExpired = authHeader && !authorizationSeemsUnexpired(authHeader);
     const needRetry =
       authHeader &&
       authStoredTrim &&
-      authStoredTrim !== authHeader &&
+      (authStoredTrim !== authHeader || clientHeaderExpired) &&
       (!res.ok || !oneBssEnvelopeOk(data)) &&
       oneBssLooksLikeSessionOrAuthError(res.status, data);
 

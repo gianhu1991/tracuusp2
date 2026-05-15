@@ -17,6 +17,14 @@ const FALLBACK_TO_KY_THUAT = [
 ];
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
+
+/** Chỉ gửi Authorization khi JWT còn hạn — tránh token hết hạn trong localStorage chặn cache chung. */
+function authHeadersForFetch(authValue) {
+  const trimmed = String(
+    authValue ?? (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') ?? ''
+  ).trim();
+  return authorizationSeemsUnexpired(trimmed) ? { Authorization: trimmed } : {};
+}
 const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
 /** Đồng bộ S2 định kỳ khi token còn hạn (JWT). */
 const AUTH_AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -1767,8 +1775,7 @@ export default function TraCuuSP2Page() {
     const urlToQL = '/api/danh-sach?loai=to_ky_thuat';
     LOG('loadDanhSach request', { urlTtvt, urlToQL, hasAuth: !!auth?.trim() });
     try {
-      const headers = { Authorization: (auth && auth.trim()) || '' };
-      const fetchOpts = { headers, cache: 'no-store' };
+      const fetchOpts = { headers: authHeadersForFetch(auth), cache: 'no-store' };
       const [resTtvt, resToQL] = await Promise.all([
         fetch(urlTtvt, fetchOpts),
         fetch(urlToQL, fetchOpts),
@@ -1845,10 +1852,15 @@ export default function TraCuuSP2Page() {
     setVeTinh('');
     setCardOlt('');
     setThietBiOlt('');
-    const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
+    const fromBrowseEarly = sanitizeSelectOptions(browseSnapshot?.tramByTo?.[toQL]);
+    if (fromBrowseEarly.length > 0) {
+      setListError('');
+      setListVeTinh(fromBrowseEarly);
+      return;
+    }
     const url = `/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`;
     LOG('VeTinh request', url, 'toQL', toQL);
-    fetch(url, { headers: { Authorization: auth.trim() }, cache: 'no-store' })
+    fetch(url, { headers: authHeadersForFetch(authorization), cache: 'no-store' })
       .then((r) => {
         LOG('VeTinh response', r.status, r.ok);
         return r.json().catch(() => ({})).then((data) => ({ ok: r.ok, status: r.status, data }));
@@ -1888,7 +1900,7 @@ export default function TraCuuSP2Page() {
         setListError(e.message || 'Lỗi tải danh sách Trạm BTS.');
         setListVeTinh([]);
       });
-  }, [toQL, authorization]);
+  }, [toQL, authorization, browseSnapshot]);
 
   // Chọn Trạm BTS → chỉ load danh sách Thiết bị OLT
   useEffect(() => {
@@ -1902,10 +1914,16 @@ export default function TraCuuSP2Page() {
     setThietBiOlt('');
     setListCardOlt([]);
     setCardOlt('');
-    const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
+    const oltBrowseKey = `${toQL}|${veTinh}`;
+    const fromBrowseEarlyOlt = sanitizeSelectOptions(browseSnapshot?.oltByTram?.[oltBrowseKey]);
+    if (fromBrowseEarlyOlt.length > 0) {
+      setListError('');
+      setListThietBiOlt(fromBrowseEarlyOlt);
+      return;
+    }
     const url = `/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
     LOG('OLT request', url, 'veTinh (DONVI_ID)', veTinh);
-    fetch(url, { headers: { Authorization: auth.trim() }, cache: 'no-store' })
+    fetch(url, { headers: authHeadersForFetch(authorization), cache: 'no-store' })
       .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         const listOlt = sanitizeSelectOptions(normaliseList(data));
@@ -1940,7 +1958,7 @@ export default function TraCuuSP2Page() {
         setListError(e.message || 'Lỗi tải OLT.');
         setListThietBiOlt([]);
       });
-  }, [veTinh, toQL, authorization]);
+  }, [veTinh, toQL, authorization, browseSnapshot]);
 
   // Chọn Thiết bị OLT → load danh sách Card OLT (body { id: THIETBI_ID })
   useEffect(() => {
@@ -1950,10 +1968,15 @@ export default function TraCuuSP2Page() {
       return;
     }
     setCardOlt('');
-    const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
+    const fromBrowseEarlyCard = browseSnapshot?.cardByOlt?.[thietBiOlt];
+    if (Array.isArray(fromBrowseEarlyCard) && fromBrowseEarlyCard.length > 0) {
+      setListError('');
+      setListCardOlt(fromBrowseEarlyCard);
+      return;
+    }
     const url = `/api/danh-sach?loai=card_olt&olt=${encodeURIComponent(thietBiOlt)}`;
     LOG('Card OLT request', url, 'thietBiOlt (THIETBI_ID)', thietBiOlt);
-    fetch(url, { headers: { Authorization: auth.trim() }, cache: 'no-store' })
+    fetch(url, { headers: authHeadersForFetch(authorization), cache: 'no-store' })
       .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         const list = normaliseList(data);
@@ -1985,7 +2008,7 @@ export default function TraCuuSP2Page() {
         setListError(e.message || 'Lỗi tải Card OLT.');
         setListCardOlt([]);
       });
-  }, [thietBiOlt, authorization]);
+  }, [thietBiOlt, authorization, browseSnapshot]);
 
   // Chọn Card OLT → load danh sách Port OLT từ API (layDsPortOltTheoCardOlt), không dùng danh sách cố định
   useEffect(() => {
@@ -1998,10 +2021,16 @@ export default function TraCuuSP2Page() {
     setPortOlt('');
     setLoadingPortOlt(true);
     setListPortOlt([]);
-    const auth = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') || '';
+    const fromBrowseEarlyPort = browseSnapshot?.portByCard?.[cardOlt];
+    if (Array.isArray(fromBrowseEarlyPort) && fromBrowseEarlyPort.length > 0) {
+      setListError('');
+      setListPortOlt(fromBrowseEarlyPort);
+      setLoadingPortOlt(false);
+      return;
+    }
     const url = `/api/danh-sach?loai=port_olt&cardOlt=${encodeURIComponent(cardOlt)}`;
     LOG('Port OLT request', url);
-    fetch(url, { headers: { Authorization: auth.trim() }, cache: 'no-store' })
+    fetch(url, { headers: authHeadersForFetch(authorization), cache: 'no-store' })
       .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         const list = normaliseList(data);
@@ -2033,7 +2062,7 @@ export default function TraCuuSP2Page() {
         setListPortOlt([]);
       })
       .finally(() => setLoadingPortOlt(false));
-  }, [cardOlt, authorization]);
+  }, [cardOlt, authorization, browseSnapshot]);
 
   useEffect(() => {
     const snap = browseSnapshot;
@@ -2307,59 +2336,77 @@ export default function TraCuuSP2Page() {
         return;
       }
 
-      // Ưu tiên gọi API: client gửi Authorization nếu có; không có thì /api/tracuu vẫn dùng token Supabase (đồng bộ) hoặc biến môi trường — mọi máy tra được giống nhau sau khi quản trị đã lưu token lên server. Cache chỉ dùng khi API lỗi hoặc không có dữ liệu hợp lệ (nhánh fallback bên dưới).
-      // Cache chung / cache cuc bo chi la fallback khi API loi hoac khong co du lieu hop le.
-      if (!boQuaCache) {
+      const clientAuthValid = authorizationSeemsUnexpired(authTrim);
+      const clientAuthExpired = !!(authTrim && !clientAuthValid);
+
+      /** Ưu tiên OneBSS (Authorization). JWT hết hạn trên trình duyệt → bỏ qua API, dùng Supabase. */
+      const applyCacheFallback = async () => {
+        const srv = await fetchServerPortCache(keyBody);
+        if (srv !== undefined && srv !== null) {
+          const expiredHint =
+            clientAuthExpired
+              ? srv.length === 0
+                ? 'Authorization đã hết hạn. Không có bản ghi trong cache Supabase cho port này.'
+                : 'Authorization đã hết hạn — đang dùng cache đồng bộ (Supabase).'
+              : null;
+          const cacheMsg =
+            srv.length === 0 && !clientAuthExpired
+              ? 'Không có bản ghi trong cache chung. Bật «Luôn gọi API» để hỏi lại OneBSS.'
+              : null;
+          const message = [expiredHint, apiFallbackNotice, cacheMsg].filter(Boolean).join(' ') || null;
+          setKetQua({ data: srv, message, fromCache: 'server' });
+          return true;
+        }
+        const cached = await getPortCache(cacheKey, fp);
+        if (cached !== null) {
+          const expiredHint = clientAuthExpired
+            ? 'Authorization đã hết hạn — đang dùng cache trình duyệt.'
+            : null;
+          const cacheMsg =
+            cached.length === 0 && !clientAuthExpired
+              ? 'Không có bản ghi trong bộ nhớ trình duyệt. Bật «Luôn gọi API» để hỏi lại server.'
+              : null;
+          const message = [expiredHint, apiFallbackNotice, cacheMsg].filter(Boolean).join(' ') || null;
+          setKetQua({ data: cached, message, fromCache: 'local' });
+          return true;
+        }
+        return false;
+      };
+
+      if (!boQuaCache && clientAuthExpired) {
+        if (await applyCacheFallback()) return;
+        setLoi(
+          'Authorization đã hết hạn và chưa có dữ liệu đồng bộ trên server cho port này. Quản trị cần đồng bộ S2 lên Supabase hoặc cập nhật Authorization.'
+        );
+        return;
+      }
+
+      if (!boQuaCache && !clientAuthExpired) {
         try {
           const headers = {
             'Content-Type': 'application/json',
-            ...(authTrim ? { Authorization: authTrim } : {}),
+            ...authHeadersForFetch(authTrim),
           };
           const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
           const data = await res.json().catch(() => ({}));
           LOG('Tra cứu', 'Response (API ưu tiên)', { status: res.status, ok: res.ok, data });
           if (res.ok) {
             const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? []);
-            const message = data?.message || (list.length === 0 ? 'Không có bản ghi nào từ API.' : null);
-            setKetQua({ data: Array.isArray(list) ? list : [], message, fromCache: 'api' });
+            const arr = Array.isArray(list) ? list : [];
+            const message = data?.message || (arr.length === 0 ? 'Không có bản ghi nào từ API.' : null);
+            setKetQua({ data: arr, message, fromCache: 'api' });
             return;
           }
           apiFallbackNotice = data?.message || data?.error || `API lỗi (${res.status}), đã chuyển sang cache.`;
         } catch (err) {
           apiFallbackNotice = err?.message || 'Không gọi được API, đã chuyển sang cache.';
         }
-      }
-
-      if (!boQuaCache) {
-        const srv = await fetchServerPortCache(keyBody);
-        if (srv !== undefined && srv !== null) {
-          const cacheMsg =
-            srv.length === 0
-              ? 'Không có bản ghi trong cache chung. Bật «Luôn gọi API» để hỏi lại OneBSS.'
-              : null;
-          const message = apiFallbackNotice
-            ? [apiFallbackNotice, cacheMsg].filter(Boolean).join(' ')
-            : cacheMsg;
-          setKetQua({ data: srv, message, fromCache: 'server' });
-          return;
-        }
-        const cached = await getPortCache(cacheKey, fp);
-        if (cached !== null) {
-          const cacheMsg =
-            cached.length === 0
-              ? 'Không có bản ghi trong bộ nhớ trình duyệt. Bật «Luôn gọi API» để hỏi lại server.'
-              : null;
-          const message = apiFallbackNotice
-            ? [apiFallbackNotice, cacheMsg].filter(Boolean).join(' ')
-            : cacheMsg;
-          setKetQua({ data: cached, message, fromCache: 'local' });
-          return;
-        }
+        if (await applyCacheFallback()) return;
       }
 
       const headers = {
         'Content-Type': 'application/json',
-        ...(authTrim ? { Authorization: authTrim } : {}),
+        ...authHeadersForFetch(authTrim),
       };
       const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({}));
