@@ -2378,8 +2378,8 @@ export default function TraCuuSP2Page() {
                 ? 'Đang dùng cache đồng bộ (Supabase) — không cần Authorization trên trình duyệt.'
                 : null;
           const cacheMsg =
-            arr.length === 0 && !clientAuthExpired && !noClientAuth
-              ? 'Không có bản ghi trong cache chung. Bật «Luôn gọi API» để hỏi lại OneBSS.'
+            arr.length === 0 && clientAuthValid && apiFallbackNotice
+              ? 'Không có bản ghi trong cache chung sau khi API không trả dữ liệu.'
               : null;
           const message = [expiredHint, apiFallbackNotice, cacheMsg].filter(Boolean).join(' ') || null;
           setKetQua({ data: arr, message, fromCache: 'server' });
@@ -2419,11 +2419,7 @@ export default function TraCuuSP2Page() {
         );
       };
 
-      /** Cache Supabase trước (trừ «Luôn gọi API») — máy khác / sau deploy không cần dán Authorization nếu đã đồng bộ. */
-      if (!boQuaCache) {
-        if (await applyCacheFallback()) return;
-      }
-
+      /** JWT còn hạn: OneBSS (Authorization) trước; lỗi hoặc hết hạn mới dùng Supabase. */
       if (!boQuaCache && clientAuthValid) {
         try {
           const headers = {
@@ -2457,27 +2453,8 @@ export default function TraCuuSP2Page() {
         return;
       }
 
+      /** Không có Authorization hoặc JWT hết hạn → chỉ Supabase (và cache trình duyệt), không gọi OneBSS bằng token client. */
       if (!boQuaCache && !clientAuthValid) {
-        try {
-          const res = await fetch('/api/tracuu', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (res.ok) {
-            const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? []);
-            const arr = Array.isArray(list) ? list : [];
-            if (arr.length > 0) {
-              setKetQua({ data: arr, message: data?.message || null, fromCache: 'api' });
-              return;
-            }
-          } else {
-            apiFallbackNotice = data?.message || data?.error || `API lỗi (${res.status}).`;
-          }
-        } catch (err) {
-          apiFallbackNotice = err?.message || 'Không gọi được API.';
-        }
         if (await applyCacheFallback()) return;
         failWithoutCache();
         return;
@@ -3701,7 +3678,7 @@ export default function TraCuuSP2Page() {
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">
-                  Mặc định đọc cache Supabase (nếu đã đồng bộ lên server). JWT còn hạn thì có thể gọi thêm OneBSS; bật «Luôn gọi API» để bỏ qua cache.
+                  Authorization (JWT) còn hạn → tra cứu OneBSS trước. Hết hạn hoặc không nhập → dùng cache Supabase (nếu đã đồng bộ). «Luôn gọi API» bỏ qua cache; «Chỉ tra cứu từ cache» không gọi API.
                 </p>
                 {serverSyncMeta?.lastSyncAt ? (
                   <p className="text-[11px] text-emerald-700 mt-1">
