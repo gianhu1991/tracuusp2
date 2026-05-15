@@ -160,6 +160,15 @@ function hasBrowseCatalog(snap) {
   return Array.isArray(snap.toKyThuat) && snap.toKyThuat.length > 0;
 }
 
+/** Cập nhật danh sách dropdown từ cache mà không đổi lựa chọn đang có. */
+function mergeBrowseOptions(prev, from, selectedValue) {
+  const next = sanitizeSelectOptions(from);
+  if (!next.length) return prev;
+  const sel = String(selectedValue || '');
+  if (sel && next.some((item) => optionValue(item) === sel)) return next;
+  return prev.length > 0 ? prev : next;
+}
+
 const DropRow = memo(
   function DropRowInner({ label, required, checked, onCheck, value, onChange, options, optionValue: ov, optionLabel: ol }) {
     return (
@@ -442,6 +451,10 @@ export default function TraCuuSP2Page() {
   const tbFileInputRef = useRef(null);
   const syncAbortRef = useRef(null);
   const syncRunningRef = useRef(false);
+  const catalogToQlRef = useRef('');
+  const catalogVeTinhRef = useRef('');
+  const catalogOltRef = useRef('');
+  const catalogCardRef = useRef('');
   const startFullSyncRef = useRef(null);
   const syncProgressLatestRef = useRef(null);
   const syncProgressTimerRef = useRef(null);
@@ -579,7 +592,7 @@ export default function TraCuuSP2Page() {
     if (typeof window === 'undefined') return undefined;
     const tick = () => {
       refreshServerMeta();
-      refreshBrowseSnapshot();
+      if (!syncRunningRef.current) refreshBrowseSnapshot();
     };
     tick();
     const id = window.setInterval(tick, 20000);
@@ -590,6 +603,15 @@ export default function TraCuuSP2Page() {
     browseSnapshotRef.current = browseSnapshot;
   }, [browseSnapshot]);
 
+  function browseSnapshotFingerprint(snap) {
+    if (!snap || snap.v !== 1) return '';
+    const tram = snap.tramByTo && typeof snap.tramByTo === 'object' ? Object.keys(snap.tramByTo).length : 0;
+    const olt = snap.oltByTram && typeof snap.oltByTram === 'object' ? Object.keys(snap.oltByTram).length : 0;
+    const card = snap.cardByOlt && typeof snap.cardByOlt === 'object' ? Object.keys(snap.cardByOlt).length : 0;
+    const port = snap.portByCard && typeof snap.portByCard === 'object' ? Object.keys(snap.portByCard).length : 0;
+    return `${tram}|${olt}|${card}|${port}`;
+  }
+
   async function refreshBrowseSnapshot() {
     try {
       const res = await fetch('/api/sp2-cache?browse=1');
@@ -598,8 +620,12 @@ export default function TraCuuSP2Page() {
         setBrowseSnapshot(null);
         return;
       }
-      if (j.snapshot && j.snapshot.v === 1) setBrowseSnapshot(j.snapshot);
-      else setBrowseSnapshot(null);
+      if (j.snapshot && j.snapshot.v === 1) {
+        setBrowseSnapshot((prev) => {
+          if (browseSnapshotFingerprint(prev) === browseSnapshotFingerprint(j.snapshot)) return prev;
+          return j.snapshot;
+        });
+      } else setBrowseSnapshot(null);
     } catch {
       setBrowseSnapshot(null);
     }
@@ -1927,21 +1953,29 @@ export default function TraCuuSP2Page() {
 
   useEffect(() => {
     if (!toQL) {
+      catalogToQlRef.current = '';
       setListVeTinh([]);
       setVeTinh('');
       setCardOlt('');
       setThietBiOlt('');
       return;
     }
-    setVeTinh('');
-    setCardOlt('');
-    setThietBiOlt('');
-    const snapNow = browseSnapshotRef.current ?? browseSnapshot;
+    const toQlChanged = catalogToQlRef.current !== toQL;
+    catalogToQlRef.current = toQL;
+    if (toQlChanged) {
+      catalogVeTinhRef.current = '';
+      catalogOltRef.current = '';
+      catalogCardRef.current = '';
+      setVeTinh('');
+      setCardOlt('');
+      setThietBiOlt('');
+    }
+    const snapNow = browseSnapshotRef.current;
     const fromBrowseInit = browseTramsForTo(snapNow, toQL);
     if (fromBrowseInit.length) {
-      setListVeTinh(fromBrowseInit);
-      setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
-    } else {
+      setListVeTinh((prev) => mergeBrowseOptions(prev, fromBrowseInit, toQlChanged ? '' : veTinh));
+      if (toQlChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+    } else if (toQlChanged) {
       setListVeTinh([]);
     }
     const url = `/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`;
@@ -1987,26 +2021,33 @@ export default function TraCuuSP2Page() {
         setListError(e.message || 'Lỗi tải danh sách Trạm BTS.');
         setListVeTinh([]);
       });
-  }, [toQL, authorization, browseSnapshot]);
+  }, [toQL, authorization]);
 
   // Chọn Trạm BTS → chỉ load danh sách Thiết bị OLT
   useEffect(() => {
     if (!veTinh) {
+      catalogVeTinhRef.current = '';
       setListThietBiOlt([]);
       setThietBiOlt('');
       setListCardOlt([]);
       setCardOlt('');
       return;
     }
-    setThietBiOlt('');
-    setListCardOlt([]);
-    setCardOlt('');
-    const snapNow = browseSnapshotRef.current ?? browseSnapshot;
+    const veTinhChanged = catalogVeTinhRef.current !== veTinh;
+    catalogVeTinhRef.current = veTinh;
+    if (veTinhChanged) {
+      catalogOltRef.current = '';
+      catalogCardRef.current = '';
+      setThietBiOlt('');
+      setListCardOlt([]);
+      setCardOlt('');
+    }
+    const snapNow = browseSnapshotRef.current;
     const fromBrowseInitOlt = browseOltsForTram(snapNow, toQL, veTinh);
     if (fromBrowseInitOlt.length) {
-      setListThietBiOlt(fromBrowseInitOlt);
-      setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
-    } else {
+      setListThietBiOlt((prev) => mergeBrowseOptions(prev, fromBrowseInitOlt, veTinhChanged ? '' : thietBiOlt));
+      if (veTinhChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+    } else if (veTinhChanged) {
       setListThietBiOlt([]);
     }
     const url = `/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
@@ -2044,22 +2085,28 @@ export default function TraCuuSP2Page() {
         setListError(e.message || 'Lỗi tải OLT.');
         setListThietBiOlt([]);
       });
-  }, [veTinh, toQL, authorization, browseSnapshot]);
+  }, [veTinh, toQL, authorization]);
 
   // Chọn Thiết bị OLT → load danh sách Card OLT (body { id: THIETBI_ID })
   useEffect(() => {
     if (!thietBiOlt) {
+      catalogOltRef.current = '';
       setListCardOlt([]);
       setCardOlt('');
       return;
     }
-    setCardOlt('');
-    const snapNowCard = browseSnapshotRef.current ?? browseSnapshot;
+    const oltChanged = catalogOltRef.current !== thietBiOlt;
+    catalogOltRef.current = thietBiOlt;
+    if (oltChanged) {
+      catalogCardRef.current = '';
+      setCardOlt('');
+    }
+    const snapNowCard = browseSnapshotRef.current;
     const fromBrowseInitCard = browseCardsForOlt(snapNowCard, thietBiOlt);
     if (fromBrowseInitCard.length) {
-      setListCardOlt(fromBrowseInitCard);
-      setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
-    } else {
+      setListCardOlt((prev) => mergeBrowseOptions(prev, fromBrowseInitCard, oltChanged ? '' : cardOlt));
+      if (oltChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+    } else if (oltChanged) {
       setListCardOlt([]);
     }
     const url = `/api/danh-sach?loai=card_olt&olt=${encodeURIComponent(thietBiOlt)}`;
@@ -2098,24 +2145,27 @@ export default function TraCuuSP2Page() {
         setListError(e.message || 'Lỗi tải Card OLT.');
         setListCardOlt([]);
       });
-  }, [thietBiOlt, authorization, browseSnapshot]);
+  }, [thietBiOlt, authorization]);
 
   // Chọn Card OLT → load danh sách Port OLT từ API (layDsPortOltTheoCardOlt), không dùng danh sách cố định
   useEffect(() => {
     if (!cardOlt) {
+      catalogCardRef.current = '';
       setListPortOlt([]);
       setPortOlt('');
       setLoadingPortOlt(false);
       return;
     }
-    setPortOlt('');
+    const cardChanged = catalogCardRef.current !== cardOlt;
+    catalogCardRef.current = cardOlt;
+    if (cardChanged) setPortOlt('');
     setLoadingPortOlt(true);
-    const snapNowPort = browseSnapshotRef.current ?? browseSnapshot;
+    const snapNowPort = browseSnapshotRef.current;
     const fromBrowseInitPort = browsePortsForCard(snapNowPort, cardOlt);
     if (fromBrowseInitPort.length) {
-      setListPortOlt(fromBrowseInitPort);
-      setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
-    } else {
+      setListPortOlt((prev) => mergeBrowseOptions(prev, fromBrowseInitPort, cardChanged ? '' : portOlt));
+      if (cardChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+    } else if (cardChanged) {
       setListPortOlt([]);
     }
     const url = `/api/danh-sach?loai=port_olt&cardOlt=${encodeURIComponent(cardOlt)}`;
@@ -2154,35 +2204,36 @@ export default function TraCuuSP2Page() {
         setListPortOlt([]);
       })
       .finally(() => setLoadingPortOlt(false));
-  }, [cardOlt, authorization, browseSnapshot]);
+  }, [cardOlt, authorization]);
 
+  /** Cache danh mục tăng dần khi đồng bộ — chỉ bổ sung option, không reset Trạm/OLT đang chọn. */
   useEffect(() => {
     if (!toQL || !browseSnapshot) return;
     const from = browseTramsForTo(browseSnapshot, toQL);
     if (!from.length) return;
-    setListVeTinh((prev) => (prev.length > 0 ? prev : from));
-  }, [browseSnapshot, toQL]);
+    setListVeTinh((prev) => mergeBrowseOptions(prev, from, veTinh));
+  }, [browseSnapshot, toQL, veTinh]);
 
   useEffect(() => {
     if (!toQL || !veTinh || !browseSnapshot) return;
     const from = browseOltsForTram(browseSnapshot, toQL, veTinh);
     if (!from.length) return;
-    setListThietBiOlt((prev) => (prev.length > 0 ? prev : from));
-  }, [browseSnapshot, toQL, veTinh]);
+    setListThietBiOlt((prev) => mergeBrowseOptions(prev, from, thietBiOlt));
+  }, [browseSnapshot, toQL, veTinh, thietBiOlt]);
 
   useEffect(() => {
     if (!thietBiOlt || !browseSnapshot) return;
     const from = browseCardsForOlt(browseSnapshot, thietBiOlt);
     if (!from.length) return;
-    setListCardOlt((prev) => (prev.length > 0 ? prev : from));
-  }, [browseSnapshot, thietBiOlt]);
+    setListCardOlt((prev) => mergeBrowseOptions(prev, from, cardOlt));
+  }, [browseSnapshot, thietBiOlt, cardOlt]);
 
   useEffect(() => {
     if (!cardOlt || !browseSnapshot) return;
     const from = browsePortsForCard(browseSnapshot, cardOlt);
     if (!from.length) return;
-    setListPortOlt((prev) => (prev.length > 0 ? prev : from));
-  }, [browseSnapshot, cardOlt]);
+    setListPortOlt((prev) => mergeBrowseOptions(prev, from, portOlt));
+  }, [browseSnapshot, cardOlt, portOlt]);
 
   /** Đồng bộ toàn bộ S2 mỗi 5 phút khi JWT Authorization còn hạn; tab ẩn thì bỏ qua tick. */
   useEffect(() => {
