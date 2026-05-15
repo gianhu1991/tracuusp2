@@ -435,6 +435,7 @@ export default function TraCuuSP2Page() {
   const [s2ProposalsLoading, setS2ProposalsLoading] = useState(false);
   const [s2ProposalsError, setS2ProposalsError] = useState('');
   const [s2ProposalDeletingId, setS2ProposalDeletingId] = useState('');
+  const [s2ProposalsExporting, setS2ProposalsExporting] = useState(false);
   const nvDiaBanOptions = getNvDiaBanOptions();
 
   const [syncRunning, setSyncRunning] = useState(false);
@@ -2524,6 +2525,48 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  const handleExportS2ProposalsExcel = async () => {
+    if (s2Proposals.length === 0) {
+      setS2ProposalsError('Chưa có dữ liệu để xuất Excel.');
+      return;
+    }
+    setS2ProposalsExporting(true);
+    setS2ProposalsError('');
+    try {
+      const xlsx = await import('xlsx');
+      const datePart = new Date().toISOString().slice(0, 10);
+      const sheetRows = s2Proposals.map((row, idx) => ({
+        STT: idx + 1,
+        'Tên Spliter cấp 2': String(row?.tenSp2 || ''),
+        'Địa chỉ': String(row?.diaChi || ''),
+        Long: formatProposalCoord(row?.longitude),
+        Lat: formatProposalCoord(row?.latitude),
+        'NV địa bàn': String(row?.tenNvDiaBan || ''),
+        'Nội dung đề xuất': String(row?.deXuat || ''),
+        'Ngày lưu': row?.createdAt
+          ? new Date(row.createdAt).toLocaleString('vi-VN')
+          : '',
+      }));
+      const ws = xlsx.utils.json_to_sheet(sheetRows);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, 'DE_XUAT_S2');
+      const buffer = xlsx.write(wb, { type: 'array', bookType: 'xlsx' });
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `de_xuat_cai_tao_s2_${datePart}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setS2ProposalsError(e?.message || 'Lỗi xuất Excel đề xuất S2.');
+    } finally {
+      setS2ProposalsExporting(false);
+    }
+  };
+
   const handleDeleteS2Proposal = async (row) => {
     const id = String(row?.id || '').trim();
     if (!id || s2ProposalDeletingId) return;
@@ -3857,14 +3900,24 @@ export default function TraCuuSP2Page() {
                         <>
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                             <p className="text-[11px] font-semibold text-slate-700">Đề xuất cải tạo Spliter cấp 2</p>
-                            <button
-                              type="button"
-                              onClick={refreshS2Proposals}
-                              disabled={s2ProposalsLoading}
-                              className="text-[11px] px-2 py-1 rounded border border-sky-300 text-sky-700 hover:bg-sky-50 disabled:opacity-50"
-                            >
-                              {s2ProposalsLoading ? 'Đang tải…' : 'Tải lại'}
-                            </button>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={handleExportS2ProposalsExcel}
+                                disabled={s2ProposalsExporting || s2Proposals.length === 0}
+                                className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                              >
+                                {s2ProposalsExporting ? 'Đang xuất…' : 'Xuất Excel'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={refreshS2Proposals}
+                                disabled={s2ProposalsLoading}
+                                className="text-[11px] px-2 py-1 rounded border border-sky-300 text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+                              >
+                                {s2ProposalsLoading ? 'Đang tải…' : 'Tải lại'}
+                              </button>
+                            </div>
                           </div>
                           {s2ProposalsError ? <p className="text-[11px] text-red-600 mb-2">{s2ProposalsError}</p> : null}
                           {s2ProposalsLoading && s2Proposals.length === 0 ? (
