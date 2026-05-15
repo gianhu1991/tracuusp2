@@ -2,7 +2,7 @@
 
 import { memo, useState, useEffect, useRef } from 'react';
 import { authFingerprint, getPortCache, getSyncMeta, sp2CacheKey } from '../lib/sp2-local-cache';
-import { authorizationSeemsUnexpired, looksLikeAuthError } from '../lib/authorization-expiry';
+import { authorizationSeemsUnexpired, looksLikeAuthError, authHeadersForOneBss } from '../lib/authorization-expiry';
 import { runFullSp2Sync } from '../lib/sp2-full-sync';
 
 const PLACEHOLDER = '';
@@ -18,12 +18,11 @@ const FALLBACK_TO_KY_THUAT = [
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 
-/** Chỉ gửi Authorization khi JWT còn hạn — tránh token hết hạn trong localStorage chặn cache chung. */
+/** Chỉ gửi JWT trình duyệt khi còn hạn; không gửi token hết hạn để server dùng Authorization đã lưu chung. */
 function authHeadersForFetch(authValue) {
-  const trimmed = String(
-    authValue ?? (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') ?? ''
-  ).trim();
-  return authorizationSeemsUnexpired(trimmed) ? { Authorization: trimmed } : {};
+  const raw =
+    authValue ?? (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') ?? '';
+  return authHeadersForOneBss(raw);
 }
 
 function clearStoredAuthorization(setAuthorization) {
@@ -106,6 +105,59 @@ function sanitizeSelectOptions(list) {
     const v = defaultDropOptionValue(item);
     return String(v ?? '').trim() !== '';
   });
+}
+
+function resolveToQlKeys(toQL) {
+  const k = String(toQL || '').trim();
+  if (!k) return [];
+  const keys = new Set([k]);
+  for (const item of FALLBACK_TO_KY_THUAT) {
+    if (String(item.donviId) === k || String(item.id) === k) {
+      keys.add(String(item.donviId));
+      keys.add(String(item.id));
+    }
+  }
+  return [...keys];
+}
+
+function browseTramsForTo(snap, toQL) {
+  const tramByTo = snap?.tramByTo;
+  if (!tramByTo || typeof tramByTo !== 'object') return [];
+  for (const key of resolveToQlKeys(toQL)) {
+    const list = tramByTo[key];
+    if (Array.isArray(list) && list.length) return sanitizeSelectOptions(list);
+  }
+  return [];
+}
+
+function browseOltsForTram(snap, toQL, veTinh) {
+  const oltByTram = snap?.oltByTram;
+  if (!oltByTram || typeof oltByTram !== 'object' || !veTinh) return [];
+  for (const toKey of resolveToQlKeys(toQL)) {
+    const list = oltByTram[`${toKey}|${veTinh}`];
+    if (Array.isArray(list) && list.length) return sanitizeSelectOptions(list);
+  }
+  return [];
+}
+
+function browseCardsForOlt(snap, thietBiOlt) {
+  const list = snap?.cardByOlt?.[thietBiOlt];
+  return Array.isArray(list) && list.length ? list : [];
+}
+
+function browsePortsForCard(snap, cardOlt) {
+  const list = snap?.portByCard?.[cardOlt];
+  return Array.isArray(list) && list.length ? list : [];
+}
+
+function hasBrowseCatalog(snap) {
+  if (!snap || snap.v !== 1) return false;
+  if (snap.tramByTo && typeof snap.tramByTo === 'object') {
+    for (const list of Object.values(snap.tramByTo)) {
+      if (Array.isArray(list) && list.length > 0) return true;
+    }
+  }
+  return Array.isArray(snap.toKyThuat) && snap.toKyThuat.length > 0;
 }
 
 const DropRow = memo(
@@ -1884,21 +1936,13 @@ export default function TraCuuSP2Page() {
     setVeTinh('');
     setCardOlt('');
     setThietBiOlt('');
-    const authOk = authorizationSeemsUnexpired((authorization || '').trim());
-    const fromBrowseEarly = sanitizeSelectOptions(browseSnapshot?.tramByTo?.[toQL]);
-    if (!authOk) {
-      setListVeTinh(fromBrowseEarly);
-      setListError(
-        fromBrowseEarly.length > 0
-          ? 'Authorization hết hạn — đang dùng danh mục từ cache đồng bộ.'
-          : 'Authorization hết hạn. Chưa có danh mục cache — cần «Đồng bộ toàn bộ S2» kèm mã ghi cache chung.'
-      );
-      return;
-    }
-    if (fromBrowseEarly.length > 0) {
-      setListError('');
-      setListVeTinh(fromBrowseEarly);
-      return;
+    const snapNow = browseSnapshotRef.current ?? browseSnapshot;
+    const fromBrowseInit = browseTramsForTo(snapNow, toQL);
+    if (fromBrowseInit.length) {
+      setListVeTinh(fromBrowseInit);
+      setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+    } else {
+      setListVeTinh([]);
     }
     const url = `/api/danh-sach?loai=tram_bts&toKyThuat=${encodeURIComponent(toQL)}`;
     LOG('VeTinh request', url, 'toQL', toQL);
@@ -1916,13 +1960,12 @@ export default function TraCuuSP2Page() {
           setListVeTinh(list);
           return;
         }
-        const fromBrowse = browseSnapshotRef.current?.tramByTo?.[toQL];
-        const fromBrowseClean = sanitizeSelectOptions(fromBrowse);
+        const fromBrowseClean = browseTramsForTo(browseSnapshotRef.current, toQL);
         if (looksLikeAuthError(status, data)) {
           clearStoredAuthorization(setAuthorization);
         }
         if (fromBrowseClean.length > 0) {
-          setListError(looksLikeAuthError(status, data) ? 'Token không hợp lệ — đã dùng danh mục cache đồng bộ.' : '');
+          setListError(looksLikeAuthError(status, data) ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListVeTinh(fromBrowseClean);
           return;
         }
@@ -1934,8 +1977,7 @@ export default function TraCuuSP2Page() {
         setListVeTinh([]);
       })
       .catch((e) => {
-        const fromBrowse = browseSnapshotRef.current?.tramByTo?.[toQL];
-        const fromBrowseClean = sanitizeSelectOptions(fromBrowse);
+        const fromBrowseClean = browseTramsForTo(browseSnapshotRef.current, toQL);
         if (fromBrowseClean.length > 0) {
           setListError('');
           setListVeTinh(fromBrowseClean);
@@ -1959,21 +2001,13 @@ export default function TraCuuSP2Page() {
     setThietBiOlt('');
     setListCardOlt([]);
     setCardOlt('');
-    const oltBrowseKey = `${toQL}|${veTinh}`;
-    const fromBrowseEarlyOlt = sanitizeSelectOptions(browseSnapshot?.oltByTram?.[oltBrowseKey]);
-    if (!authorizationSeemsUnexpired((authorization || '').trim())) {
-      setListThietBiOlt(fromBrowseEarlyOlt);
-      setListError(
-        fromBrowseEarlyOlt.length > 0
-          ? 'Authorization hết hạn — đang dùng danh mục từ cache đồng bộ.'
-          : 'Authorization hết hạn. Chọn lại Trạm BTS sau khi đồng bộ cache lên server.'
-      );
-      return;
-    }
-    if (fromBrowseEarlyOlt.length > 0) {
-      setListError('');
-      setListThietBiOlt(fromBrowseEarlyOlt);
-      return;
+    const snapNow = browseSnapshotRef.current ?? browseSnapshot;
+    const fromBrowseInitOlt = browseOltsForTram(snapNow, toQL, veTinh);
+    if (fromBrowseInitOlt.length) {
+      setListThietBiOlt(fromBrowseInitOlt);
+      setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+    } else {
+      setListThietBiOlt([]);
     }
     const url = `/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
     LOG('OLT request', url, 'veTinh (DONVI_ID)', veTinh);
@@ -1988,13 +2022,11 @@ export default function TraCuuSP2Page() {
           setListThietBiOlt(listOlt);
           return;
         }
-        const key = `${toQL}|${veTinh}`;
-        const fromBrowse = browseSnapshotRef.current?.oltByTram?.[key];
-        const fromBrowseClean = sanitizeSelectOptions(fromBrowse);
+        const fromBrowseClean = browseOltsForTram(browseSnapshotRef.current, toQL, veTinh);
         const authErr = looksLikeAuthError(status, data);
         if (authErr) clearStoredAuthorization(setAuthorization);
         if (fromBrowseClean.length > 0) {
-          setListError(authErr ? 'Token không hợp lệ — đã dùng danh mục cache đồng bộ.' : '');
+          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListThietBiOlt(fromBrowseClean);
           return;
         }
@@ -2002,9 +2034,7 @@ export default function TraCuuSP2Page() {
         setListThietBiOlt([]);
       })
       .catch((e) => {
-        const key = `${toQL}|${veTinh}`;
-        const fromBrowse = browseSnapshotRef.current?.oltByTram?.[key];
-        const fromBrowseClean = sanitizeSelectOptions(fromBrowse);
+        const fromBrowseClean = browseOltsForTram(browseSnapshotRef.current, toQL, veTinh);
         if (fromBrowseClean.length > 0) {
           setListError('');
           setListThietBiOlt(fromBrowseClean);
@@ -2024,20 +2054,13 @@ export default function TraCuuSP2Page() {
       return;
     }
     setCardOlt('');
-    const fromBrowseEarlyCard = browseSnapshot?.cardByOlt?.[thietBiOlt];
-    if (!authorizationSeemsUnexpired((authorization || '').trim())) {
-      setListCardOlt(Array.isArray(fromBrowseEarlyCard) ? fromBrowseEarlyCard : []);
-      setListError(
-        Array.isArray(fromBrowseEarlyCard) && fromBrowseEarlyCard.length > 0
-          ? 'Authorization hết hạn — đang dùng danh mục từ cache đồng bộ.'
-          : 'Authorization hết hạn. Chọn lại OLT sau khi đồng bộ cache lên server.'
-      );
-      return;
-    }
-    if (Array.isArray(fromBrowseEarlyCard) && fromBrowseEarlyCard.length > 0) {
-      setListError('');
-      setListCardOlt(fromBrowseEarlyCard);
-      return;
+    const snapNowCard = browseSnapshotRef.current ?? browseSnapshot;
+    const fromBrowseInitCard = browseCardsForOlt(snapNowCard, thietBiOlt);
+    if (fromBrowseInitCard.length) {
+      setListCardOlt(fromBrowseInitCard);
+      setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+    } else {
+      setListCardOlt([]);
     }
     const url = `/api/danh-sach?loai=card_olt&olt=${encodeURIComponent(thietBiOlt)}`;
     LOG('Card OLT request', url, 'thietBiOlt (THIETBI_ID)', thietBiOlt);
@@ -2052,11 +2075,11 @@ export default function TraCuuSP2Page() {
           setListCardOlt(list);
           return;
         }
-        const fromBrowse = browseSnapshotRef.current?.cardByOlt?.[thietBiOlt];
+        const fromBrowse = browseCardsForOlt(browseSnapshotRef.current, thietBiOlt);
         const authErr = looksLikeAuthError(status, data);
         if (authErr) clearStoredAuthorization(setAuthorization);
-        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
-          setListError(authErr ? 'Token không hợp lệ — đã dùng danh mục cache đồng bộ.' : '');
+        if (fromBrowse.length > 0) {
+          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListCardOlt(fromBrowse);
           return;
         }
@@ -2065,8 +2088,8 @@ export default function TraCuuSP2Page() {
         setListCardOlt([]);
       })
       .catch((e) => {
-        const fromBrowse = browseSnapshotRef.current?.cardByOlt?.[thietBiOlt];
-        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+        const fromBrowse = browseCardsForOlt(browseSnapshotRef.current, thietBiOlt);
+        if (fromBrowse.length > 0) {
           setListError('');
           setListCardOlt(fromBrowse);
           return;
@@ -2087,23 +2110,13 @@ export default function TraCuuSP2Page() {
     }
     setPortOlt('');
     setLoadingPortOlt(true);
-    setListPortOlt([]);
-    const fromBrowseEarlyPort = browseSnapshot?.portByCard?.[cardOlt];
-    if (!authorizationSeemsUnexpired((authorization || '').trim())) {
-      setListPortOlt(Array.isArray(fromBrowseEarlyPort) ? fromBrowseEarlyPort : []);
-      setListError(
-        Array.isArray(fromBrowseEarlyPort) && fromBrowseEarlyPort.length > 0
-          ? 'Authorization hết hạn — đang dùng danh mục từ cache đồng bộ.'
-          : 'Authorization hết hạn. Chọn lại Card OLT sau khi đồng bộ cache lên server.'
-      );
-      setLoadingPortOlt(false);
-      return;
-    }
-    if (Array.isArray(fromBrowseEarlyPort) && fromBrowseEarlyPort.length > 0) {
-      setListError('');
-      setListPortOlt(fromBrowseEarlyPort);
-      setLoadingPortOlt(false);
-      return;
+    const snapNowPort = browseSnapshotRef.current ?? browseSnapshot;
+    const fromBrowseInitPort = browsePortsForCard(snapNowPort, cardOlt);
+    if (fromBrowseInitPort.length) {
+      setListPortOlt(fromBrowseInitPort);
+      setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+    } else {
+      setListPortOlt([]);
     }
     const url = `/api/danh-sach?loai=port_olt&cardOlt=${encodeURIComponent(cardOlt)}`;
     LOG('Port OLT request', url);
@@ -2118,11 +2131,11 @@ export default function TraCuuSP2Page() {
           setListPortOlt(list);
           return;
         }
-        const fromBrowse = browseSnapshotRef.current?.portByCard?.[cardOlt];
+        const fromBrowse = browsePortsForCard(browseSnapshotRef.current, cardOlt);
         const authErr = looksLikeAuthError(status, data);
         if (authErr) clearStoredAuthorization(setAuthorization);
-        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
-          setListError(authErr ? 'Token không hợp lệ — đã dùng danh mục cache đồng bộ.' : '');
+        if (fromBrowse.length > 0) {
+          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListPortOlt(fromBrowse);
           return;
         }
@@ -2130,8 +2143,8 @@ export default function TraCuuSP2Page() {
         setListPortOlt([]);
       })
       .catch((e) => {
-        const fromBrowse = browseSnapshotRef.current?.portByCard?.[cardOlt];
-        if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
+        const fromBrowse = browsePortsForCard(browseSnapshotRef.current, cardOlt);
+        if (fromBrowse.length > 0) {
           setListError('');
           setListPortOlt(fromBrowse);
           return;
@@ -2144,44 +2157,31 @@ export default function TraCuuSP2Page() {
   }, [cardOlt, authorization, browseSnapshot]);
 
   useEffect(() => {
-    const snap = browseSnapshot;
-    if (!snap?.tramByTo || !toQL) return;
-    setListVeTinh((prev) => {
-      if (prev.length > 0) return prev;
-      const from = snap.tramByTo[toQL];
-      return Array.isArray(from) && from.length ? from : prev;
-    });
+    if (!toQL || !browseSnapshot) return;
+    const from = browseTramsForTo(browseSnapshot, toQL);
+    if (!from.length) return;
+    setListVeTinh((prev) => (prev.length > 0 ? prev : from));
   }, [browseSnapshot, toQL]);
 
   useEffect(() => {
-    const snap = browseSnapshot;
-    if (!snap?.oltByTram || !toQL || !veTinh) return;
-    const key = `${toQL}|${veTinh}`;
-    setListThietBiOlt((prev) => {
-      if (prev.length > 0) return prev;
-      const from = snap.oltByTram[key];
-      return Array.isArray(from) && from.length ? from : prev;
-    });
+    if (!toQL || !veTinh || !browseSnapshot) return;
+    const from = browseOltsForTram(browseSnapshot, toQL, veTinh);
+    if (!from.length) return;
+    setListThietBiOlt((prev) => (prev.length > 0 ? prev : from));
   }, [browseSnapshot, toQL, veTinh]);
 
   useEffect(() => {
-    const snap = browseSnapshot;
-    if (!snap?.cardByOlt || !thietBiOlt) return;
-    setListCardOlt((prev) => {
-      if (prev.length > 0) return prev;
-      const from = snap.cardByOlt[thietBiOlt];
-      return Array.isArray(from) && from.length ? from : prev;
-    });
+    if (!thietBiOlt || !browseSnapshot) return;
+    const from = browseCardsForOlt(browseSnapshot, thietBiOlt);
+    if (!from.length) return;
+    setListCardOlt((prev) => (prev.length > 0 ? prev : from));
   }, [browseSnapshot, thietBiOlt]);
 
   useEffect(() => {
-    const snap = browseSnapshot;
-    if (!snap?.portByCard || !cardOlt) return;
-    setListPortOlt((prev) => {
-      if (prev.length > 0) return prev;
-      const from = snap.portByCard[cardOlt];
-      return Array.isArray(from) && from.length ? from : prev;
-    });
+    if (!cardOlt || !browseSnapshot) return;
+    const from = browsePortsForCard(browseSnapshot, cardOlt);
+    if (!from.length) return;
+    setListPortOlt((prev) => (prev.length > 0 ? prev : from));
   }, [browseSnapshot, cardOlt]);
 
   /** Đồng bộ toàn bộ S2 mỗi 5 phút khi JWT Authorization còn hạn; tab ẩn thì bỏ qua tick. */
@@ -2250,7 +2250,8 @@ export default function TraCuuSP2Page() {
   };
 
   const startFullSync = async ({ authOverride = '', adminPasswordOverride = '' } = {}) => {
-    const auth = (authOverride && authOverride.trim()) || (authorization && authorization.trim()) || '';
+    const authRaw = (authOverride && authOverride.trim()) || (authorization && authorization.trim()) || '';
+    const auth = authorizationSeemsUnexpired(authRaw) ? authRaw : '';
     if (syncRunning) return { skipped: true };
     setListError('');
     clearSyncProgressTimer();
@@ -2441,13 +2442,11 @@ export default function TraCuuSP2Page() {
         if (srv.kind === 'hit') {
           const arr = srv.data ?? [];
           const expiredHint =
-            clientAuthExpired
+            clientAuthExpired || noClientAuth
               ? arr.length === 0
                 ? 'Authorization đã hết hạn. Không có bản ghi trong cache Supabase cho port này.'
                 : 'Authorization đã hết hạn — đang dùng cache đồng bộ (Supabase).'
-              : noClientAuth && arr.length > 0
-                ? 'Đang dùng cache đồng bộ (Supabase) — không cần Authorization trên trình duyệt.'
-                : null;
+              : null;
           const cacheMsg =
             arr.length === 0 && clientAuthValid && apiFallbackNotice
               ? 'Không có bản ghi trong cache chung sau khi API không trả dữ liệu.'
@@ -2479,9 +2478,12 @@ export default function TraCuuSP2Page() {
           );
           return;
         }
-        if (clientAuthExpired) {
+        if (clientAuthExpired || noClientAuth) {
+          const browseHint = hasBrowseCatalog(browseSnapshotRef.current)
+            ? ' Danh mục Trạm/OLT vẫn có thể chọn từ cache; cần chọn đủ Port OLT đã được đồng bộ.'
+            : '';
           setLoi(
-            'Authorization đã hết hạn và chưa có dữ liệu đồng bộ trên Supabase cho port này. Quản trị cần «Đồng bộ toàn bộ S2» (có mã cache chung) hoặc cập nhật Authorization.'
+            `Authorization đã hết hạn hoặc không hợp lệ, và chưa có dữ liệu S2 trên Supabase cho port này.${browseHint} Quản trị cần lưu Authorization mới và «Đồng bộ toàn bộ S2» (có mã cache chung).`
           );
           return;
         }
@@ -2490,8 +2492,12 @@ export default function TraCuuSP2Page() {
         );
       };
 
-      /** JWT còn hạn: OneBSS (Authorization) trước; lỗi hoặc hết hạn mới dùng Supabase. */
-      if (!boQuaCache && clientAuthValid) {
+      /** JWT hết hạn/sai: Supabase trước; còn hạn (máy hoặc server): OneBSS trước. */
+      if (!boQuaCache && !clientAuthValid) {
+        if (await applyCacheFallback()) return;
+      }
+
+      if (!boQuaCache) {
         try {
           const headers = {
             'Content-Type': 'application/json',
@@ -2499,12 +2505,20 @@ export default function TraCuuSP2Page() {
           };
           const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
           const data = await res.json().catch(() => ({}));
-          LOG('Tra cứu', 'Response (API ưu tiên)', { status: res.status, ok: res.ok, data });
+          LOG('Tra cứu', 'Response (API)', { status: res.status, ok: res.ok, data });
           if (res.ok) {
             const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? []);
             const arr = Array.isArray(list) ? list : [];
             if (arr.length > 0) {
-              setKetQua({ data: arr, message: data?.message || null, fromCache: 'api' });
+              const serverHint =
+                !clientAuthValid
+                  ? 'Tra cứu qua Authorization lưu trên server.'
+                  : null;
+              setKetQua({
+                data: arr,
+                message: [serverHint, data?.message].filter(Boolean).join(' ') || null,
+                fromCache: 'api',
+              });
               return;
             }
             if (await applyCacheFallback()) return;
@@ -2517,6 +2531,9 @@ export default function TraCuuSP2Page() {
           }
           if (looksLikeAuthError(res.status, data)) {
             invalidateClientAuth();
+            clientAuthValid = false;
+            clientAuthExpired = true;
+            noClientAuth = true;
             if (await applyCacheFallback()) return;
             failWithoutCache();
             return;
@@ -2524,32 +2541,6 @@ export default function TraCuuSP2Page() {
           apiFallbackNotice = data?.message || data?.error || `API lỗi (${res.status}), đã chuyển sang cache.`;
         } catch (err) {
           apiFallbackNotice = err?.message || 'Không gọi được API, đã chuyển sang cache.';
-        }
-        if (await applyCacheFallback()) return;
-        failWithoutCache();
-        return;
-      }
-
-      /** Không có / hết hạn Authorization → Supabase; thử thêm API bằng token lưu trên server. */
-      if (!boQuaCache && !clientAuthValid) {
-        if (await applyCacheFallback()) return;
-        try {
-          const resSrv = await fetch('/api/tracuu', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
-          const dataSrv = await resSrv.json().catch(() => ({}));
-          if (resSrv.ok) {
-            const listSrv = Array.isArray(dataSrv) ? dataSrv : (dataSrv?.data ?? dataSrv?.list ?? dataSrv?.result ?? []);
-            const arrSrv = Array.isArray(listSrv) ? listSrv : [];
-            if (arrSrv.length > 0) {
-              setKetQua({ data: arrSrv, message: dataSrv?.message || null, fromCache: 'api' });
-              return;
-            }
-          }
-        } catch {
-          /* bỏ qua */
         }
         if (await applyCacheFallback()) return;
         failWithoutCache();
@@ -3788,11 +3779,13 @@ export default function TraCuuSP2Page() {
                     . Máy khác có thể chọn danh mục từ cache và tra cứu port đã lưu — không cần Authorization.
                   </p>
                 ) : serverSyncMeta?.lastSyncAt ? (
-                  <p className="text-[11px] text-emerald-700 mt-1">
+                  <p className={`text-[11px] mt-1 ${(serverSyncMeta.lastSyncTotal ?? 0) > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
                     Cache chung: đồng bộ lúc {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
                     {serverSyncMeta.lastSyncTotal != null ? ` — ${serverSyncMeta.lastSyncTotal} port` : ''}.
+                    {(serverSyncMeta.lastSyncTotal ?? 0) === 0 &&
+                      ' Chưa có port — Authorization có thể sai khi đồng bộ; cần lưu token mới và đồng bộ lại.'}
                   </p>
-                ) : browseSnapshot?.toKyThuat?.length ? (
+                ) : hasBrowseCatalog(browseSnapshot) ? (
                   <p className="text-[11px] text-sky-700 mt-1">
                     Đã có danh mục cache trên server. Chọn Trạm/OLT/Card/Port rồi tra cứu (không cần Authorization nếu port đã được đồng bộ).
                   </p>
