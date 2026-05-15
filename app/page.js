@@ -2334,13 +2334,12 @@ export default function TraCuuSP2Page() {
     setListPortOlt((prev) => mergeBrowseOptions(prev, from, portOlt));
   }, [browseSnapshot, cardOlt, portOlt]);
 
-  /** Đồng bộ toàn bộ S2 mỗi 5 phút khi JWT Authorization còn hạn; tab ẩn thì bỏ qua tick. */
+  /** Đồng bộ toàn bộ S2 mỗi 5 phút khi JWT Authorization còn hạn (kể cả tab ẩn / nền). */
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const authTrim = (authorization || '').trim();
     if (!authorizationSeemsUnexpired(authTrim)) return undefined;
     const id = window.setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       if (syncRunningRef.current) return;
       const latest = (typeof window !== 'undefined' && localStorage.getItem(STORAGE_AUTH)) || '';
       if (!authorizationSeemsUnexpired(String(latest).trim())) return;
