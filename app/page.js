@@ -434,6 +434,7 @@ export default function TraCuuSP2Page() {
   const [s2Proposals, setS2Proposals] = useState([]);
   const [s2ProposalsLoading, setS2ProposalsLoading] = useState(false);
   const [s2ProposalsError, setS2ProposalsError] = useState('');
+  const [s2ProposalDeletingId, setS2ProposalDeletingId] = useState('');
   const nvDiaBanOptions = getNvDiaBanOptions();
 
   const [syncRunning, setSyncRunning] = useState(false);
@@ -2523,6 +2524,32 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  const handleDeleteS2Proposal = async (row) => {
+    const id = String(row?.id || '').trim();
+    if (!id || s2ProposalDeletingId) return;
+    const label = String(row?.tenSp2 || row?.deXuat || id).slice(0, 80);
+    if (!window.confirm(`Xóa đề xuất «${label}»? Hành động không hoàn tác.`)) return;
+    setS2ProposalDeletingId(id);
+    setS2ProposalsError('');
+    try {
+      const res = await fetch('/api/s2-proposals', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) {
+        setS2ProposalsError(j?.message || `Không xóa được (${res.status}).`);
+        return;
+      }
+      setS2Proposals((prev) => prev.filter((r) => String(r?.id || '') !== id));
+    } catch (e) {
+      setS2ProposalsError(e?.message || 'Lỗi khi xóa đề xuất.');
+    } finally {
+      setS2ProposalDeletingId('');
+    }
+  };
+
   const openProposalModal = (tenS2) => {
     setProposalTargetS2(String(tenS2 || '').trim());
     setProposalNvDiaBan('');
@@ -3858,6 +3885,9 @@ export default function TraCuuSP2Page() {
                                     <th className="text-left py-1 px-2 font-semibold">Lat</th>
                                     <th className="text-left py-1 px-2 font-semibold">NV địa bàn</th>
                                     <th className="text-left py-1 pl-2 font-semibold">Nội dung đề xuất</th>
+                                    {authUnlocked ? (
+                                      <th className="text-right py-1 pl-2 font-semibold w-[72px]"> </th>
+                                    ) : null}
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -3874,6 +3904,19 @@ export default function TraCuuSP2Page() {
                                       </td>
                                       <td className="py-1.5 px-2 break-words max-w-[120px] align-top">{row.tenNvDiaBan || '—'}</td>
                                       <td className="py-1.5 pl-2 break-words max-w-[240px] align-top">{row.deXuat || '—'}</td>
+                                      {authUnlocked ? (
+                                        <td className="py-1.5 pl-2 align-top text-right whitespace-nowrap">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteS2Proposal(row)}
+                                            disabled={!!s2ProposalDeletingId}
+                                            className="text-[11px] px-2 py-1 rounded border border-rose-300 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                                            title="Xóa đề xuất này"
+                                          >
+                                            {s2ProposalDeletingId === row.id ? '…' : 'Xóa'}
+                                          </button>
+                                        </td>
+                                      ) : null}
                                     </tr>
                                   ))}
                                 </tbody>

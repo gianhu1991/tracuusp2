@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { s2ProposalAdd, s2ProposalConfigured, s2ProposalList } from '../../../lib/s2-proposal-store';
+import { cookies } from 'next/headers';
+import { assertAdminUnlockCookie, adminUnlockCookieName } from '../../../lib/admin-unlock-cookie';
+import { s2ProposalAdd, s2ProposalConfigured, s2ProposalDeleteById, s2ProposalList } from '../../../lib/s2-proposal-store';
 
 export async function GET() {
   try {
@@ -56,6 +58,31 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, message: saved.message || 'Không lưu được.' }, { status: 500 });
     }
     return NextResponse.json({ ok: true, row: saved.row });
+  } catch (err) {
+    return NextResponse.json({ ok: false, message: err?.message || 'Lỗi server.' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    if (!(await s2ProposalConfigured())) {
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+    }
+    const cookieStore = await cookies();
+    const unlock = assertAdminUnlockCookie(cookieStore.get(adminUnlockCookieName())?.value);
+    if (!unlock.ok) {
+      return NextResponse.json({ ok: false, message: unlock.message }, { status: 403 });
+    }
+    const body = await request.json().catch(() => ({}));
+    const id = String(body?.id || new URL(request.url).searchParams.get('id') || '').trim();
+    if (!id) {
+      return NextResponse.json({ ok: false, message: 'Thiếu id đề xuất.' }, { status: 400 });
+    }
+    const res = await s2ProposalDeleteById(id);
+    if (!res.ok) {
+      return NextResponse.json({ ok: false, message: res.message || 'Không xóa được.' }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ ok: false, message: err?.message || 'Lỗi server.' }, { status: 500 });
   }
