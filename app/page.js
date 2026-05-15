@@ -165,7 +165,7 @@ function mergeBrowseOptions(prev, from, selectedValue) {
   const next = sanitizeSelectOptions(from);
   if (!next.length) return prev;
   const sel = String(selectedValue || '');
-  if (sel && next.some((item) => optionValue(item) === sel)) return next;
+  if (sel && next.some((item) => defaultDropOptionValue(item) === sel)) return next;
   return prev.length > 0 ? prev : next;
 }
 
