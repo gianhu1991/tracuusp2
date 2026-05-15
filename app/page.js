@@ -2338,8 +2338,9 @@ export default function TraCuuSP2Page() {
 
       const clientAuthValid = authorizationSeemsUnexpired(authTrim);
       const clientAuthExpired = !!(authTrim && !clientAuthValid);
+      const noClientAuth = !authTrim;
 
-      /** Ưu tiên OneBSS (Authorization). JWT hết hạn trên trình duyệt → bỏ qua API, dùng Supabase. */
+      /** Ưu tiên OneBSS khi JWT còn hạn; hết hạn / không có token trên máy → Supabase (dữ liệu đã đồng bộ). */
       const applyCacheFallback = async () => {
         const srv = await fetchServerPortCache(keyBody);
         if (srv !== undefined && srv !== null) {
@@ -2348,7 +2349,9 @@ export default function TraCuuSP2Page() {
               ? srv.length === 0
                 ? 'Authorization đã hết hạn. Không có bản ghi trong cache Supabase cho port này.'
                 : 'Authorization đã hết hạn — đang dùng cache đồng bộ (Supabase).'
-              : null;
+              : noClientAuth && srv.length > 0
+                ? 'Đang dùng cache đồng bộ (Supabase) — không cần Authorization trên trình duyệt.'
+                : null;
           const cacheMsg =
             srv.length === 0 && !clientAuthExpired
               ? 'Không có bản ghi trong cache chung. Bật «Luôn gọi API» để hỏi lại OneBSS.'
@@ -2373,15 +2376,18 @@ export default function TraCuuSP2Page() {
         return false;
       };
 
-      if (!boQuaCache && clientAuthExpired) {
+      /** Máy khác / sau deploy: chưa dán Authorization → đọc Supabase trước (nếu đã đồng bộ lên server). */
+      if (!boQuaCache && (clientAuthExpired || noClientAuth)) {
         if (await applyCacheFallback()) return;
-        setLoi(
-          'Authorization đã hết hạn và chưa có dữ liệu đồng bộ trên server cho port này. Quản trị cần đồng bộ S2 lên Supabase hoặc cập nhật Authorization.'
-        );
-        return;
+        if (clientAuthExpired) {
+          setLoi(
+            'Authorization đã hết hạn và chưa có dữ liệu đồng bộ trên server cho port này. Quản trị cần đồng bộ S2 lên Supabase (có mã cache chung) hoặc cập nhật Authorization.'
+          );
+          return;
+        }
       }
 
-      if (!boQuaCache && !clientAuthExpired) {
+      if (!boQuaCache && clientAuthValid) {
         try {
           const headers = {
             'Content-Type': 'application/json',
@@ -2393,8 +2399,16 @@ export default function TraCuuSP2Page() {
           if (res.ok) {
             const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? []);
             const arr = Array.isArray(list) ? list : [];
-            const message = data?.message || (arr.length === 0 ? 'Không có bản ghi nào từ API.' : null);
-            setKetQua({ data: arr, message, fromCache: 'api' });
+            if (arr.length > 0) {
+              setKetQua({ data: arr, message: data?.message || null, fromCache: 'api' });
+              return;
+            }
+            if (await applyCacheFallback()) return;
+            setKetQua({
+              data: [],
+              message: data?.message || 'Không có bản ghi nào từ API.',
+              fromCache: 'api',
+            });
             return;
           }
           apiFallbackNotice = data?.message || data?.error || `API lỗi (${res.status}), đã chuyển sang cache.`;
