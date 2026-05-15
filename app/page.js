@@ -1050,6 +1050,7 @@ export default function TraCuuSP2Page() {
         S2_TRA_CUU: String(r?.queryS2 || ''),
         KY_HIEU_S2: String(r?.kyHieu || ''),
         TEN_SPLITTER: String(r?.tenSplitter || ''),
+        DIA_CHI: String(r?.diaChi || ''),
         TO_KT: String(r?.toTen || r?.toQL || ''),
         OLT: String(r?.oltTen || r?.thietBiOlt || ''),
         CARD: String(r?.cardTen || r?.cardOlt || ''),
@@ -1063,6 +1064,7 @@ export default function TraCuuSP2Page() {
         S2_TRA_CUU: String(s2 || ''),
         KY_HIEU_S2: '',
         TEN_SPLITTER: '',
+        DIA_CHI: '',
         TO_KT: '',
         OLT: '',
         CARD: '',
@@ -3290,6 +3292,7 @@ export default function TraCuuSP2Page() {
                                   <tr className="border-b border-slate-200 text-slate-600">
                                     <th className="text-left py-1 pr-2 font-semibold">S2 tra cứu</th>
                                     <th className="text-left py-1 px-2 font-semibold">Ký hiệu S2</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Địa chỉ</th>
                                     <th className="text-left py-1 px-2 font-semibold">OLT</th>
                                     <th className="text-left py-1 px-2 font-semibold">Card</th>
                                     <th className="text-left py-1 px-2 font-semibold">Port</th>
@@ -3304,6 +3307,7 @@ export default function TraCuuSP2Page() {
                                     >
                                       <td className="py-1.5 pr-2">{String(row?.queryS2 || '—')}</td>
                                       <td className="py-1.5 px-2">{String(row?.kyHieu || row?.tenSplitter || '—')}</td>
+                                      <td className="py-1.5 px-2 max-w-[200px] break-words">{String(row?.diaChi || '—')}</td>
                                       <td className="py-1.5 px-2">{String(row?.oltTen || row?.thietBiOlt || '—')}</td>
                                       <td className="py-1.5 px-2">{String(row?.cardTen || row?.cardOlt || '—')}</td>
                                       <td className="py-1.5 px-2">{String(row?.portTen || row?.portOlt || '—')}</td>

@@ -198,6 +198,9 @@ function mapOnlineRowsForQuery(query, sourceRows = []) {
       const tenSplitter = String(
         pickFirstDefined(item, ['TEN_KC', 'TEN_SPLITTER', 'TEN_SP', 'ten', 'name', 'TEN']) || ''
       ).trim();
+      const diaChi = String(
+        pickFirstDefined(item, ['DIA_CHI', 'DIACHI', 'DIA_CHI_LAP_DAT', 'dia_chi', 'diaChi']) || ''
+      ).trim();
       return {
         queryS2: String(query || ''),
         toQL,
@@ -207,6 +210,7 @@ function mapOnlineRowsForQuery(query, sourceRows = []) {
         portOlt,
         kyHieu,
         tenSplitter,
+        diaChi,
         matchType: normalizeS2Text(kyHieu) === queryNorm || normalizeS2Text(tenSplitter) === queryNorm ? 'exact' : 'partial',
         source: 'online',
         cacheKey: '',
