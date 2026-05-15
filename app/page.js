@@ -2,7 +2,7 @@
 
 import { memo, useState, useEffect, useRef } from 'react';
 import { authFingerprint, getPortCache, getSyncMeta, sp2CacheKey } from '../lib/sp2-local-cache';
-import { authorizationSeemsUnexpired } from '../lib/authorization-expiry';
+import { authorizationSeemsUnexpired, looksLikeAuthError } from '../lib/authorization-expiry';
 import { runFullSp2Sync } from '../lib/sp2-full-sync';
 
 const PLACEHOLDER = '';
@@ -24,6 +24,11 @@ function authHeadersForFetch(authValue) {
     authValue ?? (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') ?? ''
   ).trim();
   return authorizationSeemsUnexpired(trimmed) ? { Authorization: trimmed } : {};
+}
+
+function clearStoredAuthorization(setAuthorization) {
+  if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_AUTH);
+  if (typeof setAuthorization === 'function') setAuthorization('');
 }
 const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
 /** Đồng bộ S2 định kỳ khi token còn hạn (JWT). */
@@ -1867,7 +1872,17 @@ export default function TraCuuSP2Page() {
     setVeTinh('');
     setCardOlt('');
     setThietBiOlt('');
+    const authOk = authorizationSeemsUnexpired((authorization || '').trim());
     const fromBrowseEarly = sanitizeSelectOptions(browseSnapshot?.tramByTo?.[toQL]);
+    if (!authOk) {
+      setListVeTinh(fromBrowseEarly);
+      setListError(
+        fromBrowseEarly.length > 0
+          ? 'Authorization hết hạn — đang dùng danh mục từ cache đồng bộ.'
+          : 'Authorization hết hạn. Chưa có danh mục cache — cần «Đồng bộ toàn bộ S2» kèm mã ghi cache chung.'
+      );
+      return;
+    }
     if (fromBrowseEarly.length > 0) {
       setListError('');
       setListVeTinh(fromBrowseEarly);
@@ -1891,8 +1906,11 @@ export default function TraCuuSP2Page() {
         }
         const fromBrowse = browseSnapshotRef.current?.tramByTo?.[toQL];
         const fromBrowseClean = sanitizeSelectOptions(fromBrowse);
+        if (looksLikeAuthError(status, data)) {
+          clearStoredAuthorization(setAuthorization);
+        }
         if (fromBrowseClean.length > 0) {
-          setListError('');
+          setListError(looksLikeAuthError(status, data) ? 'Token không hợp lệ — đã dùng danh mục cache đồng bộ.' : '');
           setListVeTinh(fromBrowseClean);
           return;
         }
@@ -1931,6 +1949,15 @@ export default function TraCuuSP2Page() {
     setCardOlt('');
     const oltBrowseKey = `${toQL}|${veTinh}`;
     const fromBrowseEarlyOlt = sanitizeSelectOptions(browseSnapshot?.oltByTram?.[oltBrowseKey]);
+    if (!authorizationSeemsUnexpired((authorization || '').trim())) {
+      setListThietBiOlt(fromBrowseEarlyOlt);
+      setListError(
+        fromBrowseEarlyOlt.length > 0
+          ? 'Authorization hết hạn — đang dùng danh mục từ cache đồng bộ.'
+          : 'Authorization hết hạn. Chọn lại Trạm BTS sau khi đồng bộ cache lên server.'
+      );
+      return;
+    }
     if (fromBrowseEarlyOlt.length > 0) {
       setListError('');
       setListThietBiOlt(fromBrowseEarlyOlt);
@@ -1939,8 +1966,8 @@ export default function TraCuuSP2Page() {
     const url = `/api/danh-sach?loai=olt&toKyThuat=${encodeURIComponent(toQL)}&tramBts=${encodeURIComponent(veTinh)}`;
     LOG('OLT request', url, 'veTinh (DONVI_ID)', veTinh);
     fetch(url, { headers: authHeadersForFetch(authorization), cache: 'no-store' })
-      .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
-      .then(({ ok, data }) => {
+      .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, status: r.status, data })))
+      .then(({ ok, status, data }) => {
         const listOlt = sanitizeSelectOptions(normaliseList(data));
         LOG('OLT data', { ok, len: listOlt.length });
         const badPayload = data?.message && !Array.isArray(data) && !data?.data;
@@ -1952,8 +1979,10 @@ export default function TraCuuSP2Page() {
         const key = `${toQL}|${veTinh}`;
         const fromBrowse = browseSnapshotRef.current?.oltByTram?.[key];
         const fromBrowseClean = sanitizeSelectOptions(fromBrowse);
+        const authErr = looksLikeAuthError(status, data);
+        if (authErr) clearStoredAuthorization(setAuthorization);
         if (fromBrowseClean.length > 0) {
-          setListError('');
+          setListError(authErr ? 'Token không hợp lệ — đã dùng danh mục cache đồng bộ.' : '');
           setListThietBiOlt(fromBrowseClean);
           return;
         }
@@ -1984,6 +2013,15 @@ export default function TraCuuSP2Page() {
     }
     setCardOlt('');
     const fromBrowseEarlyCard = browseSnapshot?.cardByOlt?.[thietBiOlt];
+    if (!authorizationSeemsUnexpired((authorization || '').trim())) {
+      setListCardOlt(Array.isArray(fromBrowseEarlyCard) ? fromBrowseEarlyCard : []);
+      setListError(
+        Array.isArray(fromBrowseEarlyCard) && fromBrowseEarlyCard.length > 0
+          ? 'Authorization hết hạn — đang dùng danh mục từ cache đồng bộ.'
+          : 'Authorization hết hạn. Chọn lại OLT sau khi đồng bộ cache lên server.'
+      );
+      return;
+    }
     if (Array.isArray(fromBrowseEarlyCard) && fromBrowseEarlyCard.length > 0) {
       setListError('');
       setListCardOlt(fromBrowseEarlyCard);
@@ -1992,8 +2030,8 @@ export default function TraCuuSP2Page() {
     const url = `/api/danh-sach?loai=card_olt&olt=${encodeURIComponent(thietBiOlt)}`;
     LOG('Card OLT request', url, 'thietBiOlt (THIETBI_ID)', thietBiOlt);
     fetch(url, { headers: authHeadersForFetch(authorization), cache: 'no-store' })
-      .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
-      .then(({ ok, data }) => {
+      .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, status: r.status, data })))
+      .then(({ ok, status, data }) => {
         const list = normaliseList(data);
         LOG('Card OLT data', { ok, len: list.length });
         const badPayload = data?.message && !Array.isArray(data) && !data?.data;
@@ -2003,8 +2041,10 @@ export default function TraCuuSP2Page() {
           return;
         }
         const fromBrowse = browseSnapshotRef.current?.cardByOlt?.[thietBiOlt];
+        const authErr = looksLikeAuthError(status, data);
+        if (authErr) clearStoredAuthorization(setAuthorization);
         if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
-          setListError('');
+          setListError(authErr ? 'Token không hợp lệ — đã dùng danh mục cache đồng bộ.' : '');
           setListCardOlt(fromBrowse);
           return;
         }
@@ -2037,6 +2077,16 @@ export default function TraCuuSP2Page() {
     setLoadingPortOlt(true);
     setListPortOlt([]);
     const fromBrowseEarlyPort = browseSnapshot?.portByCard?.[cardOlt];
+    if (!authorizationSeemsUnexpired((authorization || '').trim())) {
+      setListPortOlt(Array.isArray(fromBrowseEarlyPort) ? fromBrowseEarlyPort : []);
+      setListError(
+        Array.isArray(fromBrowseEarlyPort) && fromBrowseEarlyPort.length > 0
+          ? 'Authorization hết hạn — đang dùng danh mục từ cache đồng bộ.'
+          : 'Authorization hết hạn. Chọn lại Card OLT sau khi đồng bộ cache lên server.'
+      );
+      setLoadingPortOlt(false);
+      return;
+    }
     if (Array.isArray(fromBrowseEarlyPort) && fromBrowseEarlyPort.length > 0) {
       setListError('');
       setListPortOlt(fromBrowseEarlyPort);
@@ -2046,8 +2096,8 @@ export default function TraCuuSP2Page() {
     const url = `/api/danh-sach?loai=port_olt&cardOlt=${encodeURIComponent(cardOlt)}`;
     LOG('Port OLT request', url);
     fetch(url, { headers: authHeadersForFetch(authorization), cache: 'no-store' })
-      .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, data })))
-      .then(({ ok, data }) => {
+      .then((r) => r.json().catch(() => ({})).then((data) => ({ ok: r.ok, status: r.status, data })))
+      .then(({ ok, status, data }) => {
         const list = normaliseList(data);
         LOG('Port OLT data', { ok, len: list.length });
         const badPayload = data?.message && !Array.isArray(data) && !data?.data;
@@ -2057,8 +2107,10 @@ export default function TraCuuSP2Page() {
           return;
         }
         const fromBrowse = browseSnapshotRef.current?.portByCard?.[cardOlt];
+        const authErr = looksLikeAuthError(status, data);
+        if (authErr) clearStoredAuthorization(setAuthorization);
         if (Array.isArray(fromBrowse) && fromBrowse.length > 0) {
-          setListError('');
+          setListError(authErr ? 'Token không hợp lệ — đã dùng danh mục cache đồng bộ.' : '');
           setListPortOlt(fromBrowse);
           return;
         }
@@ -2356,10 +2408,17 @@ export default function TraCuuSP2Page() {
         return;
       }
 
-      const clientAuthValid = authorizationSeemsUnexpired(authTrim);
-      const clientAuthExpired = !!(authTrim && !clientAuthValid);
-      const noClientAuth = !authTrim;
+      let clientAuthValid = authorizationSeemsUnexpired(authTrim);
+      let clientAuthExpired = !!(authTrim && !clientAuthValid);
+      let noClientAuth = !authTrim;
       let supabaseDiag = null;
+
+      const invalidateClientAuth = () => {
+        clearStoredAuthorization(setAuthorization);
+        clientAuthValid = false;
+        clientAuthExpired = true;
+        noClientAuth = true;
+      };
 
       const applyCacheFallback = async () => {
         const srv = await fetchServerPortCache(keyBody);
@@ -2444,6 +2503,12 @@ export default function TraCuuSP2Page() {
             });
             return;
           }
+          if (looksLikeAuthError(res.status, data)) {
+            invalidateClientAuth();
+            if (await applyCacheFallback()) return;
+            failWithoutCache();
+            return;
+          }
           apiFallbackNotice = data?.message || data?.error || `API lỗi (${res.status}), đã chuyển sang cache.`;
         } catch (err) {
           apiFallbackNotice = err?.message || 'Không gọi được API, đã chuyển sang cache.';
@@ -2453,8 +2518,27 @@ export default function TraCuuSP2Page() {
         return;
       }
 
-      /** Không có Authorization hoặc JWT hết hạn → chỉ Supabase (và cache trình duyệt), không gọi OneBSS bằng token client. */
+      /** Không có / hết hạn Authorization → Supabase; thử thêm API bằng token lưu trên server. */
       if (!boQuaCache && !clientAuthValid) {
+        if (await applyCacheFallback()) return;
+        try {
+          const resSrv = await fetch('/api/tracuu', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const dataSrv = await resSrv.json().catch(() => ({}));
+          if (resSrv.ok) {
+            const listSrv = Array.isArray(dataSrv) ? dataSrv : (dataSrv?.data ?? dataSrv?.list ?? dataSrv?.result ?? []);
+            const arrSrv = Array.isArray(listSrv) ? listSrv : [];
+            if (arrSrv.length > 0) {
+              setKetQua({ data: arrSrv, message: dataSrv?.message || null, fromCache: 'api' });
+              return;
+            }
+          }
+        } catch {
+          /* bỏ qua */
+        }
         if (await applyCacheFallback()) return;
         failWithoutCache();
         return;
@@ -2468,6 +2552,9 @@ export default function TraCuuSP2Page() {
       const data = await res.json().catch(() => ({}));
       LOG('Tra cứu', 'Response', { status: res.status, ok: res.ok, data });
       if (!res.ok) {
+        if (looksLikeAuthError(res.status, data)) {
+          invalidateClientAuth();
+        }
         if (await applyCacheFallback()) return;
         setLoi(data.message || data.error || 'Có lỗi khi tra cứu.');
         return;
