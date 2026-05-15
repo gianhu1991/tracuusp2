@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { memo, useState, useEffect, useRef } from 'react';
 import { authFingerprint, getPortCache, getSyncMeta, sp2CacheKey } from '../lib/sp2-local-cache';
@@ -13,18 +13,18 @@ import { runFullSp2Sync } from '../lib/sp2-full-sync';
 
 const PLACEHOLDER = '';
 
-/** TTVT máº·c Ä‘á»‹nh theo OneBSS (trang tra cá»©u splitter theo port OLT). */
-const TTVT_MAC_DINH = 'Trung tÃ¢m viá»…n thÃ´ng Nho Quan';
-/** TrÃ¹ng `app/api/danh-sach/route.js` â€” dÃ¹ng khi API lá»—i, chÆ°a deploy, hoáº·c trÃ¬nh duyá»‡t cache response cÅ©. */
+/** TTVT mặc định theo OneBSS (trang tra cứu splitter theo port OLT). */
+const TTVT_MAC_DINH = 'Trung tâm viễn thông Nho Quan';
+/** Trùng `app/api/danh-sach/route.js` — dùng khi API lỗi, chưa deploy, hoặc trình duyệt cache response cũ. */
 const FALLBACK_TTVT_LIST = [{ ma: TTVT_MAC_DINH, ten: TTVT_MAC_DINH }];
 const FALLBACK_TO_KY_THUAT = [
-  { id: 'd4febad9-f7b4-41a4-85ab-1e8fc1fd754a', donviId: 1002688, ten: 'Tá»• Ká»¹ thuáº­t Äá»‹a bÃ n Gia Viá»…n' },
-  { id: '5f0ad13b-53ee-4869-a66f-4023cba821a7', donviId: 1002689, ten: 'Tá»• Ká»¹ thuáº­t Äá»‹a bÃ n Nho Quan' },
+  { id: 'd4febad9-f7b4-41a4-85ab-1e8fc1fd754a', donviId: 1002688, ten: 'Tổ Kỹ thuật Địa bàn Gia Viễn' },
+  { id: '5f0ad13b-53ee-4869-a66f-4023cba821a7', donviId: 1002689, ten: 'Tổ Kỹ thuật Địa bàn Nho Quan' },
 ];
 const STORAGE_AUTH = 'tracuu_sp2_authorization';
 const STORAGE_AUTH_UNLOCKED = 'tracuu_sp2_auth_unlocked';
 
-/** Chá»‰ gá»­i JWT trÃ¬nh duyá»‡t khi cÃ²n háº¡n; khÃ´ng gá»­i token háº¿t háº¡n Ä‘á»ƒ server dÃ¹ng Authorization Ä‘Ã£ lÆ°u chung. */
+/** Chỉ gửi JWT trình duyệt khi còn hạn; không gửi token hết hạn để server dùng Authorization đã lưu chung. */
 function authHeadersForFetch(authValue) {
   const raw =
     authValue ?? (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_AUTH) : '') ?? '';
@@ -36,52 +36,52 @@ function clearStoredAuthorization(setAuthorization) {
   if (typeof setAuthorization === 'function') setAuthorization('');
 }
 const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
-/** Äá»“ng bá»™ S2 Ä‘á»‹nh ká»³ khi token cÃ²n háº¡n (JWT). */
+/** Đồng bộ S2 định kỳ khi token còn hạn (JWT). */
 const AUTH_AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
-const DEFAULT_TO_QL_DONVI_ID = '1002689'; // Tá»• Ká»¹ thuáº­t Äá»‹a bÃ n Nho Quan
+const DEFAULT_TO_QL_DONVI_ID = '1002689'; // Tổ Kỹ thuật Địa bàn Nho Quan
 const DEFAULT_TO_QL_ID = '5f0ad13b-53ee-4869-a66f-4023cba821a7';
 const REPORT_MENU_ITEMS = [
   {
     id: 's2_lookup',
-    label: 'Láº¥y thÃ´ng sá»‘ S2',
-    description: 'Tra cá»©u theo tá»«ng S2 hoáº·c theo file S2 Ä‘á»ƒ láº¥y OLT/Card/Port.',
+    label: 'Lấy thông số S2',
+    description: 'Tra cứu theo từng S2 hoặc theo file S2 để lấy OLT/Card/Port.',
   },
   {
     id: 's2_capacity',
-    label: 'Dung lÆ°á»£ng S2',
-    description: 'Theo dÃµi dung lÆ°á»£ng, Ä‘Ã£ dÃ¹ng, chÆ°a dÃ¹ng cá»§a splitter S2.',
+    label: 'Dung lượng S2',
+    description: 'Theo dõi dung lượng, đã dùng, chưa dùng của splitter S2.',
   },
   {
     id: 'no_sp2_ports',
-    label: 'Cá»•ng PON khÃ´ng cÃ³ S2',
-    description: 'BÃ¡o cÃ¡o theo Tá»• ká»¹ thuáº­t vÃ  OLT cÃ¡c cá»•ng chÆ°a cÃ³ S2.',
+    label: 'Cổng PON không có S2',
+    description: 'Báo cáo theo Tổ kỹ thuật và OLT các cổng chưa có S2.',
   },
   {
     id: 'olt_pon_detail',
-    label: 'Chi tiáº¿t S2 theo OLT/PON',
-    description: 'Xem chi tiáº¿t cá»•ng PON theo OLT vÃ  xuáº¥t Excel theo OLT.',
+    label: 'Chi tiết S2 theo OLT/PON',
+    description: 'Xem chi tiết cổng PON theo OLT và xuất Excel theo OLT.',
   },
   {
     id: 'pon_one_sp2',
-    label: 'Tá»· lá»‡ cá»•ng PON cÃ³ Ä‘Ãºng 1 SP2',
-    description: 'Theo dÃµi tá»· lá»‡ 1 SP2 theo Tá»• KT vÃ  xuáº¥t Excel.',
+    label: 'Tỷ lệ cổng PON có đúng 1 SP2',
+    description: 'Theo dõi tỷ lệ 1 SP2 theo Tổ KT và xuất Excel.',
   },
   {
     id: 'tb_chuyen_dia_ban',
-    label: 'ThuÃª bao cáº§n chuyá»ƒn Ä‘á»‹a bÃ n khÃ¡c',
-    description: 'Theo dÃµi lá»‹ch sá»­ chuyá»ƒn Ä‘á»‹a bÃ n thuÃª bao vÃ  xuáº¥t Excel.',
+    label: 'Thuê bao cần chuyển địa bàn khác',
+    description: 'Theo dõi lịch sử chuyển địa bàn thuê bao và xuất Excel.',
   },
   {
     id: 's2_renovation_proposals',
-    label: 'Äá» xuáº¥t cáº£i táº¡o Spliter cáº¥p 2',
-    description: 'Danh sÃ¡ch Ä‘á» xuáº¥t cáº£i táº¡o S2 kÃ¨m Ä‘á»‹a chá»‰ vÃ  tá»a Ä‘á»™ GPS lÃºc ghi nháº­n.',
+    label: 'Đề xuất cải tạo Spliter cấp 2',
+    description: 'Danh sách đề xuất cải tạo S2 kèm địa chỉ, Long/Lat và nội dung đề xuất.',
   },
 ];
 
 function getCurrentPositionAsync() {
   return new Promise((resolve, reject) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      reject(new Error('TrÃ¬nh duyá»‡t khÃ´ng há»— trá»£ Ä‘á»‹nh vá»‹ GPS.'));
+      reject(new Error('Trình duyệt không hỗ trợ định vị GPS.'));
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -93,10 +93,10 @@ function getCurrentPositionAsync() {
       },
       (err) => {
         const code = err?.code;
-        if (code === 1) reject(new Error('Báº¡n Ä‘Ã£ tá»« chá»‘i quyá»n truy cáº­p vá»‹ trÃ­. Báº­t GPS Ä‘á»ƒ lÆ°u tá»a Ä‘á»™.'));
-        else if (code === 2) reject(new Error('KhÃ´ng xÃ¡c Ä‘á»‹nh Ä‘Æ°á»£c vá»‹ trÃ­. Thá»­ láº¡i ngoÃ i trá»i hoáº·c báº­t GPS.'));
-        else if (code === 3) reject(new Error('Háº¿t thá»i gian chá» GPS. Thá»­ láº¡i.'));
-        else reject(new Error(err?.message || 'KhÃ´ng láº¥y Ä‘Æ°á»£c tá»a Ä‘á»™.'));
+        if (code === 1) reject(new Error('Bạn đã từ chối quyền truy cập vị trí. Bật GPS để lưu tọa độ.'));
+        else if (code === 2) reject(new Error('Không xác định được vị trí. Thử lại ngoài trời hoặc bật GPS.'));
+        else if (code === 3) reject(new Error('Hết thời gian chờ GPS. Thử lại.'));
+        else reject(new Error(err?.message || 'Không lấy được tọa độ.'));
       },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
@@ -107,9 +107,16 @@ const TB_MODULE_SPLITTER = 'splitter';
 const TB_MODULE_TB = 'tb';
 const TB_SHARED_LOCAL_CACHE_KEY = 'tb_shared_rows_cache_v1';
 
+function ttvtOptionValue(item) {
+  if (typeof item === 'string') return item;
+  const ma = item?.ma ?? item?.ten ?? item?.TEN ?? item?.TEN_DV;
+  if (ma != null && String(ma).trim() !== '') return String(ma);
+  return defaultDropOptionValue(item);
+}
+
 function defaultDropOptionValue(item) {
   return item?.donviId ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? item?.CARD_ID ?? item?.SLOT_ID ?? item?.PORTVL_ID ??
-    item?.VITRI ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? '';
+    item?.VITRI ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.ten ?? item?.value ?? item?.code ?? '';
 }
 
 function defaultDropOptionLabel(item) {
@@ -134,6 +141,22 @@ function pickDefaultToQlItem(list) {
   if (byId) return byId;
   const byLabel = arr.find((item) => normalizePlainText(defaultDropOptionLabel(item)).includes('nho quan'));
   return byLabel || arr[0] || null;
+}
+
+function pickDefaultTtvtItem(list, currentValue) {
+  const arr = Array.isArray(list) ? list : [];
+  if (!arr.length) return null;
+  const cur = normalizePlainText(currentValue);
+  if (cur) {
+    const byValue = arr.find((item) => normalizePlainText(ttvtOptionValue(item)) === cur);
+    if (byValue) return byValue;
+    const byLabel = arr.find((item) => normalizePlainText(defaultDropOptionLabel(item)) === cur);
+    if (byLabel) return byLabel;
+  }
+  const byNhoQuan = arr.find((item) => normalizePlainText(defaultDropOptionLabel(item)).includes('nho quan'));
+  if (byNhoQuan) return byNhoQuan;
+  const byMa = arr.find((item) => normalizePlainText(ttvtOptionValue(item)) === normalizePlainText(TTVT_MAC_DINH));
+  return byMa || arr[0] || null;
 }
 
 function sanitizeSelectOptions(list) {
@@ -196,12 +219,12 @@ function hasBrowseCatalog(snap) {
   return Array.isArray(snap.toKyThuat) && snap.toKyThuat.length > 0;
 }
 
-/** Cáº­p nháº­t danh sÃ¡ch dropdown tá»« cache mÃ  khÃ´ng Ä‘á»•i lá»±a chá»n Ä‘ang cÃ³. */
+/** Cập nhật danh sách dropdown từ cache mà không đổi lựa chọn đang có. */
 function mergeBrowseOptions(prev, from, selectedValue) {
   const next = sanitizeSelectOptions(from);
   if (!next.length) return prev;
   const sel = String(selectedValue || '');
-  if (sel && next.some((item) => defaultDropOptionValue(item) === sel)) return next;
+  if (sel && next.some((item) => optionValue(item) === sel)) return next;
   return prev.length > 0 ? prev : next;
 }
 
@@ -242,12 +265,12 @@ function tbNormHeader(s) {
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
     .toLowerCase()
-    .replace(/Ä‘/g, 'd')
+    .replace(/đ/g, 'd')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/** Ãnh xáº¡ dÃ²ng tiÃªu Ä‘á» Excel â†’ chá»‰ sá»‘ cá»™t (linh hoáº¡t tÃªn cá»™t). */
+/** Ánh xạ dòng tiêu đề Excel → chỉ số cột (linh hoạt tên cột). */
 function tbResolveColumnIndices(headerRow) {
   const idx = {};
   const cells = (headerRow || []).map((h, i) => ({ i, n: tbNormHeader(h) }));
@@ -304,7 +327,7 @@ function tbStripBuildSuffix(s) {
     .trim();
 }
 
-/** TÃªn/mÃ£ chá»§ng loáº¡i tá»« User-Agent (Ä‘áº·c biá»‡t Android cÃ³ Ä‘oáº¡n sau Â«Android xx;Â»). */
+/** Tên/mã chủng loại từ User-Agent (đặc biệt Android có đoạn sau «Android xx;»). */
 function tbParsePhoneModelFromUa(ua) {
   if (!ua) return '';
   if (/iPad/i.test(ua)) return 'iPad';
@@ -313,13 +336,13 @@ function tbParsePhoneModelFromUa(ua) {
   if (!m) return '';
   let raw = tbStripBuildSuffix(m[1]).replace(/^Linux;\s*/i, '').trim();
   if (/^K$/i.test(raw)) return '';
-  if (raw.length > 96) raw = `${raw.slice(0, 93)}â€¦`;
+  if (raw.length > 96) raw = `${raw.slice(0, 93)}…`;
   return raw || '';
 }
 
 /**
- * TÃªn hoáº·c chá»§ng loáº¡i Ä‘iá»‡n thoáº¡i/thiáº¿t bá»‹ lÃºc thao tÃ¡c (Client Hints + UA).
- * MÃ¡y tÃ­nh: Â«MÃ¡y tÃ­nh (há»‡ Ä‘iá»u hÃ nh ngáº¯n gá»n)Â».
+ * Tên hoặc chủng loại điện thoại/thiết bị lúc thao tác (Client Hints + UA).
+ * Máy tính: «Máy tính (hệ điều hành ngắn gọn)».
  */
 async function tbSummarizeThietBiThaoTacAsync() {
   if (typeof navigator === 'undefined') return '';
@@ -330,20 +353,20 @@ async function tbSummarizeThietBiThaoTacAsync() {
     if (uad?.getHighEntropyValues) {
       const hi = await uad.getHighEntropyValues(['model', 'platform', 'mobile']);
       const m = String(hi?.model || '').trim();
-      if (hi?.mobile && m && !/^generic$/i.test(m)) return m.length > 120 ? `${m.slice(0, 117)}â€¦` : m;
+      if (hi?.mobile && m && !/^generic$/i.test(m)) return m.length > 120 ? `${m.slice(0, 117)}…` : m;
     }
   } catch {
-    /* bá» qua */
+    /* bỏ qua */
   }
 
   const fromUa = tbParsePhoneModelFromUa(ua);
   if (fromUa) return fromUa;
 
   if (/Mobi|Android|iPhone|iPad|iPod/i.test(ua)) {
-    if (/Android/i.test(ua)) return 'Äiá»‡n thoáº¡i Android (khÃ´ng Ä‘á»c Ä‘Æ°á»£c model)';
+    if (/Android/i.test(ua)) return 'Điện thoại Android (không đọc được model)';
     if (/iPad/i.test(ua)) return 'iPad';
     if (/iPhone|iPod/i.test(ua)) return 'iPhone';
-    return 'Thiáº¿t bá»‹ di Ä‘á»™ng';
+    return 'Thiết bị di động';
   }
 
   let os = '';
@@ -352,8 +375,8 @@ async function tbSummarizeThietBiThaoTacAsync() {
   else if (/Mac OS X/i.test(ua)) os = 'macOS';
   else if (/CrOS/i.test(ua)) os = 'Chrome OS';
   else if (/Linux/i.test(ua)) os = 'Linux';
-  else os = 'â€”';
-  if (/Macintosh|Windows|CrOS|Linux/i.test(ua)) return `MÃ¡y tÃ­nh (${os})`;
+  else os = '—';
+  if (/Macintosh|Windows|CrOS|Linux/i.test(ua)) return `Máy tính (${os})`;
   return ua.trim() ? ua.slice(0, 120) : '';
 }
 
@@ -398,7 +421,7 @@ export default function TraCuuSP2Page() {
   const [loadingPortOlt, setLoadingPortOlt] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [listError, setListError] = useState('');
-  /** Snapshot danh má»¥c tá»« server (lÆ°u lÃºc Ä‘á»“ng bá»™ S2). */
+  /** Snapshot danh mục từ server (lưu lúc đồng bộ S2). */
   const [browseSnapshot, setBrowseSnapshot] = useState(null);
   const browseSnapshotRef = useRef(null);
   const [showCopyToast, setShowCopyToast] = useState(false);
@@ -546,7 +569,7 @@ export default function TraCuuSP2Page() {
     }
   }, []);
 
-  /** PhiÃªn sessionStorage khÃ´ng cÃ³ cookie httpOnly â†’ Ä‘á»“ng bá»™ láº¡i tráº¡ng thÃ¡i khÃ³a. */
+  /** Phiên sessionStorage không có cookie httpOnly → đồng bộ lại trạng thái khóa. */
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) !== '1') return;
@@ -574,7 +597,7 @@ export default function TraCuuSP2Page() {
       setShowReportPanel(false);
       setUnlockToOpenReport(false);
       if (typeof window !== 'undefined') sessionStorage.removeItem(STORAGE_AUTH_UNLOCKED);
-      setAuthPasswordError('PhiÃªn Ä‘Ã£ háº¿t háº¡n. Vui lÃ²ng thá»­ láº¡i.');
+      setAuthPasswordError('Phiên đã hết hạn. Vui lòng thử lại.');
       fetch('/api/admin/lock', { method: 'POST', credentials: 'include' }).catch(() => {});
       setTbUploadGate((g) => ({
         ...g,
@@ -633,7 +656,7 @@ export default function TraCuuSP2Page() {
     refreshServerMeta();
   }, []);
 
-  /** MÃ¡y khÃ¡c: tá»± cáº­p nháº­t meta + danh má»¥c cache khi admin Ä‘ang Ä‘á»“ng bá»™ lÃªn Supabase. */
+  /** Máy khác: tự cập nhật meta + danh mục cache khi admin đang đồng bộ lên Supabase. */
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const tick = () => {
@@ -689,13 +712,13 @@ export default function TraCuuSP2Page() {
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) {
         setPonOneSp2Stats([]);
-        setPonStatsError(j.message || `KhÃ´ng táº£i Ä‘Æ°á»£c thá»‘ng kÃª (${res.status}).`);
+        setPonStatsError(j.message || `Không tải được thống kê (${res.status}).`);
         return;
       }
       setPonOneSp2Stats(Array.isArray(j.rows) ? j.rows : []);
     } catch (e) {
       setPonOneSp2Stats([]);
-      setPonStatsError(e?.message || 'Lá»—i táº£i thá»‘ng kÃª.');
+      setPonStatsError(e?.message || 'Lỗi tải thống kê.');
     } finally {
       setPonStatsLoading(false);
     }
@@ -710,7 +733,7 @@ export default function TraCuuSP2Page() {
       const res = await fetch(`/api/sp2-cache?${q.toString()}`);
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.message || `KhÃ´ng xuáº¥t Ä‘Æ°á»£c Excel (${res.status}).`);
+        throw new Error(j.message || `Không xuất được Excel (${res.status}).`);
       }
       const blob = await res.blob();
       const dispo = res.headers.get('content-disposition') || '';
@@ -725,7 +748,7 @@ export default function TraCuuSP2Page() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setPonStatsError(e?.message || 'Lá»—i xuáº¥t Excel.');
+      setPonStatsError(e?.message || 'Lỗi xuất Excel.');
     } finally {
       setPonExporting(false);
     }
@@ -741,7 +764,7 @@ export default function TraCuuSP2Page() {
         setOltPonDetailRows([]);
         setOltPonToOptions([]);
         setOltPonOptions([]);
-        setOltPonError(j.message || `KhÃ´ng táº£i Ä‘Æ°á»£c bÃ¡o cÃ¡o OLT/PON (${res.status}).`);
+        setOltPonError(j.message || `Không tải được báo cáo OLT/PON (${res.status}).`);
         return;
       }
       const rows = Array.isArray(j.rows) ? j.rows : [];
@@ -760,7 +783,7 @@ export default function TraCuuSP2Page() {
       setOltPonDetailRows([]);
       setOltPonToOptions([]);
       setOltPonOptions([]);
-      setOltPonError(e?.message || 'Lá»—i táº£i bÃ¡o cÃ¡o OLT/PON.');
+      setOltPonError(e?.message || 'Lỗi tải báo cáo OLT/PON.');
     } finally {
       setOltPonLoading(false);
     }
@@ -776,7 +799,7 @@ export default function TraCuuSP2Page() {
       const res = await fetch(`/api/sp2-cache?${q.toString()}`);
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.message || `KhÃ´ng xuáº¥t Ä‘Æ°á»£c Excel OLT/PON (${res.status}).`);
+        throw new Error(j.message || `Không xuất được Excel OLT/PON (${res.status}).`);
       }
       const blob = await res.blob();
       const dispo = res.headers.get('content-disposition') || '';
@@ -791,7 +814,7 @@ export default function TraCuuSP2Page() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setOltPonError(e?.message || 'Lá»—i xuáº¥t Excel OLT/PON.');
+      setOltPonError(e?.message || 'Lỗi xuất Excel OLT/PON.');
     } finally {
       setOltPonExporting(false);
     }
@@ -807,7 +830,7 @@ export default function TraCuuSP2Page() {
         setNoSp2Rows([]);
         setNoSp2ToOptions([]);
         setNoSp2OltOptions([]);
-        setNoSp2Error(j.message || `KhÃ´ng táº£i Ä‘Æ°á»£c bÃ¡o cÃ¡o cá»•ng khÃ´ng cÃ³ S2 (${res.status}).`);
+        setNoSp2Error(j.message || `Không tải được báo cáo cổng không có S2 (${res.status}).`);
         return;
       }
       setNoSp2Rows(Array.isArray(j.rows) ? j.rows : []);
@@ -817,7 +840,7 @@ export default function TraCuuSP2Page() {
       setNoSp2Rows([]);
       setNoSp2ToOptions([]);
       setNoSp2OltOptions([]);
-      setNoSp2Error(e?.message || 'Lá»—i táº£i bÃ¡o cÃ¡o cá»•ng khÃ´ng cÃ³ S2.');
+      setNoSp2Error(e?.message || 'Lỗi tải báo cáo cổng không có S2.');
     } finally {
       setNoSp2Loading(false);
     }
@@ -833,7 +856,7 @@ export default function TraCuuSP2Page() {
       const res = await fetch(`/api/sp2-cache?${q.toString()}`);
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.message || `KhÃ´ng xuáº¥t Ä‘Æ°á»£c Excel cá»•ng khÃ´ng cÃ³ S2 (${res.status}).`);
+        throw new Error(j.message || `Không xuất được Excel cổng không có S2 (${res.status}).`);
       }
       const blob = await res.blob();
       const dispo = res.headers.get('content-disposition') || '';
@@ -848,7 +871,7 @@ export default function TraCuuSP2Page() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setNoSp2Error(e?.message || 'Lá»—i xuáº¥t Excel cá»•ng khÃ´ng cÃ³ S2.');
+      setNoSp2Error(e?.message || 'Lỗi xuất Excel cổng không có S2.');
     } finally {
       setNoSp2Exporting(false);
     }
@@ -867,7 +890,7 @@ export default function TraCuuSP2Page() {
         setS2CapacityRows([]);
         setS2CapacityToOptions([]);
         setS2CapacityOltOptions([]);
-        setS2CapacityError(j.message || `KhÃ´ng táº£i Ä‘Æ°á»£c bÃ¡o cÃ¡o dung lÆ°á»£ng S2 (${res.status}).`);
+        setS2CapacityError(j.message || `Không tải được báo cáo dung lượng S2 (${res.status}).`);
         return;
       }
       setS2CapacityRows(Array.isArray(j.rows) ? j.rows : []);
@@ -877,7 +900,7 @@ export default function TraCuuSP2Page() {
       setS2CapacityRows([]);
       setS2CapacityToOptions([]);
       setS2CapacityOltOptions([]);
-      setS2CapacityError(e?.message || 'Lá»—i táº£i bÃ¡o cÃ¡o dung lÆ°á»£ng S2.');
+      setS2CapacityError(e?.message || 'Lỗi tải báo cáo dung lượng S2.');
     } finally {
       setS2CapacityLoading(false);
     }
@@ -893,7 +916,7 @@ export default function TraCuuSP2Page() {
       const res = await fetch(`/api/sp2-cache?${q.toString()}`);
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.message || `KhÃ´ng xuáº¥t Ä‘Æ°á»£c Excel dung lÆ°á»£ng S2 (${res.status}).`);
+        throw new Error(j.message || `Không xuất được Excel dung lượng S2 (${res.status}).`);
       }
       const blob = await res.blob();
       const dispo = res.headers.get('content-disposition') || '';
@@ -908,7 +931,7 @@ export default function TraCuuSP2Page() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setS2CapacityError(e?.message || 'Lá»—i xuáº¥t Excel dung lÆ°á»£ng S2.');
+      setS2CapacityError(e?.message || 'Lỗi xuất Excel dung lượng S2.');
     } finally {
       setS2CapacityExporting(false);
     }
@@ -932,7 +955,7 @@ export default function TraCuuSP2Page() {
     if (s2List.length === 0) {
       setS2LookupRows([]);
       setS2LookupNotFound([]);
-      setS2LookupError('Vui lÃ²ng nháº­p Ã­t nháº¥t 1 mÃ£ S2 Ä‘á»ƒ tra cá»©u.');
+      setS2LookupError('Vui lòng nhập ít nhất 1 mã S2 để tra cứu.');
       return;
     }
     setS2LookupLoading(true);
@@ -947,7 +970,7 @@ export default function TraCuuSP2Page() {
       if (!res.ok || !j.ok) {
         setS2LookupRows([]);
         setS2LookupNotFound([]);
-        setS2LookupError(j?.message || `KhÃ´ng tra cá»©u Ä‘Æ°á»£c S2 (${res.status}).`);
+        setS2LookupError(j?.message || `Không tra cứu được S2 (${res.status}).`);
         return;
       }
       setS2LookupRows(Array.isArray(j.rows) ? j.rows : []);
@@ -955,7 +978,7 @@ export default function TraCuuSP2Page() {
     } catch (e) {
       setS2LookupRows([]);
       setS2LookupNotFound([]);
-      setS2LookupError(e?.message || 'Lá»—i tra cá»©u S2.');
+      setS2LookupError(e?.message || 'Lỗi tra cứu S2.');
     } finally {
       setS2LookupLoading(false);
     }
@@ -998,14 +1021,14 @@ export default function TraCuuSP2Page() {
       if (tokens.length === 0) {
         setS2LookupRows([]);
         setS2LookupNotFound([]);
-        setS2LookupError('File khÃ´ng cÃ³ dá»¯ liá»‡u S2 há»£p lá»‡.');
+        setS2LookupError('File không có dữ liệu S2 hợp lệ.');
         return;
       }
       await runS2Lookup(tokens);
     } catch (e) {
       setS2LookupRows([]);
       setS2LookupNotFound([]);
-      setS2LookupError(e?.message || 'KhÃ´ng Ä‘á»c Ä‘Æ°á»£c file S2.');
+      setS2LookupError(e?.message || 'Không đọc được file S2.');
     } finally {
       if (event?.target) event.target.value = '';
     }
@@ -1013,7 +1036,7 @@ export default function TraCuuSP2Page() {
 
   const handleExportS2LookupExcel = async () => {
     if (s2LookupRows.length === 0 && s2LookupNotFound.length === 0) {
-      setS2LookupError('ChÆ°a cÃ³ dá»¯ liá»‡u Ä‘á»ƒ xuáº¥t Excel.');
+      setS2LookupError('Chưa có dữ liệu để xuất Excel.');
       return;
     }
     setS2LookupExporting(true);
@@ -1023,7 +1046,7 @@ export default function TraCuuSP2Page() {
       const datePart = new Date().toISOString().slice(0, 10);
       const foundRows = s2LookupRows.map((r, idx) => ({
         STT: idx + 1,
-        TRANG_THAI: 'TÃ¬m tháº¥y',
+        TRANG_THAI: 'Tìm thấy',
         S2_TRA_CUU: String(r?.queryS2 || ''),
         KY_HIEU_S2: String(r?.kyHieu || ''),
         TEN_SPLITTER: String(r?.tenSplitter || ''),
@@ -1036,7 +1059,7 @@ export default function TraCuuSP2Page() {
       }));
       const missRows = s2LookupNotFound.map((s2, idx) => ({
         STT: foundRows.length + idx + 1,
-        TRANG_THAI: 'KhÃ´ng tÃ¬m tháº¥y',
+        TRANG_THAI: 'Không tìm thấy',
         S2_TRA_CUU: String(s2 || ''),
         KY_HIEU_S2: '',
         TEN_SPLITTER: '',
@@ -1061,7 +1084,7 @@ export default function TraCuuSP2Page() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setS2LookupError(e?.message || 'Lá»—i xuáº¥t Excel tra cá»©u S2.');
+      setS2LookupError(e?.message || 'Lỗi xuất Excel tra cứu S2.');
     } finally {
       setS2LookupExporting(false);
     }
@@ -1074,13 +1097,13 @@ export default function TraCuuSP2Page() {
         {
           STT: 1,
           Acount: 'VD_ACCOUNT_001',
-          'TÃªn KH': 'Nguyá»…n VÄƒn B',
-          'Äá»‹a chá»‰': 'Sá»‘ nhÃ  â€¦, xÃ£ â€¦, tá»‰nh â€¦',
-          'Sá»‘ ÄT': '0912345678',
-          OLT: 'OLT YÃªn Quang',
+          'Tên KH': 'Nguyễn Văn B',
+          'Địa chỉ': 'Số nhà …, xã …, tỉnh …',
+          'Số ĐT': '0912345678',
+          OLT: 'OLT Yên Quang',
           SLot: '3',
           PORT: '1',
-          'NhÃ¢n viÃªn QL': 'Nguyá»…n VÄƒn A',
+          'Nhân viên QL': 'Nguyễn Văn A',
         },
       ];
       const ws = xlsx.utils.json_to_sheet(sample);
@@ -1097,7 +1120,7 @@ export default function TraCuuSP2Page() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setTbParseMessage(e?.message || 'KhÃ´ng táº¡o Ä‘Æ°á»£c file máº«u.');
+      setTbParseMessage(e?.message || 'Không tạo được file mẫu.');
     }
   };
 
@@ -1117,11 +1140,11 @@ export default function TraCuuSP2Page() {
                 count: cachedCount,
               });
               if (!silent) {
-                setTbParseMessage(`Äang Ä‘á»“ng bá»™ dá»¯ liá»‡u chung tá»« server${cached?.fileName ? ` (${cached.fileName})` : ''}...`);
+                setTbParseMessage(`Đang đồng bộ dữ liệu chung từ server${cached?.fileName ? ` (${cached.fileName})` : ''}...`);
               }
             }
           } catch {
-            // bá» qua cache há»ng
+            // bỏ qua cache hỏng
           }
         }
       }
@@ -1129,7 +1152,7 @@ export default function TraCuuSP2Page() {
       const res = await fetch('/api/tb-cache', { cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
-        const msg = data?.message || 'KhÃ´ng Ä‘á»c Ä‘Æ°á»£c dá»¯ liá»‡u dÃ¹ng chung tá»« server.';
+        const msg = data?.message || 'Không đọc được dữ liệu dùng chung từ server.';
         if (!silent) setTbParseMessage(msg);
         return;
       }
@@ -1144,11 +1167,11 @@ export default function TraCuuSP2Page() {
         if (!silent) {
           if (data.emptyReason === 'meta_no_rows') {
             setTbParseMessage(
-              'TrÃªn server váº«n cÃ²n báº£n ghi Ä‘á»“ng bá»™ nhÆ°ng khÃ´ng cÃ²n dÃ²ng thuÃª bao Ä‘i kÃ¨m (cÃ³ thá»ƒ Ä‘Ã£ xÃ³a tay hoáº·c lá»—i lÆ°u). HÃ£y upload láº¡i file Excel.'
+              'Trên server vẫn còn bản ghi đồng bộ nhưng không còn dòng thuê bao đi kèm (có thể đã xóa tay hoặc lỗi lưu). Hãy upload lại file Excel.'
             );
           } else {
             setTbParseMessage(
-              'ChÆ°a cÃ³ dá»¯ liá»‡u dÃ¹ng chung trÃªn server. HÃ£y upload 1 file Excel trÃªn báº¥t ká»³ thiáº¿t bá»‹ nÃ o (hoáº·c kiá»ƒm tra biáº¿n mÃ´i trÆ°á»ng Supabase trÃªn Vercel dÃ¹ng Ä‘Ãºng project cÃ³ dá»¯ liá»‡u).'
+              'Chưa có dữ liệu dùng chung trên server. Hãy upload 1 file Excel trên bất kỳ thiết bị nào (hoặc kiểm tra biến môi trường Supabase trên Vercel dùng đúng project có dữ liệu).'
             );
           }
         }
@@ -1170,26 +1193,26 @@ export default function TraCuuSP2Page() {
             count: rows.length,
           }));
         } catch {
-          // Bá» qua lá»—i quota localStorage
+          // Bỏ qua lỗi quota localStorage
         }
       }
       const timeText = meta.uploadedAt ? new Date(meta.uploadedAt).toLocaleString('vi-VN') : '';
       if (!silent) {
-        const base = `ÄÃ£ táº£i ${rows.length} thuÃª bao tá»« dá»¯ liá»‡u dÃ¹ng chung${timeText ? ` (${timeText})` : ''}.`;
+        const base = `Đã tải ${rows.length} thuê bao từ dữ liệu dùng chung${timeText ? ` (${timeText})` : ''}.`;
         setTbParseMessage(
           data.partialRecovery
-            ? `${base} Upload trÆ°á»›c chÆ°a chá»‘t trÃªn server â€” chá»‰ cÃ²n pháº§n Ä‘Ã£ lÆ°u (cÃ³ thá»ƒ upload láº¡i Ä‘á»ƒ Ä‘á»“ng bá»™ Ä‘á»§).`
+            ? `${base} Upload trước chưa chốt trên server — chỉ còn phần đã lưu (có thể upload lại để đồng bộ đủ).`
             : base
         );
       }
     } catch (e) {
-      if (!silent && !tbRows.length) setTbParseMessage(e?.message || 'KhÃ´ng Ä‘á»c Ä‘Æ°á»£c dá»¯ liá»‡u dÃ¹ng chung tá»« server.');
+      if (!silent && !tbRows.length) setTbParseMessage(e?.message || 'Không đọc được dữ liệu dùng chung từ server.');
     } finally {
       setTbSharedLoading(false);
     }
   };
 
-  /** CÃ¹ng API/máº­t kháº©u vá»›i CÃ i Ä‘áº·t / BÃ¡o cÃ¡o (`UNLOCK_PASSWORD`); Ä‘áº·t cookie httpOnly cho upload TB. */
+  /** Cùng API/mật khẩu với Cài đặt / Báo cáo (`UNLOCK_PASSWORD`); đặt cookie httpOnly cho upload TB. */
   const unlockAdminWithPassword = async (password) => {
     try {
       const res = await fetch('/api/admin/unlock', {
@@ -1200,11 +1223,11 @@ export default function TraCuuSP2Page() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) {
-        return { ok: false, message: String(j?.message || 'KhÃ´ng thá»ƒ má»Ÿ khÃ³a.') };
+        return { ok: false, message: String(j?.message || 'Không thể mở khóa.') };
       }
       return { ok: true };
     } catch (err) {
-      return { ok: false, message: err?.message || 'KhÃ´ng xÃ¡c thá»±c Ä‘Æ°á»£c.' };
+      return { ok: false, message: err?.message || 'Không xác thực được.' };
     }
   };
 
@@ -1225,7 +1248,7 @@ export default function TraCuuSP2Page() {
       setTbUploadGate({ status: 'unlocked', gateEnabled: true });
       setTbUploadPanelExpanded(true);
     } catch {
-      setTbUploadGateError('Lá»—i máº¡ng khi gá»­i máº­t kháº©u.');
+      setTbUploadGateError('Lỗi mạng khi gửi mật khẩu.');
     } finally {
       setTbUploadGateSubmitting(false);
     }
@@ -1235,7 +1258,7 @@ export default function TraCuuSP2Page() {
     try {
       await fetch('/api/admin/lock', { method: 'POST', credentials: 'include' });
     } catch {
-      /* bá» qua */
+      /* bỏ qua */
     }
     setTbUploadPanelExpanded(false);
     setTbUploadGate((g) => ({
@@ -1250,13 +1273,13 @@ export default function TraCuuSP2Page() {
       const res = await fetch('/api/tb-transfer', { cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
-        if (!silent) setTbParseMessage(data?.message || 'KhÃ´ng Ä‘á»c Ä‘Æ°á»£c lá»‹ch sá»­ chuyá»ƒn Ä‘á»‹a bÃ n tá»« server.');
+        if (!silent) setTbParseMessage(data?.message || 'Không đọc được lịch sử chuyển địa bàn từ server.');
         return;
       }
       const batches = Array.isArray(data?.batches) ? data.batches : [];
       setTbChuyenBatches(batches);
     } catch (e) {
-      if (!silent) setTbParseMessage(e?.message || 'KhÃ´ng Ä‘á»c Ä‘Æ°á»£c lá»‹ch sá»­ chuyá»ƒn Ä‘á»‹a bÃ n tá»« server.');
+      if (!silent) setTbParseMessage(e?.message || 'Không đọc được lịch sử chuyển địa bàn từ server.');
     } finally {
       if (!silent) setTbTransferLoading(false);
     }
@@ -1273,7 +1296,7 @@ export default function TraCuuSP2Page() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
-        setTbParseMessage(data?.message || 'KhÃ´ng xÃ¡c nháº­n Ä‘Æ°á»£c dÃ²ng lá»‹ch sá»­ chuyá»ƒn.');
+        setTbParseMessage(data?.message || 'Không xác nhận được dòng lịch sử chuyển.');
         return;
       }
       setTbChuyenBatches((prev) =>
@@ -1285,9 +1308,9 @@ export default function TraCuuSP2Page() {
           return { ...b, rows };
         })
       );
-      setTbParseMessage('ÄÃ£ xÃ¡c nháº­n 1 dÃ²ng lá»‹ch sá»­ chuyá»ƒn Ä‘á»‹a bÃ n.');
+      setTbParseMessage('Đã xác nhận 1 dòng lịch sử chuyển địa bàn.');
     } catch (e) {
-      setTbParseMessage(e?.message || 'KhÃ´ng xÃ¡c nháº­n Ä‘Æ°á»£c dÃ²ng lá»‹ch sá»­ chuyá»ƒn.');
+      setTbParseMessage(e?.message || 'Không xác nhận được dòng lịch sử chuyển.');
     } finally {
       setTbConfirmingTransferKey('');
     }
@@ -1304,7 +1327,7 @@ export default function TraCuuSP2Page() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
-        setTbParseMessage(data?.message || 'KhÃ´ng xÃ³a Ä‘Æ°á»£c dÃ²ng lá»‹ch sá»­ chuyá»ƒn.');
+        setTbParseMessage(data?.message || 'Không xóa được dòng lịch sử chuyển.');
         return;
       }
       setTbChuyenBatches((prev) =>
@@ -1316,9 +1339,9 @@ export default function TraCuuSP2Page() {
           })
           .filter((b) => Array.isArray(b.rows) && b.rows.length > 0)
       );
-      setTbParseMessage('ÄÃ£ xÃ³a 1 dÃ²ng lá»‹ch sá»­ chuyá»ƒn Ä‘á»‹a bÃ n.');
+      setTbParseMessage('Đã xóa 1 dòng lịch sử chuyển địa bàn.');
     } catch (e) {
-      setTbParseMessage(e?.message || 'KhÃ´ng xÃ³a Ä‘Æ°á»£c dÃ²ng lá»‹ch sá»­ chuyá»ƒn.');
+      setTbParseMessage(e?.message || 'Không xóa được dòng lịch sử chuyển.');
     } finally {
       setTbDeletingTransferKey('');
     }
@@ -1337,11 +1360,11 @@ export default function TraCuuSP2Page() {
     const file = tbSelectedFile;
     if (!file) return;
     if (tbUploadGate.gateEnabled && tbUploadGate.status !== 'unlocked') {
-      setTbParseMessage('Vui lÃ²ng nháº­p máº­t kháº©u Ä‘á»ƒ má»Ÿ khÃ³a khu vá»±c upload.');
+      setTbParseMessage('Vui lòng nhập mật khẩu để mở khóa khu vực upload.');
       return;
     }
     setTbUploading(true);
-    setTbUploadProgress({ phase: 'Äang Ä‘á»c file Excel...', current: 0, total: 1, percent: 0 });
+    setTbUploadProgress({ phase: 'Đang đọc file Excel...', current: 0, total: 1, percent: 0 });
     setTbFileName(file.name || '');
     setTbParseMessage('');
     setTbKetQua(null);
@@ -1354,7 +1377,7 @@ export default function TraCuuSP2Page() {
       const lowerName = String(file.name || '').toLowerCase();
       if (!lowerName.endsWith('.xlsx') && !lowerName.endsWith('.xls')) {
         setTbRows([]);
-        setTbParseMessage('Chá»‰ há»— trá»£ file .xlsx hoáº·c .xls');
+        setTbParseMessage('Chỉ hỗ trợ file .xlsx hoặc .xls');
         return;
       }
       const xlsx = await import('xlsx');
@@ -1365,7 +1388,7 @@ export default function TraCuuSP2Page() {
       const matrix = ws ? xlsx.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) : [];
       if (!matrix.length) {
         setTbRows([]);
-        setTbParseMessage('File khÃ´ng cÃ³ dá»¯ liá»‡u.');
+        setTbParseMessage('File không có dữ liệu.');
         return;
       }
       const col = tbResolveColumnIndices(matrix[0]);
@@ -1374,7 +1397,7 @@ export default function TraCuuSP2Page() {
       if (missing.length) {
         setTbRows([]);
         setTbParseMessage(
-          `Thiáº¿u cá»™t báº¯t buá»™c trong dÃ²ng tiÃªu Ä‘á»: ${missing.join(', ')}. Cáº§n cÃ³: NhÃ¢n viÃªn QL, OLT, SLOT, PORT (vÃ  cÃ¡c cá»™t khÃ¡c theo máº«u).`
+          `Thiếu cột bắt buộc trong dòng tiêu đề: ${missing.join(', ')}. Cần có: Nhân viên QL, OLT, SLOT, PORT (và các cột khác theo mẫu).`
         );
         return;
       }
@@ -1402,7 +1425,7 @@ export default function TraCuuSP2Page() {
       const hydratedRows = tbHydrateRows(out);
       setTbRows(hydratedRows);
       if (!hydratedRows.length) {
-        setTbParseMessage('KhÃ´ng cÃ³ dÃ²ng dá»¯ liá»‡u há»£p lá»‡ sau tiÃªu Ä‘á».');
+        setTbParseMessage('Không có dòng dữ liệu hợp lệ sau tiêu đề.');
         return;
       }
       if (typeof window !== 'undefined') {
@@ -1413,7 +1436,7 @@ export default function TraCuuSP2Page() {
             count: hydratedRows.length,
           }));
         } catch {
-          // Bá» qua lá»—i quota localStorage, váº«n tiáº¿p tá»¥c lÆ°u server
+          // Bỏ qua lỗi quota localStorage, vẫn tiếp tục lưu server
         }
       }
       let sharedSaved = false;
@@ -1421,7 +1444,7 @@ export default function TraCuuSP2Page() {
       try {
         const chunkSize = 400;
         const totalChunks = Math.max(1, Math.ceil(hydratedRows.length / chunkSize));
-        setTbUploadProgress({ phase: 'Äang upload dá»¯ liá»‡u lÃªn server...', current: 0, total: totalChunks, percent: 0 });
+        setTbUploadProgress({ phase: 'Đang upload dữ liệu lên server...', current: 0, total: totalChunks, percent: 0 });
         const uploadedAt = new Date().toISOString();
         const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
         let finalData = null;
@@ -1447,12 +1470,12 @@ export default function TraCuuSP2Page() {
           const saveData = await saveRes.json().catch(() => ({}));
           if (!saveRes.ok || !saveData?.ok) {
             const serverMsg = String(saveData?.message || saveRes.statusText || '');
-            throw new Error(serverMsg || `Lá»—i lÆ°u chunk ${i + 1}/${totalChunks}.`);
+            throw new Error(serverMsg || `Lỗi lưu chunk ${i + 1}/${totalChunks}.`);
           }
           const currentChunk = i + 1;
           const percent = Math.min(100, Math.round((currentChunk / totalChunks) * 100));
           setTbUploadProgress({
-            phase: 'Äang upload dá»¯ liá»‡u lÃªn server...',
+            phase: 'Đang upload dữ liệu lên server...',
             current: currentChunk,
             total: totalChunks,
             percent,
@@ -1467,7 +1490,7 @@ export default function TraCuuSP2Page() {
             count: Number(finalData.count || hydratedRows.length),
           });
         } else {
-          sharedSaveMessage = 'KhÃ´ng nháº­n Ä‘Æ°á»£c pháº£n há»“i chá»‘t upload.';
+          sharedSaveMessage = 'Không nhận được phản hồi chốt upload.';
           setTbSharedMeta(null);
         }
       } catch (saveErr) {
@@ -1476,12 +1499,12 @@ export default function TraCuuSP2Page() {
       }
       setTbParseMessage(
         sharedSaved
-          ? `ÄÃ£ nháº­p ${hydratedRows.length} thuÃª bao tá»« file vÃ  lÆ°u dÃ¹ng chung Ä‘á»ƒ tra cá»©u trÃªn thiáº¿t bá»‹ khÃ¡c.`
-          : `ÄÃ£ nháº­p ${hydratedRows.length} thuÃª bao tá»« file (khÃ´ng lÆ°u Ä‘Æ°á»£c dá»¯ liá»‡u dÃ¹ng chung lÃªn server${sharedSaveMessage ? `: ${sharedSaveMessage}` : ''}).`
+          ? `Đã nhập ${hydratedRows.length} thuê bao từ file và lưu dùng chung để tra cứu trên thiết bị khác.`
+          : `Đã nhập ${hydratedRows.length} thuê bao từ file (không lưu được dữ liệu dùng chung lên server${sharedSaveMessage ? `: ${sharedSaveMessage}` : ''}).`
       );
     } catch (e) {
       setTbRows([]);
-      setTbParseMessage(e?.message || 'KhÃ´ng Ä‘á»c Ä‘Æ°á»£c file Excel.');
+      setTbParseMessage(e?.message || 'Không đọc được file Excel.');
     } finally {
       setTbUploading(false);
       setTbUploadProgress(null);
@@ -1494,12 +1517,12 @@ export default function TraCuuSP2Page() {
     e?.preventDefault?.();
     setTbTimKiemLoi('');
     if (!tbRows.length) {
-      setTbTimKiemLoi('Vui lÃ²ng upload file Excel danh sÃ¡ch thuÃª bao.');
+      setTbTimKiemLoi('Vui lòng upload file Excel danh sách thuê bao.');
       setTbKetQua(null);
       return;
     }
     if (!tbNvQL || !tbOlt || !tbSlot || !tbPort) {
-      setTbTimKiemLoi('Vui lÃ²ng chá»n Ä‘á»§ NhÃ¢n viÃªn QL, OLT, SLOT vÃ  Port.');
+      setTbTimKiemLoi('Vui lòng chọn đủ Nhân viên QL, OLT, SLOT và Port.');
       setTbKetQua(null);
       return;
     }
@@ -1542,13 +1565,13 @@ export default function TraCuuSP2Page() {
   const confirmTbChuyenDiaBan = async () => {
     const target = (tbChuyenTargetNv || '').trim();
     if (!target) {
-      setTbParseMessage('Chá»n NhÃ¢n viÃªn QL Ä‘Ã­ch Ä‘á»ƒ chuyá»ƒn Ä‘á»‹a bÃ n.');
+      setTbParseMessage('Chọn Nhân viên QL đích để chuyển địa bàn.');
       return;
     }
     if (!Array.isArray(tbKetQua) || !tbKetQua.length) return;
     const picked = tbKetQua.filter((r) => tbChuyenIds.has(r.id));
     if (!picked.length) {
-      setTbParseMessage('Chá»n Ã­t nháº¥t má»™t thuÃª bao trong danh sÃ¡ch.');
+      setTbParseMessage('Chọn ít nhất một thuê bao trong danh sách.');
       return;
     }
     const thoiGian = new Date().toISOString();
@@ -1582,20 +1605,20 @@ export default function TraCuuSP2Page() {
       const saveData = await saveRes.json().catch(() => ({}));
       if (!saveRes.ok || !saveData?.ok) {
         setTbParseMessage(
-          `ÄÃ£ chuyá»ƒn ${picked.length} thuÃª bao sang Â«${target}Â», nhÆ°ng khÃ´ng lÆ°u Ä‘Æ°á»£c lá»‹ch sá»­ server: ${saveData?.message || saveRes.statusText || 'Lá»—i khÃ´ng rÃµ'}`
+          `Đã chuyển ${picked.length} thuê bao sang «${target}», nhưng không lưu được lịch sử server: ${saveData?.message || saveRes.statusText || 'Lỗi không rõ'}`
         );
         setTbShowChuyenModal(false);
         return;
       }
     } catch (saveErr) {
       setTbParseMessage(
-        `ÄÃ£ chuyá»ƒn ${picked.length} thuÃª bao sang Â«${target}Â», nhÆ°ng khÃ´ng lÆ°u Ä‘Æ°á»£c lá»‹ch sá»­ server: ${saveErr?.message || 'Lá»—i máº¡ng'}`
+        `Đã chuyển ${picked.length} thuê bao sang «${target}», nhưng không lưu được lịch sử server: ${saveErr?.message || 'Lỗi mạng'}`
       );
       setTbShowChuyenModal(false);
       return;
     }
     setTbShowChuyenModal(false);
-    setTbParseMessage(`ÄÃ£ chuyá»ƒn ${picked.length} thuÃª bao sang Â«${target}Â». CÃ³ thá»ƒ xem/xuáº¥t á»Ÿ má»¥c BÃ¡o cÃ¡o.`);
+    setTbParseMessage(`Đã chuyển ${picked.length} thuê bao sang «${target}». Có thể xem/xuất ở mục Báo cáo.`);
   };
 
   const handleExportTbChuyenExcel = async () => {
@@ -1607,17 +1630,17 @@ export default function TraCuuSP2Page() {
         flat.push({
           STT: flat.length + 1,
           Account: r.account ?? '',
-          'TÃªn KH': r.tenKH ?? '',
-          'Äá»‹a chá»‰': r.diaChi ?? '',
-          'Äá»‹a bÃ n cÅ©': diaBanCu,
-          'Äá»‹a bÃ n má»›i': diaBanMoi,
-          'Thá»i gian chuyá»ƒn': new Date(batch.thoiGian).toLocaleString('vi-VN'),
-          'Thiáº¿t bá»‹ thao tÃ¡c': batch.thietBiThaoTac || 'â€”',
+          'Tên KH': r.tenKH ?? '',
+          'Địa chỉ': r.diaChi ?? '',
+          'Địa bàn cũ': diaBanCu,
+          'Địa bàn mới': diaBanMoi,
+          'Thời gian chuyển': new Date(batch.thoiGian).toLocaleString('vi-VN'),
+          'Thiết bị thao tác': batch.thietBiThaoTac || '—',
         });
       });
     });
     if (!flat.length) {
-      setTbParseMessage('ChÆ°a cÃ³ thuÃª bao nÃ o Ä‘Æ°á»£c chuyá»ƒn Ä‘á»‹a bÃ n Ä‘á»ƒ xuáº¥t.');
+      setTbParseMessage('Chưa có thuê bao nào được chuyển địa bàn để xuất.');
       return;
     }
     setTbExporting(true);
@@ -1637,7 +1660,7 @@ export default function TraCuuSP2Page() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setTbParseMessage(e?.message || 'Lá»—i xuáº¥t Excel.');
+      setTbParseMessage(e?.message || 'Lỗi xuất Excel.');
     } finally {
       setTbExporting(false);
     }
@@ -1671,7 +1694,7 @@ export default function TraCuuSP2Page() {
       .catch(() => {
         if (!cancelled) {
           setTbUploadGate({ status: 'locked', gateEnabled: true });
-          setTbUploadGateError('KhÃ´ng kiá»ƒm tra Ä‘Æ°á»£c khÃ³a upload. Thá»­ táº£i láº¡i trang.');
+          setTbUploadGateError('Không kiểm tra được khóa upload. Thử tải lại trang.');
         }
       });
     return () => {
@@ -1795,7 +1818,7 @@ export default function TraCuuSP2Page() {
     setS2LookupPage(1);
   }, [s2LookupRows, s2LookupPageSize]);
 
-  // Äá»“ng bá»™ key cá»§a toQL khi nguá»“n dá»¯ liá»‡u Ä‘á»•i kiá»ƒu (uuid <-> donviId) Ä‘á»ƒ dropdown khÃ´ng rÆ¡i vá» "-- Chá»n --".
+  // Đồng bộ key của toQL khi nguồn dữ liệu đổi kiểu (uuid <-> donviId) để dropdown không rơi về "-- Chọn --".
   useEffect(() => {
     if (!Array.isArray(listToQL) || listToQL.length === 0) return;
     const current = String(toQL || '').trim();
@@ -1812,7 +1835,7 @@ export default function TraCuuSP2Page() {
     }
   }, [listToQL, toQL]);
 
-  /** Khi chÆ°a cÃ³ danh sÃ¡ch Tá»• KT tá»« API nhÆ°ng Ä‘Ã£ cÃ³ snapshot Ä‘á»“ng bá»™ â€” Ä‘á»• tá»« snapshot. */
+  /** Khi chưa có danh sách Tổ KT từ API nhưng đã có snapshot đồng bộ — đổ từ snapshot. */
   useEffect(() => {
     if (!browseSnapshot?.toKyThuat?.length) return;
     if (listToQL.length > 0) return;
@@ -1837,19 +1860,19 @@ export default function TraCuuSP2Page() {
       });
       const res = await fetch(`/api/sp2-cache?${q}`);
       const j = await res.json().catch(() => ({}));
-      if (res.status === 503 || j?.message?.includes('ChÆ°a cáº¥u hÃ¬nh Supabase')) {
+      if (res.status === 503 || j?.message?.includes('Chưa cấu hình Supabase')) {
         return {
           kind: 'unconfigured',
-          message: j?.message || 'ChÆ°a cáº¥u hÃ¬nh Supabase trÃªn server (kiá»ƒm tra biáº¿n mÃ´i trÆ°á»ng Vercel).',
+          message: j?.message || 'Chưa cấu hình Supabase trên server (kiểm tra biến môi trường Vercel).',
         };
       }
       if (!j.ok) {
-        return { kind: 'error', message: j?.message || 'Lá»—i Ä‘á»c cache Supabase.' };
+        return { kind: 'error', message: j?.message || 'Lỗi đọc cache Supabase.' };
       }
       if (!j.hit) return { kind: 'miss' };
       return { kind: 'hit', data: Array.isArray(j.data) ? j.data : [] };
     } catch (e) {
-      return { kind: 'error', message: e?.message || 'KhÃ´ng káº¿t ná»‘i Ä‘Æ°á»£c cache server.' };
+      return { kind: 'error', message: e?.message || 'Không kết nối được cache server.' };
     }
   }
 
@@ -1874,13 +1897,13 @@ export default function TraCuuSP2Page() {
 
   function optionValue(item) {
     if (typeof item === 'string') return item;
-    // Tá»• KT: donviId; Tráº¡m BTS: DONVI_ID; OLT: THIETBI_ID; Card OLT: CARD_ID/THIETBI_ID/VITRI; Port: PORTVL_ID
+    // Tổ KT: donviId; Trạm BTS: DONVI_ID; OLT: THIETBI_ID; Card OLT: CARD_ID/THIETBI_ID/VITRI; Port: PORTVL_ID
     const v = item?.donviId ?? item?.DONVI_ID ?? item?.THIETBI_ID ?? item?.CARD_ID ?? item?.SLOT_ID ?? item?.PORTVL_ID ?? item?.VITRI ?? item?.OLT_ID ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? (item?.TEN_TB != null && item.TEN_TB !== '' ? item.TEN_TB : '');
     return v !== undefined && v !== null ? String(v) : '';
   }
   function optionLabel(item) {
     if (typeof item === 'string') return item;
-    // Card OLT: Æ°u tiÃªn TEN_TB (#01 NGLT-C...), khÃ´ng cÃ³ thÃ¬ dÃ¹ng Slot VITRI
+    // Card OLT: ưu tiên TEN_TB (#01 NGLT-C...), không có thì dùng Slot VITRI
     if (item?.TEN_TB != null && item.TEN_TB !== '') return item.TEN_TB;
     const vitri = item?.VITRI;
     if (vitri !== undefined && vitri !== null) return `Slot ${vitri}`;
@@ -1889,7 +1912,7 @@ export default function TraCuuSP2Page() {
 
   function toQlDisplayName(rawToQl) {
     const key = String(rawToQl || '');
-    if (!key) return 'â€”';
+    if (!key) return '—';
     const pools = [
       ...(Array.isArray(browseSnapshot?.toKyThuat) ? browseSnapshot.toKyThuat : []),
       ...(Array.isArray(listToQL) ? listToQL : []),
@@ -1946,6 +1969,8 @@ export default function TraCuuSP2Page() {
       const listToQLFinal = sanitizeSelectOptions(resToQL.ok && rawToQL.length > 0 ? rawToQL : FALLBACK_TO_KY_THUAT);
       setListTtvt(listTtvtFinal);
       setListToQL(listToQLFinal);
+      const ttvtPick = pickDefaultTtvtItem(listTtvtFinal, ttvt);
+      if (ttvtPick != null) setTtvt(ttvtOptionValue(ttvtPick));
       const nhoQuan = pickDefaultToQlItem(listToQLFinal);
       if (nhoQuan != null) setToQL(optionValue(nhoQuan));
       if (!resTtvt.ok && !resToQL.ok && rawTtvt.length === 0 && rawToQL.length === 0) {
@@ -1953,14 +1978,16 @@ export default function TraCuuSP2Page() {
         const is404 = resTtvt.status === 404 || resToQL.status === 404;
         const is502 = resTtvt.status === 502 || resToQL.status === 502;
         setListError(msg || (is404 || is502
-          ? 'KhÃ´ng táº£i Ä‘Æ°á»£c danh sÃ¡ch. LiÃªn há»‡ quáº£n trá»‹ Ä‘á»ƒ kiá»ƒm tra cáº¥u hÃ¬nh.'
-          : 'KhÃ´ng táº£i Ä‘Æ°á»£c danh sÃ¡ch. Kiá»ƒm tra Authorization vÃ  API danh sÃ¡ch OneBSS.'));
+          ? 'Không tải được danh sách. Liên hệ quản trị để kiểm tra cấu hình.'
+          : 'Không tải được danh sách. Kiểm tra Authorization và API danh sách OneBSS.'));
       }
     } catch (e) {
       LOG('loadDanhSach error', e);
-      setListError(e.message || 'Lá»—i táº£i danh sÃ¡ch.');
+      setListError(e.message || 'Lỗi tải danh sách.');
       setListTtvt(FALLBACK_TTVT_LIST);
       setListToQL(FALLBACK_TO_KY_THUAT);
+      const ttvtPick = pickDefaultTtvtItem(FALLBACK_TTVT_LIST, ttvt);
+      if (ttvtPick != null) setTtvt(ttvtOptionValue(ttvtPick));
       const nhoQuan = pickDefaultToQlItem(FALLBACK_TO_KY_THUAT);
       if (nhoQuan != null) setToQL(optionValue(nhoQuan));
     } finally {
@@ -1973,7 +2000,18 @@ export default function TraCuuSP2Page() {
     refreshBrowseSnapshot();
   }, [authorization]);
 
-  // Sau khi cÃ³ danh sÃ¡ch Tráº¡m BTS cho tá»• Ä‘ang chá»n, tá»± chá»n pháº§n tá»­ Ä‘áº§u náº¿u chÆ°a chá»n.
+  // Đồng bộ TTVT với danh sách option (tránh select trống khi value không khớp encoding/ma).
+  useEffect(() => {
+    const valid = sanitizeSelectOptions(listTtvt);
+    if (!valid.length) return;
+    const current = String(ttvt || '');
+    const exists = current && valid.some((item) => ttvtOptionValue(item) === current);
+    if (exists) return;
+    const pick = pickDefaultTtvtItem(valid, current);
+    if (pick) setTtvt(ttvtOptionValue(pick));
+  }, [listTtvt, ttvt]);
+
+  // Sau khi có danh sách Trạm BTS cho tổ đang chọn, tự chọn phần tử đầu nếu chưa chọn.
   useEffect(() => {
     if (!toQL) return;
     const valid = sanitizeSelectOptions(listVeTinh);
@@ -1985,7 +2023,7 @@ export default function TraCuuSP2Page() {
     if (next && next !== current) setVeTinh(next);
   }, [toQL, veTinh, listVeTinh]);
 
-  // Sau khi cÃ³ danh sÃ¡ch OLT cá»§a Tráº¡m BTS Ä‘ang chá»n, tá»± chá»n pháº§n tá»­ Ä‘áº§u náº¿u chÆ°a chá»n.
+  // Sau khi có danh sách OLT của Trạm BTS đang chọn, tự chọn phần tử đầu nếu chưa chọn.
   useEffect(() => {
     if (!veTinh) return;
     const valid = sanitizeSelectOptions(listThietBiOlt);
@@ -2020,7 +2058,7 @@ export default function TraCuuSP2Page() {
     const fromBrowseInit = browseTramsForTo(snapNow, toQL);
     if (fromBrowseInit.length) {
       setListVeTinh((prev) => mergeBrowseOptions(prev, fromBrowseInit, toQlChanged ? '' : veTinh));
-      if (toQlChanged) setListError('Äang dÃ¹ng danh má»¥c cache Ä‘á»“ng bá»™ (Supabase).');
+      if (toQlChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
     } else if (toQlChanged) {
       setListVeTinh([]);
     }
@@ -2045,14 +2083,14 @@ export default function TraCuuSP2Page() {
           clearStoredAuthorization(setAuthorization);
         }
         if (fromBrowseClean.length > 0) {
-          setListError(looksLikeAuthError(status, data) ? 'Authorization háº¿t háº¡n â€” Ä‘Ã£ dÃ¹ng danh má»¥c cache Ä‘á»“ng bá»™ (Supabase).' : '');
+          setListError(looksLikeAuthError(status, data) ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListVeTinh(fromBrowseClean);
           return;
         }
         if (!ok) {
-          setListError(data?.message || data?.error || `KhÃ´ng táº£i Ä‘Æ°á»£c danh sÃ¡ch Tráº¡m BTS (${status}). Kiá»ƒm tra Authorization hoáº·c thá»­ tá»• KT khÃ¡c.`);
+          setListError(data?.message || data?.error || `Không tải được danh sách Trạm BTS (${status}). Kiểm tra Authorization hoặc thử tổ KT khác.`);
         } else {
-          setListError(data?.message || 'KhÃ´ng cÃ³ dá»¯ liá»‡u Tráº¡m BTS.');
+          setListError(data?.message || 'Không có dữ liệu Trạm BTS.');
         }
         setListVeTinh([]);
       })
@@ -2064,12 +2102,12 @@ export default function TraCuuSP2Page() {
           return;
         }
         LOG('VeTinh error', e);
-        setListError(e.message || 'Lá»—i táº£i danh sÃ¡ch Tráº¡m BTS.');
+        setListError(e.message || 'Lỗi tải danh sách Trạm BTS.');
         setListVeTinh([]);
       });
   }, [toQL, authorization]);
 
-  // Chá»n Tráº¡m BTS â†’ chá»‰ load danh sÃ¡ch Thiáº¿t bá»‹ OLT
+  // Chọn Trạm BTS → chỉ load danh sách Thiết bị OLT
   useEffect(() => {
     if (!veTinh) {
       catalogVeTinhRef.current = '';
@@ -2092,7 +2130,7 @@ export default function TraCuuSP2Page() {
     const fromBrowseInitOlt = browseOltsForTram(snapNow, toQL, veTinh);
     if (fromBrowseInitOlt.length) {
       setListThietBiOlt((prev) => mergeBrowseOptions(prev, fromBrowseInitOlt, veTinhChanged ? '' : thietBiOlt));
-      if (veTinhChanged) setListError('Äang dÃ¹ng danh má»¥c cache Ä‘á»“ng bá»™ (Supabase).');
+      if (veTinhChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
     } else if (veTinhChanged) {
       setListThietBiOlt([]);
     }
@@ -2113,11 +2151,11 @@ export default function TraCuuSP2Page() {
         const authErr = looksLikeAuthError(status, data);
         if (authErr) clearStoredAuthorization(setAuthorization);
         if (fromBrowseClean.length > 0) {
-          setListError(authErr ? 'Authorization háº¿t háº¡n â€” Ä‘Ã£ dÃ¹ng danh má»¥c cache Ä‘á»“ng bá»™ (Supabase).' : '');
+          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListThietBiOlt(fromBrowseClean);
           return;
         }
-        if (!ok && data?.message) setListError(data.message || 'KhÃ´ng táº£i Ä‘Æ°á»£c danh sÃ¡ch Thiáº¿t bá»‹ OLT.');
+        if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Thiết bị OLT.');
         setListThietBiOlt([]);
       })
       .catch((e) => {
@@ -2128,12 +2166,12 @@ export default function TraCuuSP2Page() {
           return;
         }
         LOG('OLT error', e);
-        setListError(e.message || 'Lá»—i táº£i OLT.');
+        setListError(e.message || 'Lỗi tải OLT.');
         setListThietBiOlt([]);
       });
   }, [veTinh, toQL, authorization]);
 
-  // Chá»n Thiáº¿t bá»‹ OLT â†’ load danh sÃ¡ch Card OLT (body { id: THIETBI_ID })
+  // Chọn Thiết bị OLT → load danh sách Card OLT (body { id: THIETBI_ID })
   useEffect(() => {
     if (!thietBiOlt) {
       catalogOltRef.current = '';
@@ -2151,7 +2189,7 @@ export default function TraCuuSP2Page() {
     const fromBrowseInitCard = browseCardsForOlt(snapNowCard, thietBiOlt);
     if (fromBrowseInitCard.length) {
       setListCardOlt((prev) => mergeBrowseOptions(prev, fromBrowseInitCard, oltChanged ? '' : cardOlt));
-      if (oltChanged) setListError('Äang dÃ¹ng danh má»¥c cache Ä‘á»“ng bá»™ (Supabase).');
+      if (oltChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
     } else if (oltChanged) {
       setListCardOlt([]);
     }
@@ -2172,12 +2210,12 @@ export default function TraCuuSP2Page() {
         const authErr = looksLikeAuthError(status, data);
         if (authErr) clearStoredAuthorization(setAuthorization);
         if (fromBrowse.length > 0) {
-          setListError(authErr ? 'Authorization háº¿t háº¡n â€” Ä‘Ã£ dÃ¹ng danh má»¥c cache Ä‘á»“ng bá»™ (Supabase).' : '');
+          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListCardOlt(fromBrowse);
           return;
         }
-        if (!ok && data?.message) setListError(data.message || 'KhÃ´ng táº£i Ä‘Æ°á»£c danh sÃ¡ch Card OLT.');
-        else if (ok && list.length === 0) setListError('KhÃ´ng cÃ³ Card OLT cho thiáº¿t bá»‹ nÃ y.');
+        if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Card OLT.');
+        else if (ok && list.length === 0) setListError('Không có Card OLT cho thiết bị này.');
         setListCardOlt([]);
       })
       .catch((e) => {
@@ -2188,12 +2226,12 @@ export default function TraCuuSP2Page() {
           return;
         }
         LOG('Card OLT error', e);
-        setListError(e.message || 'Lá»—i táº£i Card OLT.');
+        setListError(e.message || 'Lỗi tải Card OLT.');
         setListCardOlt([]);
       });
   }, [thietBiOlt, authorization]);
 
-  // Chá»n Card OLT â†’ load danh sÃ¡ch Port OLT tá»« API (layDsPortOltTheoCardOlt), khÃ´ng dÃ¹ng danh sÃ¡ch cá»‘ Ä‘á»‹nh
+  // Chọn Card OLT → load danh sách Port OLT từ API (layDsPortOltTheoCardOlt), không dùng danh sách cố định
   useEffect(() => {
     if (!cardOlt) {
       catalogCardRef.current = '';
@@ -2210,7 +2248,7 @@ export default function TraCuuSP2Page() {
     const fromBrowseInitPort = browsePortsForCard(snapNowPort, cardOlt);
     if (fromBrowseInitPort.length) {
       setListPortOlt((prev) => mergeBrowseOptions(prev, fromBrowseInitPort, cardChanged ? '' : portOlt));
-      if (cardChanged) setListError('Äang dÃ¹ng danh má»¥c cache Ä‘á»“ng bá»™ (Supabase).');
+      if (cardChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
     } else if (cardChanged) {
       setListPortOlt([]);
     }
@@ -2231,11 +2269,11 @@ export default function TraCuuSP2Page() {
         const authErr = looksLikeAuthError(status, data);
         if (authErr) clearStoredAuthorization(setAuthorization);
         if (fromBrowse.length > 0) {
-          setListError(authErr ? 'Authorization háº¿t háº¡n â€” Ä‘Ã£ dÃ¹ng danh má»¥c cache Ä‘á»“ng bá»™ (Supabase).' : '');
+          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListPortOlt(fromBrowse);
           return;
         }
-        if (!ok && data?.message) setListError(data.message || 'KhÃ´ng táº£i Ä‘Æ°á»£c danh sÃ¡ch Port OLT.');
+        if (!ok && data?.message) setListError(data.message || 'Không tải được danh sách Port OLT.');
         setListPortOlt([]);
       })
       .catch((e) => {
@@ -2246,13 +2284,13 @@ export default function TraCuuSP2Page() {
           return;
         }
         LOG('Port OLT error', e);
-        setListError(e.message || 'Lá»—i táº£i Port OLT.');
+        setListError(e.message || 'Lỗi tải Port OLT.');
         setListPortOlt([]);
       })
       .finally(() => setLoadingPortOlt(false));
   }, [cardOlt, authorization]);
 
-  /** Cache danh má»¥c tÄƒng dáº§n khi Ä‘á»“ng bá»™ â€” chá»‰ bá»• sung option, khÃ´ng reset Tráº¡m/OLT Ä‘ang chá»n. */
+  /** Cache danh mục tăng dần khi đồng bộ — chỉ bổ sung option, không reset Trạm/OLT đang chọn. */
   useEffect(() => {
     if (!toQL || !browseSnapshot) return;
     const from = browseTramsForTo(browseSnapshot, toQL);
@@ -2281,7 +2319,7 @@ export default function TraCuuSP2Page() {
     setListPortOlt((prev) => mergeBrowseOptions(prev, from, portOlt));
   }, [browseSnapshot, cardOlt, portOlt]);
 
-  /** Äá»“ng bá»™ toÃ n bá»™ S2 má»—i 5 phÃºt khi JWT Authorization cÃ²n háº¡n; tab áº©n thÃ¬ bá» qua tick. */
+  /** Đồng bộ toàn bộ S2 mỗi 5 phút khi JWT Authorization còn hạn; tab ẩn thì bỏ qua tick. */
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const authTrim = (authorization || '').trim();
@@ -2356,7 +2394,7 @@ export default function TraCuuSP2Page() {
     syncProgressLastAtRef.current = 0;
     syncAbortRef.current = new AbortController();
     setSyncRunning(true);
-    setSyncProgress({ phase: 'scan', done: 0, total: 0, label: 'Äang chuáº©n bá»‹â€¦' });
+    setSyncProgress({ phase: 'scan', done: 0, total: 0, label: 'Đang chuẩn bị…' });
     try {
       const pwd = (adminPasswordOverride && adminPasswordOverride.trim()) || adminPasswordForSync.trim();
       const result = await runFullSp2Sync({
@@ -2378,14 +2416,14 @@ export default function TraCuuSP2Page() {
         setLastSyncInfo(null);
       }
       if (result.aborted) {
-        setListError(`ÄÃ£ dá»«ng Ä‘á»“ng bá»™. ÄÃ£ xá»­ lÃ½ ${result.completed ?? 0}/${result.total ?? 'â€”'} port.`);
+        setListError(`Đã dừng đồng bộ. Đã xử lý ${result.completed ?? 0}/${result.total ?? '—'} port.`);
       } else if (result.errors > 0) {
-        setListError(`Äá»“ng bá»™ xong vá»›i ${result.errors} lá»—i (tra cá»©u API) trÃªn ${result.total} port. CÃ³ thá»ƒ cháº¡y láº¡i.`);
+        setListError(`Đồng bộ xong với ${result.errors} lỗi (tra cứu API) trên ${result.total} port. Có thể chạy lại.`);
       }
       return { skipped: false, result };
     } catch (err) {
-      LOG('Äá»“ng bá»™ toÃ n bá»™', err);
-      setListError(err.message || 'Lá»—i Ä‘á»“ng bá»™ toÃ n bá»™.');
+      LOG('Đồng bộ toàn bộ', err);
+      setListError(err.message || 'Lỗi đồng bộ toàn bộ.');
       return { skipped: false, error: err };
     } finally {
       clearSyncProgressTimer();
@@ -2416,37 +2454,37 @@ export default function TraCuuSP2Page() {
         const syncAuth = authorization?.trim() || '';
         const syncAdminPwd = adminPasswordForServer?.trim() || '';
         setSaveToServerStatus('ok');
-        setSaveToServerMessage('ÄÃ£ lÆ°u. Äang tá»± Ä‘á»™ng Ä‘á»“ng bá»™ dá»¯ liá»‡u S2...');
+        setSaveToServerMessage('Đã lưu. Đang tự động đồng bộ dữ liệu S2...');
         setAdminPasswordForServer('');
         setShowSettings(false);
         if (!syncRunning && syncAuth) {
           startFullSync({ authOverride: syncAuth, adminPasswordOverride: syncAdminPwd })
             .then((r) => {
               if (r?.skipped) {
-                setSaveToServerMessage('ÄÃ£ lÆ°u. Äá»“ng bá»™ Ä‘ang cháº¡y sáºµn, tiáº¿p tá»¥c dÃ¹ng tra cá»©u bÃ¬nh thÆ°á»ng.');
+                setSaveToServerMessage('Đã lưu. Đồng bộ đang chạy sẵn, tiếp tục dùng tra cứu bình thường.');
                 return;
               }
               if (r?.error) {
-                setSaveToServerMessage(`ÄÃ£ lÆ°u nhÆ°ng tá»± Ä‘á»“ng bá»™ lá»—i: ${r.error?.message || 'KhÃ´ng xÃ¡c Ä‘á»‹nh'}`);
+                setSaveToServerMessage(`Đã lưu nhưng tự đồng bộ lỗi: ${r.error?.message || 'Không xác định'}`);
                 return;
               }
-              setSaveToServerMessage('ÄÃ£ lÆ°u vÃ  tá»± Ä‘á»™ng Ä‘á»“ng bá»™ hoÃ n táº¥t. Báº¡n váº«n cÃ³ thá»ƒ tra cá»©u trong lÃºc Ä‘á»“ng bá»™.');
+              setSaveToServerMessage('Đã lưu và tự động đồng bộ hoàn tất. Bạn vẫn có thể tra cứu trong lúc đồng bộ.');
             })
             .catch((syncErr) => {
-              setSaveToServerMessage(`ÄÃ£ lÆ°u nhÆ°ng tá»± Ä‘á»“ng bá»™ lá»—i: ${syncErr?.message || 'KhÃ´ng xÃ¡c Ä‘á»‹nh'}`);
+              setSaveToServerMessage(`Đã lưu nhưng tự đồng bộ lỗi: ${syncErr?.message || 'Không xác định'}`);
             });
         } else if (!syncAuth) {
-          setSaveToServerMessage('ÄÃ£ lÆ°u. KhÃ´ng thá»ƒ tá»± Ä‘á»“ng bá»™ vÃ¬ Authorization Ä‘ang trá»‘ng.');
+          setSaveToServerMessage('Đã lưu. Không thể tự đồng bộ vì Authorization đang trống.');
         } else {
-          setSaveToServerMessage('ÄÃ£ lÆ°u. Äá»“ng bá»™ Ä‘ang cháº¡y sáºµn, tiáº¿p tá»¥c dÃ¹ng tra cá»©u bÃ¬nh thÆ°á»ng.');
+          setSaveToServerMessage('Đã lưu. Đồng bộ đang chạy sẵn, tiếp tục dùng tra cứu bình thường.');
         }
       } else {
         setSaveToServerStatus('error');
-        setSaveToServerMessage(data.message || 'KhÃ´ng lÆ°u Ä‘Æ°á»£c.');
+        setSaveToServerMessage(data.message || 'Không lưu được.');
       }
     } catch (err) {
       setSaveToServerStatus('error');
-      setSaveToServerMessage(err.message || 'Lá»—i káº¿t ná»‘i.');
+      setSaveToServerMessage(err.message || 'Lỗi kết nối.');
     }
   };
 
@@ -2457,8 +2495,7 @@ export default function TraCuuSP2Page() {
       if (a) return a;
     }
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(STORAGE_AUTH) || '';
-      const a = getAuthAddressFromJwt(stored);
+      const a = getAuthAddressFromJwt(localStorage.getItem(STORAGE_AUTH) || '');
       if (a) return a;
     }
     return '';
@@ -2472,13 +2509,13 @@ export default function TraCuuSP2Page() {
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) {
         setS2Proposals([]);
-        setS2ProposalsError(j?.message || `KhÃ´ng táº£i Ä‘Æ°á»£c bÃ¡o cÃ¡o (${res.status}).`);
+        setS2ProposalsError(j?.message || `Không tải được báo cáo (${res.status}).`);
         return;
       }
       setS2Proposals(Array.isArray(j.rows) ? j.rows : []);
     } catch (e) {
       setS2Proposals([]);
-      setS2ProposalsError(e?.message || 'Lá»—i táº£i bÃ¡o cÃ¡o Ä‘á» xuáº¥t.');
+      setS2ProposalsError(e?.message || 'Lỗi tải báo cáo đề xuất.');
     } finally {
       setS2ProposalsLoading(false);
     }
@@ -2527,7 +2564,7 @@ export default function TraCuuSP2Page() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) {
-        setProposalError(j?.message || `KhÃ´ng lÆ°u Ä‘Æ°á»£c (${res.status}).`);
+        setProposalError(j?.message || `Không lưu được (${res.status}).`);
         return;
       }
       setProposalModalOpen(false);
@@ -2538,7 +2575,7 @@ export default function TraCuuSP2Page() {
         await refreshS2Proposals();
       }
     } catch (e) {
-      setProposalError(e?.message || 'Lá»—i khi lÆ°u Ä‘á» xuáº¥t.');
+      setProposalError(e?.message || 'Lỗi khi lưu đề xuất.');
     } finally {
       setProposalSaving(false);
     }
@@ -2558,12 +2595,12 @@ export default function TraCuuSP2Page() {
     setKetQua(null);
     setLoading(true);
     if (!ttvt?.trim() && useTtvt) {
-      setLoi('Vui lÃ²ng chá»n TTVT.');
+      setLoi('Vui lòng chọn TTVT.');
       setLoading(false);
       return;
     }
     if (!toQL?.trim() && useToQL) {
-      setLoi('Vui lÃ²ng chá»n Tá»• KT.');
+      setLoi('Vui lòng chọn Tổ KT.');
       setLoading(false);
       return;
     }
@@ -2574,7 +2611,7 @@ export default function TraCuuSP2Page() {
     if (useToQL && toQL) body.toQL = toQL;
     if (useThietBiOlt && thietBiOlt) body.thietBiOlt = thietBiOlt;
     if (usePortOlt && portOlt !== '') body.portOlt = portOlt;
-    LOG('Tra cá»©u', 'Request body', body);
+    LOG('Tra cứu', 'Request body', body);
 
     const authTrim = (authorization && authorization.trim()) || '';
     const keyBody = {
@@ -2596,25 +2633,25 @@ export default function TraCuuSP2Page() {
           const arr = srv.data ?? [];
           const message =
             arr.length === 0
-              ? 'KhÃ´ng cÃ³ báº£n ghi trong cache chung (Supabase) cho port Ä‘Ã£ chá»n.'
+              ? 'Không có bản ghi trong cache chung (Supabase) cho port đã chọn.'
               : null;
           setKetQua({ data: arr, message, fromCache: 'server' });
           return;
         }
         if (srv.kind === 'unconfigured') {
-          setLoi(srv.message || 'ChÆ°a cáº¥u hÃ¬nh Supabase trÃªn server.');
+          setLoi(srv.message || 'Chưa cấu hình Supabase trên server.');
           return;
         }
         const cached = await getPortCache(cacheKey, fp);
         if (cached === null) {
           setLoi(
-            'ChÆ°a cÃ³ dá»¯ liá»‡u Ä‘á»“ng bá»™ cho bá»™ lá»c nÃ y. Quáº£n trá»‹ cháº¡y Â«Äá»“ng bá»™ toÃ n bá»™ S2Â» kÃ¨m mÃ£ ghi cache chung, hoáº·c táº¯t Â«Chá»‰ tra cá»©u tá»« cacheÂ».'
+            'Chưa có dữ liệu đồng bộ cho bộ lọc này. Quản trị chạy «Đồng bộ toàn bộ S2» kèm mã ghi cache chung, hoặc tắt «Chỉ tra cứu từ cache».'
           );
           return;
         }
         const message =
           cached.length === 0
-            ? 'KhÃ´ng cÃ³ báº£n ghi trong bá»™ nhá»› trÃ¬nh duyá»‡t cho port Ä‘Ã£ chá»n.'
+            ? 'Không có bản ghi trong bộ nhớ trình duyệt cho port đã chọn.'
             : null;
         setKetQua({ data: cached, message, fromCache: 'local' });
         return;
@@ -2635,7 +2672,7 @@ export default function TraCuuSP2Page() {
       const applyCacheFallback = async () => {
         const srv = await fetchServerPortCache(keyBody);
         if (srv.kind === 'unconfigured' || srv.kind === 'error') {
-          supabaseDiag = srv.message || 'KhÃ´ng Ä‘á»c Ä‘Æ°á»£c cache Supabase.';
+          supabaseDiag = srv.message || 'Không đọc được cache Supabase.';
           return false;
         }
         if (srv.kind === 'hit') {
@@ -2643,12 +2680,12 @@ export default function TraCuuSP2Page() {
           const expiredHint =
             clientAuthExpired || noClientAuth
               ? arr.length === 0
-                ? 'Authorization Ä‘Ã£ háº¿t háº¡n. KhÃ´ng cÃ³ báº£n ghi trong cache Supabase cho port nÃ y.'
-                : 'Authorization Ä‘Ã£ háº¿t háº¡n â€” Ä‘ang dÃ¹ng cache Ä‘á»“ng bá»™ (Supabase).'
+                ? 'Authorization đã hết hạn. Không có bản ghi trong cache Supabase cho port này.'
+                : 'Authorization đã hết hạn — đang dùng cache đồng bộ (Supabase).'
               : null;
           const cacheMsg =
             arr.length === 0 && clientAuthValid && apiFallbackNotice
-              ? 'KhÃ´ng cÃ³ báº£n ghi trong cache chung sau khi API khÃ´ng tráº£ dá»¯ liá»‡u.'
+              ? 'Không có bản ghi trong cache chung sau khi API không trả dữ liệu.'
               : null;
           const message = [expiredHint, apiFallbackNotice, cacheMsg].filter(Boolean).join(' ') || null;
           setKetQua({ data: arr, message, fromCache: 'server' });
@@ -2657,11 +2694,11 @@ export default function TraCuuSP2Page() {
         const cached = await getPortCache(cacheKey, fp);
         if (cached !== null) {
           const expiredHint = clientAuthExpired
-            ? 'Authorization Ä‘Ã£ háº¿t háº¡n â€” Ä‘ang dÃ¹ng cache trÃ¬nh duyá»‡t.'
+            ? 'Authorization đã hết hạn — đang dùng cache trình duyệt.'
             : null;
           const cacheMsg =
             cached.length === 0 && !clientAuthExpired
-              ? 'KhÃ´ng cÃ³ báº£n ghi trong bá»™ nhá»› trÃ¬nh duyá»‡t. Báº­t Â«LuÃ´n gá»i APIÂ» Ä‘á»ƒ há»i láº¡i server.'
+              ? 'Không có bản ghi trong bộ nhớ trình duyệt. Bật «Luôn gọi API» để hỏi lại server.'
               : null;
           const message = [expiredHint, apiFallbackNotice, cacheMsg].filter(Boolean).join(' ') || null;
           setKetQua({ data: cached, message, fromCache: 'local' });
@@ -2673,25 +2710,25 @@ export default function TraCuuSP2Page() {
       const failWithoutCache = () => {
         if (supabaseDiag) {
           setLoi(
-            `${supabaseDiag} Tra cá»©u khÃ´ng cáº§n Authorization chá»‰ hoáº¡t Ä‘á»™ng khi Ä‘Ã£ cáº¥u hÃ¬nh Supabase vÃ  Ä‘á»“ng bá»™ dá»¯ liá»‡u lÃªn server.`
+            `${supabaseDiag} Tra cứu không cần Authorization chỉ hoạt động khi đã cấu hình Supabase và đồng bộ dữ liệu lên server.`
           );
           return;
         }
         if (clientAuthExpired || noClientAuth) {
           const browseHint = hasBrowseCatalog(browseSnapshotRef.current)
-            ? ' Danh má»¥c Tráº¡m/OLT váº«n cÃ³ thá»ƒ chá»n tá»« cache; cáº§n chá»n Ä‘á»§ Port OLT Ä‘Ã£ Ä‘Æ°á»£c Ä‘á»“ng bá»™.'
+            ? ' Danh mục Trạm/OLT vẫn có thể chọn từ cache; cần chọn đủ Port OLT đã được đồng bộ.'
             : '';
           setLoi(
-            `Authorization Ä‘Ã£ háº¿t háº¡n hoáº·c khÃ´ng há»£p lá»‡, vÃ  chÆ°a cÃ³ dá»¯ liá»‡u S2 trÃªn Supabase cho port nÃ y.${browseHint} Quáº£n trá»‹ cáº§n lÆ°u Authorization má»›i vÃ  Â«Äá»“ng bá»™ toÃ n bá»™ S2Â» (cÃ³ mÃ£ cache chung).`
+            `Authorization đã hết hạn hoặc không hợp lệ, và chưa có dữ liệu S2 trên Supabase cho port này.${browseHint} Quản trị cần lưu Authorization mới và «Đồng bộ toàn bộ S2» (có mã cache chung).`
           );
           return;
         }
         setLoi(
-          'ChÆ°a cÃ³ dá»¯ liá»‡u cache trÃªn Supabase cho port Ä‘Ã£ chá»n. Quáº£n trá»‹ cáº§n cháº¡y Â«Äá»“ng bá»™ toÃ n bá»™ S2Â» vÃ  nháº­p mÃ£ ghi cache chung â€” khÃ´ng chá»‰ Ä‘á»“ng bá»™ trÃªn má»™t trÃ¬nh duyá»‡t.'
+          'Chưa có dữ liệu cache trên Supabase cho port đã chọn. Quản trị cần chạy «Đồng bộ toàn bộ S2» và nhập mã ghi cache chung — không chỉ đồng bộ trên một trình duyệt.'
         );
       };
 
-      /** JWT háº¿t háº¡n/sai: Supabase trÆ°á»›c; cÃ²n háº¡n (mÃ¡y hoáº·c server): OneBSS trÆ°á»›c. */
+      /** JWT hết hạn/sai: Supabase trước; còn hạn (máy hoặc server): OneBSS trước. */
       if (!boQuaCache && !clientAuthValid) {
         if (await applyCacheFallback()) return;
       }
@@ -2704,14 +2741,14 @@ export default function TraCuuSP2Page() {
           };
           const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
           const data = await res.json().catch(() => ({}));
-          LOG('Tra cá»©u', 'Response (API)', { status: res.status, ok: res.ok, data });
+          LOG('Tra cứu', 'Response (API)', { status: res.status, ok: res.ok, data });
           if (res.ok) {
             const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? []);
             const arr = Array.isArray(list) ? list : [];
             if (arr.length > 0) {
               const serverHint =
                 !clientAuthValid
-                  ? 'Tra cá»©u qua Authorization lÆ°u trÃªn server.'
+                  ? 'Tra cứu qua Authorization lưu trên server.'
                   : null;
               setKetQua({
                 data: arr,
@@ -2723,7 +2760,7 @@ export default function TraCuuSP2Page() {
             if (await applyCacheFallback()) return;
             setKetQua({
               data: [],
-              message: data?.message || 'KhÃ´ng cÃ³ báº£n ghi nÃ o tá»« API.',
+              message: data?.message || 'Không có bản ghi nào từ API.',
               fromCache: 'api',
             });
             return;
@@ -2737,9 +2774,9 @@ export default function TraCuuSP2Page() {
             failWithoutCache();
             return;
           }
-          apiFallbackNotice = data?.message || data?.error || `API lá»—i (${res.status}), Ä‘Ã£ chuyá»ƒn sang cache.`;
+          apiFallbackNotice = data?.message || data?.error || `API lỗi (${res.status}), đã chuyển sang cache.`;
         } catch (err) {
-          apiFallbackNotice = err?.message || 'KhÃ´ng gá»i Ä‘Æ°á»£c API, Ä‘Ã£ chuyá»ƒn sang cache.';
+          apiFallbackNotice = err?.message || 'Không gọi được API, đã chuyển sang cache.';
         }
         if (await applyCacheFallback()) return;
         failWithoutCache();
@@ -2752,23 +2789,23 @@ export default function TraCuuSP2Page() {
       };
       const res = await fetch('/api/tracuu', { method: 'POST', headers, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({}));
-      LOG('Tra cá»©u', 'Response', { status: res.status, ok: res.ok, data });
+      LOG('Tra cứu', 'Response', { status: res.status, ok: res.ok, data });
       if (!res.ok) {
         if (looksLikeAuthError(res.status, data)) {
           invalidateClientAuth();
         }
         if (await applyCacheFallback()) return;
-        setLoi(data.message || data.error || 'CÃ³ lá»—i khi tra cá»©u.');
+        setLoi(data.message || data.error || 'Có lỗi khi tra cứu.');
         return;
       }
       const list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? []);
       const arr = Array.isArray(list) ? list : [];
       if (arr.length === 0 && (await applyCacheFallback())) return;
-      const message = data?.message || (arr.length === 0 ? 'KhÃ´ng cÃ³ báº£n ghi nÃ o tá»« API.' : null);
+      const message = data?.message || (arr.length === 0 ? 'Không có bản ghi nào từ API.' : null);
       setKetQua({ data: arr, message, fromCache: 'api' });
     } catch (err) {
-      LOG('Tra cá»©u', 'Lá»—i', err);
-      setLoi(err.message || 'Lá»—i káº¿t ná»‘i.');
+      LOG('Tra cứu', 'Lỗi', err);
+      setLoi(err.message || 'Lỗi kết nối.');
     } finally {
       setLoading(false);
     }
@@ -2778,8 +2815,8 @@ export default function TraCuuSP2Page() {
 
   const syncPhaseLabel =
     syncProgress?.phase === 'scan'
-      ? 'Äang quÃ©t danh má»¥c (Tá»• KT â†’ â€¦ â†’ Port)'
-      : 'Äang tra cá»©u S2 tá»«ng port';
+      ? 'Đang quét danh mục (Tổ KT → … → Port)'
+      : 'Đang tra cứu S2 từng port';
   const syncPct =
     syncProgress && syncProgress.total > 0
       ? Math.min(100, Math.round((syncProgress.done / syncProgress.total) * 100))
@@ -2843,12 +2880,12 @@ export default function TraCuuSP2Page() {
 
   return (
     <main className="min-h-screen bg-gradient-to-r from-sky-50/80 via-slate-50 to-blue-50/80 py-2 px-2 sm:py-6 sm:px-4 lg:px-6">
-      {/* Tiáº¿n Ä‘á»™ Ä‘á»“ng bá»™ S2 â€” cá»‘ Ä‘á»‹nh Ä‘áº§u mÃ n hÃ¬nh Ä‘á»ƒ cuá»™n trang váº«n theo dÃµi Ä‘Æ°á»£c */}
+      {/* Tiến độ đồng bộ S2 — cố định đầu màn hình để cuộn trang vẫn theo dõi được */}
       {syncRunning && syncProgress && (
         <div
           role="status"
           aria-live="polite"
-          aria-label="Tiáº¿n Ä‘á»™ Ä‘á»“ng bá»™ S2"
+          aria-label="Tiến độ đồng bộ S2"
           className="fixed inset-x-0 top-0 z-[100] border-b border-indigo-900/30 bg-gradient-to-r from-indigo-800 via-violet-800 to-indigo-800 text-white shadow-lg"
         >
           <div className="max-w-[1600px] mx-auto px-3 py-2.5 sm:px-6 sm:py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
@@ -2856,7 +2893,7 @@ export default function TraCuuSP2Page() {
               <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-indigo-100">{syncPhaseLabel}</p>
               {syncProgress.phase === 'tracuu' && (
                 <p className="text-sm sm:text-base font-bold text-amber-200 tabular-nums">
-                  ÄÃ£ gom Ä‘Æ°á»£c <span className="text-white">{syncProgress.s2Count ?? 0}</span> S2
+                  Đã gom được <span className="text-white">{syncProgress.s2Count ?? 0}</span> S2
                 </p>
               )}
               <p className="text-xs sm:text-sm font-medium truncate" title={syncProgress.label}>{syncProgress.label}</p>
@@ -2878,38 +2915,38 @@ export default function TraCuuSP2Page() {
                   <span className="text-indigo-200 font-semibold ml-1.5">({syncPct}%)</span>
                 </p>
               ) : (
-                <p className="text-xs text-indigo-200 whitespace-nowrap">Äang tÃ­nh sá»‘ portâ€¦</p>
+                <p className="text-xs text-indigo-200 whitespace-nowrap">Đang tính số port…</p>
               )}
               <button
                 type="button"
                 onClick={handleHuyDongBo}
                 className="rounded-lg bg-white/15 hover:bg-white/25 border border-white/30 px-3 py-1.5 text-xs font-semibold"
               >
-                Há»§y Ä‘á»“ng bá»™
+                Hủy đồng bộ
               </button>
             </div>
           </div>
         </div>
       )}
       <div className={`w-full max-w-[1600px] mx-auto min-h-0 flex flex-col sm:min-h-[calc(100vh-2rem)] ${syncRunning && syncProgress ? 'pt-[88px] sm:pt-[100px]' : ''}`}>
-        {/* Card chÃ­nh - vá»«a mÃ n hÃ¬nh mobile */}
+        {/* Card chính - vừa màn hình mobile */}
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-slate-200/80 overflow-hidden flex-1 flex flex-col min-h-0 sm:min-h-[80vh]">
-          {/* Header - gá»n trÃªn mobile */}
+          {/* Header - gọn trên mobile */}
           <div className="bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-3 sm:px-8 sm:py-6 shrink-0">
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
               <div className="min-w-0 flex-1 pr-0 sm:pr-2">
                 <h1 className="text-base sm:text-2xl font-bold text-white tracking-tight sm:truncate">
-                  {activeMainModule === TB_MODULE_TB ? 'Module tra cá»©u thuÃª bao (TB)' : 'Module tra cá»©u S2'}
+                  {activeMainModule === TB_MODULE_TB ? 'Module tra cứu thuê bao (TB)' : 'Module tra cứu S2'}
                 </h1>
                 <p className="text-sky-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1 leading-snug hidden sm:block">
                   {activeMainModule === TB_MODULE_TB
-                    ? 'Upload Excel, lá»c theo nhÃ¢n viÃªn QL / OLT / Slot / Port, chuyá»ƒn Ä‘á»‹a bÃ n vÃ  xuáº¥t Excel.'
-                    : 'Há»‡ thá»‘ng tra cá»©u thÃ´ng tin S2 theo OLT, Slot vÃ  Port'}
+                    ? 'Upload Excel, lọc theo nhân viên QL / OLT / Slot / Port, chuyển địa bàn và xuất Excel.'
+                    : 'Hệ thống tra cứu thông tin S2 theo OLT, Slot và Port'}
                 </p>
                 <p className="text-sky-100/95 text-[10px] leading-snug mt-1 line-clamp-2 sm:hidden">
                   {activeMainModule === TB_MODULE_TB
-                    ? 'Excel Â· NV QL / OLT / Slot / Port Â· chuyá»ƒn Ä‘á»‹a bÃ n Â· xuáº¥t file'
-                    : 'Tra cá»©u S2 theo OLT, Slot, Port'}
+                    ? 'Excel · NV QL / OLT / Slot / Port · chuyển địa bàn · xuất file'
+                    : 'Tra cứu S2 theo OLT, Slot, Port'}
                 </p>
               </div>
               <div
@@ -2924,7 +2961,7 @@ export default function TraCuuSP2Page() {
                         setShowSettings(true);
                         setShowReportMenu(false);
                         setUnlockToOpenReport(true);
-                        setAuthPasswordError('Vui lÃ²ng nháº­p mÃ£ Ä‘á»ƒ má»Ÿ menu bÃ¡o cÃ¡o.');
+                        setAuthPasswordError('Vui lòng nhập mã để mở menu báo cáo.');
                         return;
                       }
                       setShowSettings(true);
@@ -2932,13 +2969,13 @@ export default function TraCuuSP2Page() {
                       setShowReportMenu((v) => !v);
                     }}
                     className="inline-flex w-full h-full min-h-[48px] sm:min-h-[44px] sm:h-auto sm:w-auto shrink-0 items-center justify-center gap-1 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors px-1.5 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight bg-white/20 hover:bg-white/30 text-white border-white/40"
-                    aria-label={`Menu bÃ¡o cÃ¡o - Ä‘ang chá»n ${activeReport.label}`}
+                    aria-label={`Menu báo cáo - đang chọn ${activeReport.label}`}
                     aria-expanded={showReportMenu}
                   >
                     <svg className="w-3.5 h-3.5 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h18v4H3V3zm0 7h18v4H3v-4zm0 7h18v4H3v-4z" />
                     </svg>
-                    <span>BÃ¡o cÃ¡o</span>
+                    <span>Báo cáo</span>
                     <svg className={`w-3 h-3 sm:w-4 sm:h-4 shrink-0 transition-transform ${showReportMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
@@ -2983,13 +3020,13 @@ export default function TraCuuSP2Page() {
                     setShowSettings(false);
                   }}
                   className="inline-flex order-2 sm:order-4 w-full min-h-[48px] sm:min-h-[44px] sm:w-auto shrink-0 items-center justify-center gap-1 sm:gap-2 rounded-lg border font-medium touch-manipulation transition-colors px-1.5 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-sm leading-tight bg-white/20 hover:bg-white/30 text-white border-white/40"
-                  aria-label={showSettings ? 'áº¨n cÃ i Ä‘áº·t' : 'CÃ i Ä‘áº·t vÃ  Ä‘á»“ng bá»™'}
+                  aria-label={showSettings ? 'Ẩn cài đặt' : 'Cài đặt và đồng bộ'}
                 >
                   <svg className="w-3.5 h-3.5 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                   </svg>
-                  <span>{showSettings ? 'áº¨n cÃ i Ä‘áº·t' : 'CÃ i Ä‘áº·t'}</span>
-                  <span className="hidden sm:inline">{showSettings ? '' : ' / Äá»“ng bá»™'}</span>
+                  <span>{showSettings ? 'Ẩn cài đặt' : 'Cài đặt'}</span>
+                  <span className="hidden sm:inline">{showSettings ? '' : ' / Đồng bộ'}</span>
                   <svg className={`w-3 h-3 sm:w-4 sm:h-4 shrink-0 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
@@ -2998,8 +3035,8 @@ export default function TraCuuSP2Page() {
                   type="button"
                   role="tab"
                   aria-selected={activeMainModule === TB_MODULE_SPLITTER}
-                  aria-label="Tra cá»©u S2"
-                  title="Tra cá»©u S2"
+                  aria-label="Tra cứu S2"
+                  title="Tra cứu S2"
                   onClick={() => {
                     setActiveMainModule(TB_MODULE_SPLITTER);
                     setShowSettings(false);
@@ -3012,14 +3049,14 @@ export default function TraCuuSP2Page() {
                       : 'bg-white/20 hover:bg-white/30 text-white border-white/40'
                   }`}
                 >
-                  Tra cá»©u S2
+                  Tra cứu S2
                 </button>
                 <button
                   type="button"
                   role="tab"
                   aria-selected={activeMainModule === TB_MODULE_TB}
-                  aria-label="Module tra cá»©u thuÃª bao"
-                  title="Tra cá»©u TB"
+                  aria-label="Module tra cứu thuê bao"
+                  title="Tra cứu TB"
                   onClick={() => {
                     setActiveMainModule(TB_MODULE_TB);
                     setShowSettings(false);
@@ -3032,29 +3069,29 @@ export default function TraCuuSP2Page() {
                       : 'bg-white/20 hover:bg-white/30 text-white border-white/40'
                   }`}
                 >
-                  Tra cá»©u TB
+                  Tra cứu TB
                 </button>
               </div>
             </div>
           </div>
 
-          {/* CÃ i Ä‘áº·t â€” khu vá»±c quáº£n trá»‹ */}
+          {/* Cài đặt — khu vực quản trị */}
           {showSettings && (
             <div className="border-b border-slate-100 bg-slate-50/80 px-3 sm:px-8 py-3 sm:py-4 shrink-0">
               {!authUnlocked ? (
                 <form onSubmit={handleUnlockAuth} className="space-y-3 max-w-xs">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nháº­p mÃ£ Ä‘á»ƒ má»Ÿ cÃ i Ä‘áº·t</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nhập mã để mở cài đặt</label>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="password"
                       value={authPasswordInput}
                       onChange={(e) => { setAuthPasswordInput(e.target.value); setAuthPasswordError(''); }}
-                      placeholder="MÃ£ má»Ÿ khÃ³a"
+                      placeholder="Mã mở khóa"
                       className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 placeholder-slate-400 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
                       autoComplete="current-password"
                     />
                     <button type="submit" disabled={authUnlocking} className="rounded-lg bg-sky-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-700 min-h-[44px] whitespace-nowrap disabled:opacity-50">
-                      {authUnlocking ? 'Äang kiá»ƒm traâ€¦' : 'Má»Ÿ khÃ³a'}
+                      {authUnlocking ? 'Đang kiểm tra…' : 'Mở khóa'}
                     </button>
                   </div>
                   {authPasswordError && <p className="text-xs text-red-600">{authPasswordError}</p>}
@@ -3066,7 +3103,7 @@ export default function TraCuuSP2Page() {
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <label className="block text-xs font-semibold text-slate-600">Authorization</label>
                     <button type="button" onClick={handleLockAuth} className="text-xs text-slate-500 hover:text-slate-700 underline">
-                      KhÃ³a láº¡i
+                      Khóa lại
                     </button>
                   </div>
                   <input
@@ -3077,17 +3114,17 @@ export default function TraCuuSP2Page() {
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 text-base sm:text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
                   />
                   <form onSubmit={handleSaveToServer} className="mt-3 space-y-2">
-                    <label className="block text-xs text-slate-600">MÃ£ xÃ¡c thá»±c lÆ°u server</label>
+                    <label className="block text-xs text-slate-600">Mã xác thực lưu server</label>
                     <div className="flex gap-2 flex-wrap items-center">
                       <input
                         type="password"
                         value={adminPasswordForServer}
                         onChange={(e) => { setAdminPasswordForServer(e.target.value); setSaveToServerStatus(''); }}
-                        placeholder="MÃ£ xÃ¡c thá»±c"
+                        placeholder="Mã xác thực"
                         className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-48 max-w-full"
                       />
                       <button type="submit" disabled={saveToServerStatus === 'saving' || !authorization?.trim()} className="rounded-lg bg-sky-600 text-white px-4 py-2 text-sm font-medium hover:bg-sky-700 disabled:opacity-50">
-                        {saveToServerStatus === 'saving' ? 'Äang lÆ°u...' : 'LÆ°u lÃªn server'}
+                        {saveToServerStatus === 'saving' ? 'Đang lưu...' : 'Lưu lên server'}
                       </button>
                     </div>
                     {saveToServerMessage && <p className={`text-xs ${saveToServerStatus === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{saveToServerMessage}</p>}
@@ -3098,21 +3135,21 @@ export default function TraCuuSP2Page() {
                   <div className="mt-5 pt-5 border-t border-slate-200 space-y-3">
                     {!showReportPanel && (
                       <>
-                    <p className="text-xs font-semibold text-slate-700">Äá»“ng bá»™ toÃ n bá»™ S2 &amp; cache tra cá»©u</p>
+                    <p className="text-xs font-semibold text-slate-700">Đồng bộ toàn bộ S2 &amp; cache tra cứu</p>
                     <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                      QuÃ©t Tá»• KT â†’ Tráº¡m â†’ OLT â†’ Card â†’ Port. Sá»‘ port lá»›n cÃ³ thá»ƒ máº¥t nhiá»u phÃºt.
+                      Quét Tổ KT → Trạm → OLT → Card → Port. Số port lớn có thể mất nhiều phút.
                     </p>
                     <p className="text-[11px] text-slate-500 leading-relaxed">
-                      Náº¿u Authorization lÃ  JWT cÃ²n háº¡n, trang sáº½ tá»± cháº¡y Ä‘á»“ng bá»™ láº¡i má»—i 5 phÃºt (chá»‰ khi tab Ä‘ang hiá»ƒn thá»‹; khÃ´ng cháº¡y trÃ¹ng lÃºc Ä‘ang Ä‘á»“ng bá»™ tay).
+                      Nếu Authorization là JWT còn hạn, trang sẽ tự chạy đồng bộ lại mỗi 5 phút (chỉ khi tab đang hiển thị; không chạy trùng lúc đang đồng bộ tay).
                     </p>
                     <div className="max-w-lg">
                       <label className="block text-[11px] sm:text-xs text-slate-600">
-                        MÃ£ xÃ¡c thá»±c (ghi cache chung)
+                        Mã xác thực (ghi cache chung)
                         <input
                           type="password"
                           value={adminPasswordForSync}
                           onChange={(e) => setAdminPasswordForSync(e.target.value)}
-                          placeholder="Trá»‘ng = chá»‰ lÆ°u trÃªn mÃ¡y nÃ y"
+                          placeholder="Trống = chỉ lưu trên máy này"
                           className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
                           autoComplete="off"
                         />
@@ -3125,19 +3162,19 @@ export default function TraCuuSP2Page() {
                         disabled={syncRunning}
                         className="rounded-lg bg-indigo-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 min-h-[40px]"
                       >
-                        {syncRunning ? 'Äang Ä‘á»“ng bá»™â€¦' : 'Äá»“ng bá»™ toÃ n bá»™ S2'}
+                        {syncRunning ? 'Đang đồng bộ…' : 'Đồng bộ toàn bộ S2'}
                       </button>
                       {syncRunning && (
                         <button type="button" onClick={handleHuyDongBo} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]">
-                          Há»§y
+                          Hủy
                         </button>
                       )}
                     </div>
                     {syncRunning && syncProgress && (
                       <p className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-1.5">
-                        <span className="font-semibold">Tiáº¿n Ä‘á»™</span> trÃªn <strong>Ä‘áº§u trang</strong>
+                        <span className="font-semibold">Tiến độ</span> trên <strong>đầu trang</strong>
                         {syncProgress.phase === 'tracuu' && (
-                          <> â€” hiá»‡n <strong>{syncProgress.s2Count ?? 0}</strong> S2 Ä‘Ã£ gom</>
+                          <> — hiện <strong>{syncProgress.s2Count ?? 0}</strong> S2 đã gom</>
                         )}
                         .
                       </p>
@@ -3146,12 +3183,12 @@ export default function TraCuuSP2Page() {
                       <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5">
                         <span className="font-semibold">Cache chung (Supabase):</span>{' '}
                         {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
-                        {serverSyncMeta.lastSyncTotal != null && ` â€” ${serverSyncMeta.lastSyncTotal} port`}
+                        {serverSyncMeta.lastSyncTotal != null && ` — ${serverSyncMeta.lastSyncTotal} port`}
                         {serverSyncMeta.lastSyncS2Total != null && (
-                          <> â€” <span className="font-semibold">{serverSyncMeta.lastSyncS2Total}</span> S2 Ä‘Ã£ gom</>
+                          <> — <span className="font-semibold">{serverSyncMeta.lastSyncS2Total}</span> S2 đã gom</>
                         )}
-                        {serverSyncMeta.lastSyncErrors > 0 && ` â€” ${serverSyncMeta.lastSyncErrors} lá»—i`}
-                        {serverSyncMeta.lastSyncAborted && ' â€” Ä‘Ã£ dá»«ng giá»¯a chá»«ng'}
+                        {serverSyncMeta.lastSyncErrors > 0 && ` — ${serverSyncMeta.lastSyncErrors} lỗi`}
+                        {serverSyncMeta.lastSyncAborted && ' — đã dừng giữa chừng'}
                       </p>
                     )}
                       </>
@@ -3162,16 +3199,16 @@ export default function TraCuuSP2Page() {
                         <p className="text-[11px] font-semibold text-slate-700">{activeReport.label}</p>
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-100">
-                            Menu bÃ¡o cÃ¡o
+                            Menu báo cáo
                           </span>
                           {authUnlocked && (
                             <button
                               type="button"
                               onClick={handleLockAuth}
                               className="text-[10px] px-2 py-0.5 rounded border border-rose-200 text-rose-700 hover:bg-rose-50"
-                              title="KhÃ³a láº¡i quyá»n quáº£n trá»‹"
+                              title="Khóa lại quyền quản trị"
                             >
-                              KhÃ³a láº¡i
+                              Khóa lại
                             </button>
                           )}
                         </div>
@@ -3180,19 +3217,19 @@ export default function TraCuuSP2Page() {
                         <>
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                             <p className="text-[11px] font-semibold text-slate-700">
-                              Láº¥y thÃ´ng sá»‘ S2 theo danh sÃ¡ch Ä‘áº§u vÃ o
+                              Lấy thông số S2 theo danh sách đầu vào
                             </p>
                             <div className="flex w-full sm:w-auto flex-wrap items-center gap-1.5">
                               <select
                                 value={String(s2LookupPageSize)}
                                 onChange={(e) => setS2LookupPageSize(Number(e.target.value) || 10)}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                                title="Sá»‘ dÃ²ng hiá»ƒn thá»‹ má»—i trang"
+                                title="Số dòng hiển thị mỗi trang"
                               >
-                                <option value="10">10 dÃ²ng/trang</option>
-                                <option value="20">20 dÃ²ng/trang</option>
-                                <option value="50">50 dÃ²ng/trang</option>
-                                <option value="100">100 dÃ²ng/trang</option>
+                                <option value="10">10 dòng/trang</option>
+                                <option value="20">20 dòng/trang</option>
+                                <option value="50">50 dòng/trang</option>
+                                <option value="100">100 dòng/trang</option>
                               </select>
                               <button
                                 type="button"
@@ -3200,7 +3237,7 @@ export default function TraCuuSP2Page() {
                                 disabled={s2LookupExporting}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                               >
-                                {s2LookupExporting ? 'Äang xuáº¥tâ€¦' : 'Xuáº¥t Excel'}
+                                {s2LookupExporting ? 'Đang xuất…' : 'Xuất Excel'}
                               </button>
                             </div>
                           </div>
@@ -3209,7 +3246,7 @@ export default function TraCuuSP2Page() {
                               value={s2LookupInput}
                               onChange={(e) => setS2LookupInput(e.target.value)}
                               rows={4}
-                              placeholder="Nháº­p danh sÃ¡ch S2 (má»—i dÃ²ng 1 mÃ£, hoáº·c ngÄƒn cÃ¡ch báº±ng dáº¥u pháº©y/cháº¥m pháº©y)"
+                              placeholder="Nhập danh sách S2 (mỗi dòng 1 mã, hoặc ngăn cách bằng dấu phẩy/chấm phẩy)"
                               className="w-full rounded border border-slate-300 px-2 py-1.5 text-[11px] text-slate-700 focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                             />
                             <div className="flex flex-col sm:flex-row lg:flex-col gap-1.5 lg:items-end">
@@ -3219,7 +3256,7 @@ export default function TraCuuSP2Page() {
                                 disabled={s2LookupLoading}
                                 className="w-full sm:w-auto text-[11px] px-2.5 py-1.5 rounded border border-sky-300 text-sky-700 hover:bg-sky-50 disabled:opacity-50"
                               >
-                                {s2LookupLoading ? 'Äang tra cá»©uâ€¦' : 'Tra cá»©u danh sÃ¡ch'}
+                                {s2LookupLoading ? 'Đang tra cứu…' : 'Tra cứu danh sách'}
                               </button>
                               <label className="w-full sm:w-auto text-center text-[11px] px-2.5 py-1.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer">
                                 Upload file S2
@@ -3233,17 +3270,17 @@ export default function TraCuuSP2Page() {
                             </div>
                           </div>
                           <p className="text-[10px] text-slate-500 mb-2">
-                            Há»— trá»£ file TXT/CSV/Excel. Há»‡ thá»‘ng sáº½ tÃ¬m S2 Ä‘ang náº±m á»Ÿ OLT, Card, Port nÃ o trong cache Ä‘á»“ng bá»™.
-                            {s2LookupFileName ? ` File gáº§n nháº¥t: ${s2LookupFileName}.` : ''}
+                            Hỗ trợ file TXT/CSV/Excel. Hệ thống sẽ tìm S2 đang nằm ở OLT, Card, Port nào trong cache đồng bộ.
+                            {s2LookupFileName ? ` File gần nhất: ${s2LookupFileName}.` : ''}
                           </p>
                           {s2LookupError && <p className="text-[11px] text-red-600 mb-1">{s2LookupError}</p>}
                           {!s2LookupError && s2LookupRows.length === 0 && s2LookupNotFound.length === 0 && !s2LookupLoading && (
-                            <p className="text-[11px] text-slate-500">ChÆ°a cÃ³ dá»¯ liá»‡u tra cá»©u S2.</p>
+                            <p className="text-[11px] text-slate-500">Chưa có dữ liệu tra cứu S2.</p>
                           )}
                           {s2LookupNotFound.length > 0 && (
                             <p className="text-[11px] text-amber-700 mb-1">
-                              KhÃ´ng tÃ¬m tháº¥y {s2LookupNotFound.length} mÃ£ S2: {s2LookupNotFound.slice(0, 10).join(', ')}
-                              {s2LookupNotFound.length > 10 ? 'â€¦' : ''}
+                              Không tìm thấy {s2LookupNotFound.length} mã S2: {s2LookupNotFound.slice(0, 10).join(', ')}
+                              {s2LookupNotFound.length > 10 ? '…' : ''}
                             </p>
                           )}
                           {s2LookupRows.length > 0 && (
@@ -3251,12 +3288,12 @@ export default function TraCuuSP2Page() {
                               <table className="min-w-[680px] text-[11px]">
                                 <thead>
                                   <tr className="border-b border-slate-200 text-slate-600">
-                                    <th className="text-left py-1 pr-2 font-semibold">S2 tra cá»©u</th>
-                                    <th className="text-left py-1 px-2 font-semibold">KÃ½ hiá»‡u S2</th>
+                                    <th className="text-left py-1 pr-2 font-semibold">S2 tra cứu</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Ký hiệu S2</th>
                                     <th className="text-left py-1 px-2 font-semibold">OLT</th>
                                     <th className="text-left py-1 px-2 font-semibold">Card</th>
                                     <th className="text-left py-1 px-2 font-semibold">Port</th>
-                                    <th className="text-left py-1 pl-2 font-semibold">Tá»• KT</th>
+                                    <th className="text-left py-1 pl-2 font-semibold">Tổ KT</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -3265,12 +3302,12 @@ export default function TraCuuSP2Page() {
                                       key={`${String(row?.cacheKey || '')}-lookup-${s2LookupStart + idx}`}
                                       className="border-b border-slate-100 last:border-b-0 text-slate-700"
                                     >
-                                      <td className="py-1.5 pr-2">{String(row?.queryS2 || 'â€”')}</td>
-                                      <td className="py-1.5 px-2">{String(row?.kyHieu || row?.tenSplitter || 'â€”')}</td>
-                                      <td className="py-1.5 px-2">{String(row?.oltTen || row?.thietBiOlt || 'â€”')}</td>
-                                      <td className="py-1.5 px-2">{String(row?.cardTen || row?.cardOlt || 'â€”')}</td>
-                                      <td className="py-1.5 px-2">{String(row?.portTen || row?.portOlt || 'â€”')}</td>
-                                      <td className="py-1.5 pl-2">{String(row?.toTen || row?.toQL || 'â€”')}</td>
+                                      <td className="py-1.5 pr-2">{String(row?.queryS2 || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.kyHieu || row?.tenSplitter || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.oltTen || row?.thietBiOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.cardTen || row?.cardOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.portTen || row?.portOlt || '—')}</td>
+                                      <td className="py-1.5 pl-2">{String(row?.toTen || row?.toQL || '—')}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -3280,7 +3317,7 @@ export default function TraCuuSP2Page() {
                           {s2LookupRows.length > 0 && (
                             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                               <p className="text-[11px] text-slate-600">
-                                Hiá»ƒn thá»‹ {s2LookupStart + 1}-{Math.min(s2LookupStart + s2LookupPageSize, s2LookupRows.length)} / {s2LookupRows.length} dÃ²ng
+                                Hiển thị {s2LookupStart + 1}-{Math.min(s2LookupStart + s2LookupPageSize, s2LookupRows.length)} / {s2LookupRows.length} dòng
                               </p>
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <button
@@ -3289,7 +3326,7 @@ export default function TraCuuSP2Page() {
                                   disabled={s2LookupCurrentPage <= 1}
                                   className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                                 >
-                                  Trang trÆ°á»›c
+                                  Trang trước
                                 </button>
                                 <span className="text-[11px] text-slate-600">
                                   Trang {s2LookupCurrentPage}/{s2LookupTotalPages}
@@ -3310,16 +3347,16 @@ export default function TraCuuSP2Page() {
                         <>
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                             <p className="text-[11px] font-semibold text-slate-700">
-                              BÃ¡o cÃ¡o dung lÆ°á»£ng S2
+                              Báo cáo dung lượng S2
                             </p>
                             <div className="flex w-full sm:w-auto flex-wrap items-center gap-1.5">
                               <select
                                 value={s2CapacityToFilter}
                                 onChange={(e) => setS2CapacityToFilter(e.target.value)}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                                title="Lá»c theo Tá»• ká»¹ thuáº­t"
+                                title="Lọc theo Tổ kỹ thuật"
                               >
-                                <option value="">Táº¥t cáº£ Tá»• KT</option>
+                                <option value="">Tất cả Tổ KT</option>
                                 {s2CapacityToOptions.map((item) => {
                                   const id = String(item?.id || '');
                                   if (!id) return null;
@@ -3330,9 +3367,9 @@ export default function TraCuuSP2Page() {
                                 value={s2CapacityOltFilter}
                                 onChange={(e) => setS2CapacityOltFilter(e.target.value)}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                                title="Lá»c theo OLT"
+                                title="Lọc theo OLT"
                               >
-                                <option value="">Táº¥t cáº£ OLT</option>
+                                <option value="">Tất cả OLT</option>
                                 {filteredS2CapacityOltOptions.map((item) => {
                                   const id = String(item?.id || '');
                                   if (!id) return null;
@@ -3343,12 +3380,12 @@ export default function TraCuuSP2Page() {
                                 value={String(s2CapacityPageSize)}
                                 onChange={(e) => setS2CapacityPageSize(Number(e.target.value) || 20)}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                                title="Sá»‘ dÃ²ng hiá»ƒn thá»‹ má»—i trang"
+                                title="Số dòng hiển thị mỗi trang"
                               >
-                                <option value="10">10 dÃ²ng/trang</option>
-                                <option value="20">20 dÃ²ng/trang</option>
-                                <option value="50">50 dÃ²ng/trang</option>
-                                <option value="100">100 dÃ²ng/trang</option>
+                                <option value="10">10 dòng/trang</option>
+                                <option value="20">20 dòng/trang</option>
+                                <option value="50">50 dòng/trang</option>
+                                <option value="100">100 dòng/trang</option>
                               </select>
                               <button
                                 type="button"
@@ -3356,7 +3393,7 @@ export default function TraCuuSP2Page() {
                                 disabled={s2CapacityExporting}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                               >
-                                {s2CapacityExporting ? 'Äang xuáº¥tâ€¦' : 'Xuáº¥t Excel'}
+                                {s2CapacityExporting ? 'Đang xuất…' : 'Xuất Excel'}
                               </button>
                               <button
                                 type="button"
@@ -3364,36 +3401,36 @@ export default function TraCuuSP2Page() {
                                 disabled={s2CapacityLoading}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                               >
-                                {s2CapacityLoading ? 'Äang táº£iâ€¦' : 'LÃ m má»›i'}
+                                {s2CapacityLoading ? 'Đang tải…' : 'Làm mới'}
                               </button>
                             </div>
                           </div>
                           {s2CapacityError && <p className="text-[11px] text-red-600 mb-1">{s2CapacityError}</p>}
                           {!s2CapacityError && filteredS2CapacityRows.length === 0 && !s2CapacityLoading && (
-                            <p className="text-[11px] text-slate-500">ChÆ°a cÃ³ dá»¯ liá»‡u dung lÆ°á»£ng S2.</p>
+                            <p className="text-[11px] text-slate-500">Chưa có dữ liệu dung lượng S2.</p>
                           )}
                           {filteredS2CapacityRows.length > 0 && (
                             <div className="overflow-x-auto -mx-1 px-1">
                               <table className="min-w-[720px] text-[11px]">
                                 <thead>
                                   <tr className="border-b border-slate-200 text-slate-600">
-                                    <th className="text-left py-1 pr-2 font-semibold">Tá»• KT</th>
+                                    <th className="text-left py-1 pr-2 font-semibold">Tổ KT</th>
                                     <th className="text-left py-1 px-2 font-semibold">OLT</th>
-                                    <th className="text-left py-1 px-2 font-semibold">KÃ½ hiá»‡u</th>
-                                    <th className="text-right py-1 px-2 font-semibold">Dung lÆ°á»£ng</th>
-                                    <th className="text-right py-1 px-2 font-semibold">ÄÃ£ dÃ¹ng</th>
-                                    <th className="text-right py-1 pl-2 font-semibold">ChÆ°a dÃ¹ng</th>
+                                    <th className="text-left py-1 px-2 font-semibold">Ký hiệu</th>
+                                    <th className="text-right py-1 px-2 font-semibold">Dung lượng</th>
+                                    <th className="text-right py-1 px-2 font-semibold">Đã dùng</th>
+                                    <th className="text-right py-1 pl-2 font-semibold">Chưa dùng</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {pagedS2CapacityRows.map((row, idx) => (
                                     <tr key={`${String(row?.cacheKey || '')}-cap-${s2CapacityStart + idx}`} className="border-b border-slate-100 last:border-b-0 text-slate-700">
-                                      <td className="py-1.5 pr-2">{String(row?.toTen || row?.toQL || 'â€”')}</td>
-                                      <td className="py-1.5 px-2">{String(row?.oltTen || row?.thietBiOlt || 'â€”')}</td>
-                                      <td className="py-1.5 px-2">{String(row?.kyHieu || row?.tenSplitter || 'â€”')}</td>
-                                      <td className="py-1.5 px-2 text-right">{row?.dungLuong ?? 'â€”'}</td>
-                                      <td className="py-1.5 px-2 text-right">{row?.daDung ?? 'â€”'}</td>
-                                      <td className="py-1.5 pl-2 text-right">{row?.chuaDung ?? 'â€”'}</td>
+                                      <td className="py-1.5 pr-2">{String(row?.toTen || row?.toQL || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.oltTen || row?.thietBiOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.kyHieu || row?.tenSplitter || '—')}</td>
+                                      <td className="py-1.5 px-2 text-right">{row?.dungLuong ?? '—'}</td>
+                                      <td className="py-1.5 px-2 text-right">{row?.daDung ?? '—'}</td>
+                                      <td className="py-1.5 pl-2 text-right">{row?.chuaDung ?? '—'}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -3403,10 +3440,10 @@ export default function TraCuuSP2Page() {
                           {filteredS2CapacityRows.length > 0 && (
                             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                               <p className="text-[11px] text-slate-600">
-                                Hiá»ƒn thá»‹ {s2CapacityStart + 1}-{Math.min(s2CapacityStart + s2CapacityPageSize, filteredS2CapacityRows.length)} / {filteredS2CapacityRows.length} dÃ²ng
+                                Hiển thị {s2CapacityStart + 1}-{Math.min(s2CapacityStart + s2CapacityPageSize, filteredS2CapacityRows.length)} / {filteredS2CapacityRows.length} dòng
                               </p>
                               <div className="flex items-center gap-1.5">
-                                <button type="button" onClick={() => setS2CapacityPage((p) => Math.max(1, p - 1))} disabled={s2CapacityCurrentPage <= 1} className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50">Trang trÆ°á»›c</button>
+                                <button type="button" onClick={() => setS2CapacityPage((p) => Math.max(1, p - 1))} disabled={s2CapacityCurrentPage <= 1} className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50">Trang trước</button>
                                 <span className="text-[11px] text-slate-600">Trang {s2CapacityCurrentPage}/{s2CapacityTotalPages}</span>
                                 <button type="button" onClick={() => setS2CapacityPage((p) => Math.min(s2CapacityTotalPages, p + 1))} disabled={s2CapacityCurrentPage >= s2CapacityTotalPages} className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50">Trang sau</button>
                               </div>
@@ -3417,16 +3454,16 @@ export default function TraCuuSP2Page() {
                         <>
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                             <p className="text-[11px] font-semibold text-slate-700">
-                              Danh sÃ¡ch cá»•ng PON khÃ´ng cÃ³ S2
+                              Danh sách cổng PON không có S2
                             </p>
                             <div className="flex w-full sm:w-auto flex-wrap items-center gap-1.5">
                               <select
                                 value={noSp2ToFilter}
                                 onChange={(e) => setNoSp2ToFilter(e.target.value)}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                                title="Lá»c theo Tá»• ká»¹ thuáº­t"
+                                title="Lọc theo Tổ kỹ thuật"
                               >
-                                <option value="">Táº¥t cáº£ Tá»• KT</option>
+                                <option value="">Tất cả Tổ KT</option>
                                 {noSp2ToOptions.map((item) => {
                                   const id = String(item?.id || '');
                                   if (!id) return null;
@@ -3441,9 +3478,9 @@ export default function TraCuuSP2Page() {
                                 value={noSp2OltFilter}
                                 onChange={(e) => setNoSp2OltFilter(e.target.value)}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                                title="Lá»c theo OLT"
+                                title="Lọc theo OLT"
                               >
-                                <option value="">Táº¥t cáº£ OLT</option>
+                                <option value="">Tất cả OLT</option>
                                 {filteredNoSp2OltOptions.map((item) => {
                                   const id = String(item?.id || '');
                                   if (!id) return null;
@@ -3458,12 +3495,12 @@ export default function TraCuuSP2Page() {
                                 value={String(noSp2PageSize)}
                                 onChange={(e) => setNoSp2PageSize(Number(e.target.value) || 20)}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                                title="Sá»‘ cá»•ng hiá»ƒn thá»‹ má»—i trang"
+                                title="Số cổng hiển thị mỗi trang"
                               >
-                                <option value="10">10 cá»•ng/trang</option>
-                                <option value="20">20 cá»•ng/trang</option>
-                                <option value="50">50 cá»•ng/trang</option>
-                                <option value="100">100 cá»•ng/trang</option>
+                                <option value="10">10 cổng/trang</option>
+                                <option value="20">20 cổng/trang</option>
+                                <option value="50">50 cổng/trang</option>
+                                <option value="100">100 cổng/trang</option>
                               </select>
                               <button
                                 type="button"
@@ -3471,7 +3508,7 @@ export default function TraCuuSP2Page() {
                                 disabled={noSp2Exporting}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                               >
-                                {noSp2Exporting ? 'Äang xuáº¥tâ€¦' : 'Xuáº¥t Excel'}
+                                {noSp2Exporting ? 'Đang xuất…' : 'Xuất Excel'}
                               </button>
                               <button
                                 type="button"
@@ -3479,29 +3516,29 @@ export default function TraCuuSP2Page() {
                                 disabled={noSp2Loading}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                               >
-                                {noSp2Loading ? 'Äang táº£iâ€¦' : 'LÃ m má»›i'}
+                                {noSp2Loading ? 'Đang tải…' : 'Làm mới'}
                               </button>
                             </div>
                           </div>
                           <p className="text-[10px] text-slate-500 mb-2">
-                            BÃ¡o cÃ¡o liá»‡t kÃª cÃ¡c cá»•ng PON chÆ°a cÃ³ S2, há»— trá»£ lá»c theo Tá»• ká»¹ thuáº­t vÃ  OLT.
+                            Báo cáo liệt kê các cổng PON chưa có S2, hỗ trợ lọc theo Tổ kỹ thuật và OLT.
                           </p>
                           {noSp2Error && (
                             <p className="text-[11px] text-red-600 mb-1">{noSp2Error}</p>
                           )}
                           {!noSp2Error && filteredNoSp2Rows.length === 0 && !noSp2Loading && (
-                            <p className="text-[11px] text-slate-500">KhÃ´ng cÃ³ cá»•ng PON nÃ o thiáº¿u S2 theo Ä‘iá»u kiá»‡n lá»c hiá»‡n táº¡i.</p>
+                            <p className="text-[11px] text-slate-500">Không có cổng PON nào thiếu S2 theo điều kiện lọc hiện tại.</p>
                           )}
                           {filteredNoSp2Rows.length > 0 && (
                             <div className="overflow-x-auto -mx-1 px-1">
                               <table className="min-w-[680px] text-[11px]">
                                 <thead>
                                   <tr className="border-b border-slate-200 text-slate-600">
-                                    <th className="text-left py-1 pr-2 font-semibold">Tá»• KT</th>
+                                    <th className="text-left py-1 pr-2 font-semibold">Tổ KT</th>
                                     <th className="text-left py-1 px-2 font-semibold">OLT</th>
                                     <th className="text-left py-1 px-2 font-semibold">Card</th>
                                     <th className="text-left py-1 px-2 font-semibold">Port PON</th>
-                                    <th className="text-left py-1 pl-2 font-semibold">Tráº¡m BTS</th>
+                                    <th className="text-left py-1 pl-2 font-semibold">Trạm BTS</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -3510,11 +3547,11 @@ export default function TraCuuSP2Page() {
                                       key={`${String(row?.cacheKey || '')}-nosp2-${noSp2Start + idx}`}
                                       className="border-b border-slate-100 last:border-b-0 text-slate-700"
                                     >
-                                      <td className="py-1.5 pr-2">{String(row?.toTen || row?.toQL || 'â€”')}</td>
-                                      <td className="py-1.5 px-2">{String(row?.oltTen || row?.thietBiOlt || 'â€”')}</td>
-                                      <td className="py-1.5 px-2">{String(row?.cardTen || row?.cardOlt || 'â€”')}</td>
-                                      <td className="py-1.5 px-2">{String(row?.portTen || row?.portOlt || 'â€”')}</td>
-                                      <td className="py-1.5 pl-2">{String(row?.tramTen || row?.veTinh || 'â€”')}</td>
+                                      <td className="py-1.5 pr-2">{String(row?.toTen || row?.toQL || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.oltTen || row?.thietBiOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.cardTen || row?.cardOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.portTen || row?.portOlt || '—')}</td>
+                                      <td className="py-1.5 pl-2">{String(row?.tramTen || row?.veTinh || '—')}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -3524,7 +3561,7 @@ export default function TraCuuSP2Page() {
                           {filteredNoSp2Rows.length > 0 && (
                             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                               <p className="text-[11px] text-slate-600">
-                                Hiá»ƒn thá»‹ {noSp2Start + 1}-{Math.min(noSp2Start + noSp2PageSize, filteredNoSp2Rows.length)} / {filteredNoSp2Rows.length} cá»•ng
+                                Hiển thị {noSp2Start + 1}-{Math.min(noSp2Start + noSp2PageSize, filteredNoSp2Rows.length)} / {filteredNoSp2Rows.length} cổng
                               </p>
                               <div className="flex items-center gap-1.5">
                                 <button
@@ -3533,7 +3570,7 @@ export default function TraCuuSP2Page() {
                                   disabled={noSp2CurrentPage <= 1}
                                   className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                                 >
-                                  Trang trÆ°á»›c
+                                  Trang trước
                                 </button>
                                 <span className="text-[11px] text-slate-600">
                                   Trang {noSp2CurrentPage}/{noSp2TotalPages}
@@ -3554,16 +3591,16 @@ export default function TraCuuSP2Page() {
                         <>
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                             <p className="text-[11px] font-semibold text-slate-700">
-                              Chi tiáº¿t S2 theo OLT vÃ  cá»•ng PON
+                              Chi tiết S2 theo OLT và cổng PON
                             </p>
                             <div className="flex w-full sm:w-auto flex-wrap items-center gap-1.5">
                               <select
                                 value={oltPonToFilter}
                                 onChange={(e) => setOltPonToFilter(e.target.value)}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                                title="Lá»c theo Tá»• ká»¹ thuáº­t"
+                                title="Lọc theo Tổ kỹ thuật"
                               >
-                                <option value="">Táº¥t cáº£ Tá»• KT</option>
+                                <option value="">Tất cả Tổ KT</option>
                                 {oltPonToOptions.map((item) => {
                                   const id = String(item?.id || '');
                                   if (!id) return null;
@@ -3578,9 +3615,9 @@ export default function TraCuuSP2Page() {
                                 value={oltPonFilter}
                                 onChange={(e) => setOltPonFilter(e.target.value)}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                                title="Lá»c theo OLT Ä‘á»ƒ xem/xuáº¥t Excel"
+                                title="Lọc theo OLT để xem/xuất Excel"
                               >
-                                <option value="">Táº¥t cáº£ OLT</option>
+                                <option value="">Tất cả OLT</option>
                                 {filteredOltPonOptions.map((item) => {
                                   const id = String(item?.id || '');
                                   if (!id) return null;
@@ -3595,12 +3632,12 @@ export default function TraCuuSP2Page() {
                                 value={String(oltPonPageSize)}
                                 onChange={(e) => setOltPonPageSize(Number(e.target.value) || 20)}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                                title="Sá»‘ cá»•ng hiá»ƒn thá»‹ má»—i trang"
+                                title="Số cổng hiển thị mỗi trang"
                               >
-                                <option value="10">10 cá»•ng/trang</option>
-                                <option value="20">20 cá»•ng/trang</option>
-                                <option value="50">50 cá»•ng/trang</option>
-                                <option value="100">100 cá»•ng/trang</option>
+                                <option value="10">10 cổng/trang</option>
+                                <option value="20">20 cổng/trang</option>
+                                <option value="50">50 cổng/trang</option>
+                                <option value="100">100 cổng/trang</option>
                               </select>
                               <button
                                 type="button"
@@ -3608,7 +3645,7 @@ export default function TraCuuSP2Page() {
                                 disabled={oltPonExporting}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                               >
-                                {oltPonExporting ? 'Äang xuáº¥tâ€¦' : (oltPonFilter ? 'Xuáº¥t Excel theo OLT' : 'Xuáº¥t Excel táº¥t cáº£ OLT')}
+                                {oltPonExporting ? 'Đang xuất…' : (oltPonFilter ? 'Xuất Excel theo OLT' : 'Xuất Excel tất cả OLT')}
                               </button>
                               <button
                                 type="button"
@@ -3616,18 +3653,18 @@ export default function TraCuuSP2Page() {
                                 disabled={oltPonLoading}
                                 className="w-full sm:w-auto text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                               >
-                                {oltPonLoading ? 'Äang táº£iâ€¦' : 'LÃ m má»›i'}
+                                {oltPonLoading ? 'Đang tải…' : 'Làm mới'}
                               </button>
                             </div>
                           </div>
                           <p className="text-[10px] text-slate-500 mb-2">
-                            Má»—i dÃ²ng lÃ  má»™t cá»•ng PON trong cache, cÃ³ sá»‘ lÆ°á»£ng SP2 vÃ  danh sÃ¡ch tÃªn SP2 tÆ°Æ¡ng á»©ng.
+                            Mỗi dòng là một cổng PON trong cache, có số lượng SP2 và danh sách tên SP2 tương ứng.
                           </p>
                           {oltPonError && (
                             <p className="text-[11px] text-red-600 mb-1">{oltPonError}</p>
                           )}
                           {!oltPonError && filteredOltPonRows.length === 0 && !oltPonLoading && (
-                            <p className="text-[11px] text-slate-500">ChÆ°a cÃ³ dá»¯ liá»‡u bÃ¡o cÃ¡o OLT/PON.</p>
+                            <p className="text-[11px] text-slate-500">Chưa có dữ liệu báo cáo OLT/PON.</p>
                           )}
                           {filteredOltPonRows.length > 0 && (
                             <div className="overflow-x-auto -mx-1 px-1">
@@ -3637,8 +3674,8 @@ export default function TraCuuSP2Page() {
                                     <th className="text-left py-1 pr-2 font-semibold">OLT</th>
                                     <th className="text-left py-1 px-2 font-semibold">Card</th>
                                     <th className="text-left py-1 px-2 font-semibold">Port PON</th>
-                                    <th className="text-right py-1 px-2 font-semibold">Sá»‘ SP2</th>
-                                    <th className="text-left py-1 pl-2 font-semibold">Danh sÃ¡ch SP2</th>
+                                    <th className="text-right py-1 px-2 font-semibold">Số SP2</th>
+                                    <th className="text-left py-1 pl-2 font-semibold">Danh sách SP2</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -3648,10 +3685,10 @@ export default function TraCuuSP2Page() {
                                       className="border-b border-slate-100 last:border-b-0 text-slate-700"
                                     >
                                       <td className="py-1.5 pr-2">
-                                        {String(row?.oltTen || row?.thietBiOlt || 'â€”')}
+                                        {String(row?.oltTen || row?.thietBiOlt || '—')}
                                       </td>
-                                      <td className="py-1.5 px-2">{String(row?.cardTen || row?.cardOlt || 'â€”')}</td>
-                                      <td className="py-1.5 px-2">{String(row?.portTen || row?.portOlt || 'â€”')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.cardTen || row?.cardOlt || '—')}</td>
+                                      <td className="py-1.5 px-2">{String(row?.portTen || row?.portOlt || '—')}</td>
                                       <td className="py-1.5 px-2 text-right font-semibold text-indigo-700">
                                         {Number(row?.sp2Count || 0)}
                                       </td>
@@ -3669,7 +3706,7 @@ export default function TraCuuSP2Page() {
                                               ))}
                                           </div>
                                         ) : (
-                                          <span>â€”</span>
+                                          <span>—</span>
                                         )}
                                       </td>
                                     </tr>
@@ -3681,7 +3718,7 @@ export default function TraCuuSP2Page() {
                           {filteredOltPonRows.length > 0 && (
                             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                               <p className="text-[11px] text-slate-600">
-                                Hiá»ƒn thá»‹ {oltPonStart + 1}-{Math.min(oltPonStart + oltPonPageSize, filteredOltPonRows.length)} / {filteredOltPonRows.length} cá»•ng
+                                Hiển thị {oltPonStart + 1}-{Math.min(oltPonStart + oltPonPageSize, filteredOltPonRows.length)} / {filteredOltPonRows.length} cổng
                               </p>
                               <div className="flex items-center gap-1.5">
                                 <button
@@ -3690,7 +3727,7 @@ export default function TraCuuSP2Page() {
                                   disabled={oltPonCurrentPage <= 1}
                                   className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                                 >
-                                  Trang trÆ°á»›c
+                                  Trang trước
                                 </button>
                                 <span className="text-[11px] text-slate-600">
                                   Trang {oltPonCurrentPage}/{oltPonTotalPages}
@@ -3711,16 +3748,16 @@ export default function TraCuuSP2Page() {
                         <>
                           <div className="flex items-center justify-between gap-2 mb-1.5">
                             <p className="text-[11px] font-semibold text-slate-700">
-                              Tá»· lá»‡ cá»•ng PON cÃ³ Ä‘Ãºng 1 SP2 theo Tá»• KT
+                              Tỷ lệ cổng PON có đúng 1 SP2 theo Tổ KT
                             </p>
                             <div className="flex items-center gap-1.5">
                               <select
                                 value={ponExportToQl}
                                 onChange={(e) => setPonExportToQl(e.target.value)}
                                 className="text-[11px] px-2 py-1 rounded border border-slate-300 bg-white text-slate-700"
-                                title="Lá»c theo Tá»• KT Ä‘á»ƒ xuáº¥t Excel"
+                                title="Lọc theo Tổ KT để xuất Excel"
                               >
-                                <option value="">Táº¥t cáº£ Tá»• KT</option>
+                                <option value="">Tất cả Tổ KT</option>
                                 {ponOneSp2Stats.map((row) => {
                                   const key = String(row?.toQL || '');
                                   if (!key) return null;
@@ -3737,7 +3774,7 @@ export default function TraCuuSP2Page() {
                                 disabled={ponExporting}
                                 className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                               >
-                                {ponExporting ? 'Äang xuáº¥tâ€¦' : (ponExportToQl ? 'Xuáº¥t Excel theo tá»•' : 'Xuáº¥t Excel 1 SP2')}
+                                {ponExporting ? 'Đang xuất…' : (ponExportToQl ? 'Xuất Excel theo tổ' : 'Xuất Excel 1 SP2')}
                               </button>
                               <button
                                 type="button"
@@ -3745,28 +3782,28 @@ export default function TraCuuSP2Page() {
                                 disabled={ponStatsLoading}
                                 className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                               >
-                                {ponStatsLoading ? 'Äang táº£iâ€¦' : 'LÃ m má»›i'}
+                                {ponStatsLoading ? 'Đang tải…' : 'Làm mới'}
                               </button>
                             </div>
                           </div>
                           <p className="text-[10px] text-slate-500 mb-2">
-                            CÃ´ng thá»©c: <strong>sá»‘ cá»•ng cÃ³ Ä‘Ãºng 1 SP2 / tá»•ng sá»‘ cá»•ng Ä‘Ã£ cache</strong>.
+                            Công thức: <strong>số cổng có đúng 1 SP2 / tổng số cổng đã cache</strong>.
                           </p>
                           {ponStatsError && (
                             <p className="text-[11px] text-red-600 mb-1">{ponStatsError}</p>
                           )}
                           {!ponStatsError && ponOneSp2Stats.length === 0 && !ponStatsLoading && (
-                            <p className="text-[11px] text-slate-500">ChÆ°a cÃ³ dá»¯ liá»‡u thá»‘ng kÃª.</p>
+                            <p className="text-[11px] text-slate-500">Chưa có dữ liệu thống kê.</p>
                           )}
                           {ponOneSp2Stats.length > 0 && (
                             <div className="overflow-x-auto">
                               <table className="min-w-full text-[11px]">
                                 <thead>
                                   <tr className="border-b border-slate-200 text-slate-600">
-                                    <th className="text-left py-1 pr-2 font-semibold">Tá»• KT</th>
+                                    <th className="text-left py-1 pr-2 font-semibold">Tổ KT</th>
                                     <th className="text-right py-1 px-2 font-semibold">1 SP2</th>
-                                    <th className="text-right py-1 px-2 font-semibold">Tá»•ng cá»•ng</th>
-                                    <th className="text-right py-1 pl-2 font-semibold">Tá»· lá»‡</th>
+                                    <th className="text-right py-1 px-2 font-semibold">Tổng cổng</th>
+                                    <th className="text-right py-1 pl-2 font-semibold">Tỷ lệ</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -3788,16 +3825,23 @@ export default function TraCuuSP2Page() {
                       ) : activeReportId === 's2_renovation_proposals' ? (
                         <>
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-                            <p className="text-[11px] font-semibold text-slate-700">Äá» xuáº¥t cáº£i táº¡o Spliter cáº¥p 2</p>
-                            <button type="button" onClick={refreshS2Proposals} disabled={s2ProposalsLoading} className="text-[11px] px-2 py-1 rounded border border-sky-300 text-sky-700 hover:bg-sky-50 disabled:opacity-50">
-                              {s2ProposalsLoading ? 'Äang táº£iâ€¦' : 'Táº£i láº¡i'}
+                            <p className="text-[11px] font-semibold text-slate-700">Đề xuất cải tạo Spliter cấp 2</p>
+                            <button
+                              type="button"
+                              onClick={refreshS2Proposals}
+                              disabled={s2ProposalsLoading}
+                              className="text-[11px] px-2 py-1 rounded border border-sky-300 text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+                            >
+                              {s2ProposalsLoading ? 'Đang tải…' : 'Tải lại'}
                             </button>
                           </div>
                           {s2ProposalsError ? <p className="text-[11px] text-red-600 mb-2">{s2ProposalsError}</p> : null}
                           {s2ProposalsLoading && s2Proposals.length === 0 ? (
-                            <p className="text-[11px] text-slate-500">Äang táº£i danh sÃ¡ch Ä‘á» xuáº¥tâ€¦</p>
+                            <p className="text-[11px] text-slate-500">Đang tải danh sách đề xuất…</p>
                           ) : s2Proposals.length === 0 ? (
-                            <p className="text-[11px] text-slate-500">ChÆ°a cÃ³ Ä‘á» xuáº¥t. Tra cá»©u S2 vÃ  báº¥m Â«Äá» xuáº¥tÂ» cáº¡nh nÃºt Copy.</p>
+                            <p className="text-[11px] text-slate-500">
+                              Chưa có đề xuất. Tra cứu S2 và bấm «Đề xuất» cạnh nút Copy.
+                            </p>
                           ) : (
                             <div className="overflow-x-auto -mx-1 px-1 max-h-[420px]">
                               <table className="min-w-[960px] text-[11px] w-full">
@@ -3840,7 +3884,7 @@ export default function TraCuuSP2Page() {
                         <>
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                             <p className="text-[11px] font-semibold text-slate-700">
-                              Lá»‹ch sá»­ chuyá»ƒn Ä‘á»‹a bÃ n thuÃª bao
+                              Lịch sử chuyển địa bàn thuê bao
                             </p>
                             <button
                               type="button"
@@ -3848,21 +3892,21 @@ export default function TraCuuSP2Page() {
                               disabled={tbExporting || tbChuyenBatches.length === 0}
                               className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                             >
-                              {tbExporting ? 'Äang xuáº¥tâ€¦' : 'Xuáº¥t Excel'}
+                              {tbExporting ? 'Đang xuất…' : 'Xuất Excel'}
                             </button>
                           </div>
                           {tbChuyenBatches.length === 0 ? (
                             tbTransferLoading ? (
-                              <p className="text-[11px] text-slate-500">Äang táº£i lá»‹ch sá»­ chuyá»ƒn Ä‘á»‹a bÃ n...</p>
+                              <p className="text-[11px] text-slate-500">Đang tải lịch sử chuyển địa bàn...</p>
                             ) : (
                               <p className="text-[11px] text-slate-500">
-                                ChÆ°a cÃ³ dá»¯ liá»‡u lá»‹ch sá»­ chuyá»ƒn Ä‘á»‹a bÃ n. HÃ£y thá»±c hiá»‡n chuyá»ƒn Ä‘á»‹a bÃ n trong module Tra cá»©u TB trÆ°á»›c.
+                                Chưa có dữ liệu lịch sử chuyển địa bàn. Hãy thực hiện chuyển địa bàn trong module Tra cứu TB trước.
                               </p>
                             )
                           ) : (
                             <>
                               <p className="text-[10px] text-slate-500 mb-2">
-                                ÄÃ£ ghi nháº­n {tbChuyenBatches.reduce((n, b) => n + b.rows.length, 0)} dÃ²ng trong {tbChuyenBatches.length} láº§n thao tÃ¡c.
+                                Đã ghi nhận {tbChuyenBatches.reduce((n, b) => n + b.rows.length, 0)} dòng trong {tbChuyenBatches.length} lần thao tác.
                               </p>
                               <div className="overflow-x-auto -mx-1 px-1 max-h-[380px]">
                                 <table className="min-w-[860px] text-[11px]">
@@ -3870,13 +3914,13 @@ export default function TraCuuSP2Page() {
                                     <tr className="border-b border-slate-200 text-slate-600">
                                       <th className="text-left py-1 pr-2 font-semibold">STT</th>
                                       <th className="text-left py-1 px-2 font-semibold">Account</th>
-                                      <th className="text-left py-1 px-2 font-semibold">TÃªn KH</th>
-                                      <th className="text-left py-1 px-2 font-semibold">Äá»‹a chá»‰</th>
-                                      <th className="text-left py-1 px-2 font-semibold">Äá»‹a bÃ n cÅ©</th>
-                                      <th className="text-left py-1 px-2 font-semibold">Äá»‹a bÃ n má»›i</th>
-                                      <th className="text-left py-1 px-2 font-semibold">Thá»i gian chuyá»ƒn</th>
-                                      <th className="text-left py-1 pl-2 font-semibold">Thiáº¿t bá»‹ thao tÃ¡c</th>
-                                      <th className="text-right py-1 pl-2 font-semibold">Thao tÃ¡c</th>
+                                      <th className="text-left py-1 px-2 font-semibold">Tên KH</th>
+                                      <th className="text-left py-1 px-2 font-semibold">Địa chỉ</th>
+                                      <th className="text-left py-1 px-2 font-semibold">Địa bàn cũ</th>
+                                      <th className="text-left py-1 px-2 font-semibold">Địa bàn mới</th>
+                                      <th className="text-left py-1 px-2 font-semibold">Thời gian chuyển</th>
+                                      <th className="text-left py-1 pl-2 font-semibold">Thiết bị thao tác</th>
+                                      <th className="text-right py-1 pl-2 font-semibold">Thao tác</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -3891,13 +3935,13 @@ export default function TraCuuSP2Page() {
                                         return (
                                           <tr key={`${batch.id}-report-${ri}`} className="border-b border-slate-100 last:border-b-0 text-slate-700">
                                             <td className="py-1.5 pr-2">{globalStt}</td>
-                                            <td className="py-1.5 px-2">{r.account || 'â€”'}</td>
-                                            <td className="py-1.5 px-2">{r.tenKH || 'â€”'}</td>
-                                            <td className="py-1.5 px-2">{r.diaChi || 'â€”'}</td>
-                                            <td className="py-1.5 px-2">{diaBanCu || 'â€”'}</td>
-                                            <td className="py-1.5 px-2">{diaBanMoi || 'â€”'}</td>
+                                            <td className="py-1.5 px-2">{r.account || '—'}</td>
+                                            <td className="py-1.5 px-2">{r.tenKH || '—'}</td>
+                                            <td className="py-1.5 px-2">{r.diaChi || '—'}</td>
+                                            <td className="py-1.5 px-2">{diaBanCu || '—'}</td>
+                                            <td className="py-1.5 px-2">{diaBanMoi || '—'}</td>
                                             <td className="py-1.5 px-2">{new Date(batch.thoiGian).toLocaleString('vi-VN')}</td>
-                                            <td className="py-1.5 pl-2">{batch.thietBiThaoTac || 'â€”'}</td>
+                                            <td className="py-1.5 pl-2">{batch.thietBiThaoTac || '—'}</td>
                                             <td className="py-1.5 pl-2 text-right">
                                               <button
                                                 type="button"
@@ -3909,7 +3953,7 @@ export default function TraCuuSP2Page() {
                                                     : 'border-sky-300 text-sky-700 hover:bg-sky-50'
                                                 }`}
                                               >
-                                                {daXacNhan ? 'ÄÃ£ xÃ¡c nháº­n' : (tbConfirmingTransferKey === rowKey ? 'Äang xÃ¡c nháº­nâ€¦' : 'XÃ¡c nháº­n')}
+                                                {daXacNhan ? 'Đã xác nhận' : (tbConfirmingTransferKey === rowKey ? 'Đang xác nhận…' : 'Xác nhận')}
                                               </button>
                                               {!daXacNhan && (
                                                 <button
@@ -3918,7 +3962,7 @@ export default function TraCuuSP2Page() {
                                                   disabled={tbDeletingTransferKey === rowKey || tbConfirmingTransferKey === rowKey}
                                                   className="ml-1 text-[10px] px-2 py-1 rounded border border-rose-300 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
                                                 >
-                                                  {tbDeletingTransferKey === rowKey ? 'Äang xÃ³aâ€¦' : 'XÃ³a'}
+                                                  {tbDeletingTransferKey === rowKey ? 'Đang xóa…' : 'Xóa'}
                                                 </button>
                                               )}
                                             </td>
@@ -3934,7 +3978,7 @@ export default function TraCuuSP2Page() {
                         </>
                       ) : (
                         <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2.5">
-                          <p className="text-[11px] font-medium text-slate-700">BÃ¡o cÃ¡o Ä‘ang Ä‘Æ°á»£c xÃ¢y dá»±ng</p>
+                          <p className="text-[11px] font-medium text-slate-700">Báo cáo đang được xây dựng</p>
                           <p className="text-[11px] text-slate-500 mt-1">{activeReport.description}</p>
                         </div>
                       )}
@@ -3942,13 +3986,13 @@ export default function TraCuuSP2Page() {
                     )}
                     {!showReportPanel && lastSyncInfo?.lastSyncAt && (
                       <p className="text-[11px] text-slate-500">
-                        Äá»“ng bá»™ cá»¥c bá»™ (trÃ¬nh duyá»‡t nÃ y):{' '}
+                        Đồng bộ cục bộ (trình duyệt này):{' '}
                         {new Date(lastSyncInfo.lastSyncAt).toLocaleString('vi-VN')}
-                        {lastSyncInfo.lastSyncTotal != null && ` â€” ${lastSyncInfo.lastSyncTotal} port`}
+                        {lastSyncInfo.lastSyncTotal != null && ` — ${lastSyncInfo.lastSyncTotal} port`}
                         {lastSyncInfo.lastSyncS2Total != null && (
-                          <> â€” {lastSyncInfo.lastSyncS2Total} S2 Ä‘Ã£ gom</>
+                          <> — {lastSyncInfo.lastSyncS2Total} S2 đã gom</>
                         )}
-                        {lastSyncInfo.lastSyncErrors > 0 && ` â€” ${lastSyncInfo.lastSyncErrors} lá»—i`}
+                        {lastSyncInfo.lastSyncErrors > 0 && ` — ${lastSyncInfo.lastSyncErrors} lỗi`}
                       </p>
                     )}
                     {!showReportPanel && (
@@ -3964,7 +4008,7 @@ export default function TraCuuSP2Page() {
                           }}
                           className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
-                        Chá»‰ tra cá»©u tá»« cache (Supabase + trÃ¬nh duyá»‡t, khÃ´ng gá»i API)
+                        Chỉ tra cứu từ cache (Supabase + trình duyệt, không gọi API)
                       </label>
                       <label className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer">
                         <input
@@ -3977,7 +4021,7 @@ export default function TraCuuSP2Page() {
                           }}
                           className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
-                        LuÃ´n gá»i API (bá» qua bá»™ nhá»›)
+                        Luôn gọi API (bỏ qua bộ nhớ)
                       </label>
                     </div>
                     )}
@@ -3987,25 +4031,25 @@ export default function TraCuuSP2Page() {
             </div>
           )}
 
-          {/* Form + káº¿t quáº£: Tra cá»©u S2 hoáº·c TB */}
+          {/* Form + kết quả: Tra cứu S2 hoặc TB */}
           {!showSettings && !showReportPanel && (activeMainModule === TB_MODULE_SPLITTER ? (
             <>
-          {/* Form tra cá»©u - TÃ¬m kiáº¿m thÃ´ng tin S2 */}
+          {/* Form tra cứu - Tìm kiếm thông tin S2 */}
           <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0">
-            <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">TÃ¬m kiáº¿m thÃ´ng tin S2</h2>
+            <h2 className="text-sm sm:text-base font-semibold text-slate-800 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">Tìm kiếm thông tin S2</h2>
             <form onSubmit={handleTraCuu} className="space-y-3 sm:space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-8">
                 <div className="space-y-0 order-1 sm:order-1">
-                  <DropRow label="TTVT" required checked={useTtvt} onCheck={setUseTtvt} value={ttvt} onChange={setTtvt} options={listTtvt} />
-                  <DropRow label="Tá»• KT" required checked={useToQL} onCheck={setUseToQL} value={toQL} onChange={setToQL} options={listToQL} />
-                  <DropRow label="Tráº¡m BTS" checked={useVeTinh} onCheck={setUseVeTinh} value={veTinh} onChange={setVeTinh} options={listVeTinh} />
+                  <DropRow label="TTVT" required checked={useTtvt} onCheck={setUseTtvt} value={ttvt} onChange={setTtvt} options={listTtvt} optionValue={ttvtOptionValue} />
+                  <DropRow label="Tổ KT" required checked={useToQL} onCheck={setUseToQL} value={toQL} onChange={setToQL} options={listToQL} />
+                  <DropRow label="Trạm BTS" checked={useVeTinh} onCheck={setUseVeTinh} value={veTinh} onChange={setVeTinh} options={listVeTinh} />
                 </div>
                 <div className="space-y-0 order-2 sm:order-2">
-                  <DropRow label="Thiáº¿t bá»‹ OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} optionValue={(item) => { if (typeof item === 'string' || typeof item === 'number') return String(item); const v = item?.THIETBI_ID ?? item?.OLT_ID ?? item?.id ?? item?.value ?? item?.code ?? ''; return v !== undefined && v !== null ? String(v) : ''; }} optionLabel={oltOptionLabel} />
+                  <DropRow label="Thiết bị OLT" checked={useThietBiOlt} onCheck={setUseThietBiOlt} value={thietBiOlt} onChange={setThietBiOlt} options={listThietBiOlt} optionValue={(item) => { if (typeof item === 'string' || typeof item === 'number') return String(item); const v = item?.THIETBI_ID ?? item?.OLT_ID ?? item?.id ?? item?.value ?? item?.code ?? ''; return v !== undefined && v !== null ? String(v) : ''; }} optionLabel={oltOptionLabel} />
                   <DropRow label="Card OLT" checked={useCardOlt} onCheck={setUseCardOlt} value={cardOlt} onChange={setCardOlt} options={listCardOlt} optionValue={(item) => { if (typeof item === 'string') return item; const keyVal = item?.KEY; const idFromKey = (typeof keyVal === 'string' && keyVal.includes('#')) ? (keyVal.split('#')[1]?.trim() || keyVal) : null; const v = idFromKey ?? item?.CARD_ID ?? item?.THIETBI_ID ?? item?.SLOT_ID ?? item?.PORTVL_ID ?? item?.VITRI ?? item?.TEN_TB ?? item?.id ?? item?.ma ?? item?.value ?? item?.code ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} />
                   <div>
                     <DropRow label="Port OLT" checked={usePortOlt} onCheck={setUsePortOlt} value={portOlt} onChange={setPortOlt} options={listPortOlt} optionValue={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const v = item?.PORTVL_ID ?? item?.VITRI ?? item?.id ?? item?.value ?? ''; return (v !== undefined && v !== null) ? String(v) : ''; }} optionLabel={(item) => { if (typeof item === 'number') return String(item); if (typeof item === 'string') return item; const vitri = item?.VITRI; if (vitri !== undefined && vitri !== null) return String(vitri); return item?.PORTVL_ID != null ? String(item.PORTVL_ID) : (item?.TEN_TB ?? optionLabel(item) ?? ''); }} />
-                    {cardOlt && !loadingPortOlt && listPortOlt.length === 0 && <p className="text-xs text-amber-600 mt-0.5 -mb-1">ChÆ°a cÃ³ Port. Kiá»ƒm tra Card Ä‘Ã£ chá»n hoáº·c API.</p>}
+                    {cardOlt && !loadingPortOlt && listPortOlt.length === 0 && <p className="text-xs text-amber-600 mt-0.5 -mb-1">Chưa có Port. Kiểm tra Card đã chọn hoặc API.</p>}
                   </div>
                 </div>
               </div>
@@ -4015,55 +4059,55 @@ export default function TraCuuSP2Page() {
                   disabled={loading}
                   className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-2.5 rounded-lg font-semibold text-white text-xs sm:text-sm bg-sky-600 hover:bg-sky-700 focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-70 disabled:cursor-not-allowed min-h-[40px] sm:min-h-[44px]"
                 >
-                  {loading ? 'Äang tra cá»©u...' : 'Tra cá»©u'}
+                  {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">
-                  Authorization (JWT) cÃ²n háº¡n â†’ tra cá»©u OneBSS trÆ°á»›c. Háº¿t háº¡n hoáº·c khÃ´ng nháº­p â†’ dÃ¹ng cache Supabase (náº¿u Ä‘Ã£ Ä‘á»“ng bá»™). Â«LuÃ´n gá»i APIÂ» bá» qua cache; Â«Chá»‰ tra cá»©u tá»« cacheÂ» khÃ´ng gá»i API.
+                  Authorization (JWT) còn hạn → tra cứu OneBSS trước. Hết hạn hoặc không nhập → dùng cache Supabase (nếu đã đồng bộ). «Luôn gọi API» bỏ qua cache; «Chỉ tra cứu từ cache» không gọi API.
                 </p>
                 {serverSyncMeta?.lastSyncInProgress ? (
                   <p className="text-[11px] text-sky-700 mt-1">
-                    Äang Ä‘á»“ng bá»™ lÃªn Supabase
+                    Đang đồng bộ lên Supabase
                     {serverSyncMeta.lastSyncCompleted != null && serverSyncMeta.lastSyncTotal != null
                       ? `: ${serverSyncMeta.lastSyncCompleted}/${serverSyncMeta.lastSyncTotal} port`
                       : ''}
-                    . MÃ¡y khÃ¡c cÃ³ thá»ƒ chá»n danh má»¥c tá»« cache vÃ  tra cá»©u port Ä‘Ã£ lÆ°u â€” khÃ´ng cáº§n Authorization.
+                    . Máy khác có thể chọn danh mục từ cache và tra cứu port đã lưu — không cần Authorization.
                   </p>
                 ) : serverSyncMeta?.lastSyncAt ? (
                   <p className={`text-[11px] mt-1 ${(serverSyncMeta.lastSyncTotal ?? 0) > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    Cache chung: Ä‘á»“ng bá»™ lÃºc {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
-                    {serverSyncMeta.lastSyncTotal != null ? ` â€” ${serverSyncMeta.lastSyncTotal} port` : ''}.
+                    Cache chung: đồng bộ lúc {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
+                    {serverSyncMeta.lastSyncTotal != null ? ` — ${serverSyncMeta.lastSyncTotal} port` : ''}.
                     {(serverSyncMeta.lastSyncTotal ?? 0) === 0 &&
-                      ' ChÆ°a cÃ³ port â€” Authorization cÃ³ thá»ƒ sai khi Ä‘á»“ng bá»™; cáº§n lÆ°u token má»›i vÃ  Ä‘á»“ng bá»™ láº¡i.'}
+                      ' Chưa có port — Authorization có thể sai khi đồng bộ; cần lưu token mới và đồng bộ lại.'}
                   </p>
                 ) : hasBrowseCatalog(browseSnapshot) ? (
                   <p className="text-[11px] text-sky-700 mt-1">
-                    ÄÃ£ cÃ³ danh má»¥c cache trÃªn server. Chá»n Tráº¡m/OLT/Card/Port rá»“i tra cá»©u (khÃ´ng cáº§n Authorization náº¿u port Ä‘Ã£ Ä‘Æ°á»£c Ä‘á»“ng bá»™).
+                    Đã có danh mục cache trên server. Chọn Trạm/OLT/Card/Port rồi tra cứu (không cần Authorization nếu port đã được đồng bộ).
                   </p>
                 ) : (
                   <p className="text-[11px] text-amber-700 mt-1">
-                    ChÆ°a cÃ³ cache trÃªn Supabase. Quáº£n trá»‹ cáº§n Â«Äá»“ng bá»™ toÃ n bá»™ S2Â» kÃ¨m mÃ£ ghi cache chung (khÃ´ng chá»‰ Ä‘á»“ng bá»™ trÃªn má»™t trÃ¬nh duyá»‡t).
+                    Chưa có cache trên Supabase. Quản trị cần «Đồng bộ toàn bộ S2» kèm mã ghi cache chung (không chỉ đồng bộ trên một trình duyệt).
                   </p>
                 )}
               </div>
             </form>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {loadingList && <span className="text-xs text-slate-500">Äang táº£i danh sÃ¡ch...</span>}
+              {loadingList && <span className="text-xs text-slate-500">Đang tải danh sách...</span>}
               {listError && <span className="text-xs text-red-600">{listError}</span>}
               <button type="button" onClick={loadDanhSach} disabled={loadingList} className="hidden text-xs text-sky-600 hover:underline disabled:opacity-50">
-                Táº£i láº¡i danh sÃ¡ch
+                Tải lại danh sách
               </button>
             </div>
           </div>
 
-            {/* Khu vá»±c káº¿t quáº£ - vá»«a mÃ n hÃ¬nh mobile */}
+            {/* Khu vực kết quả - vừa màn hình mobile */}
             <div className="mt-2 sm:mt-6 mx-2 sm:mx-8 mb-2 sm:mb-6 rounded-lg sm:rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 flex-1 min-h-[140px] sm:min-h-[320px] p-3 sm:p-6 flex flex-col overflow-hidden">
               {chuaTraCuu && (
                 <p className="text-slate-500 text-center text-xs sm:text-base py-6 sm:py-16 flex-1 flex items-center justify-center">
-                  Chá»n cÃ¡c má»¥c vÃ  báº¥m Tra cá»©u Ä‘á»ƒ xem káº¿t quáº£
+                  Chọn các mục và bấm Tra cứu để xem kết quả
                 </p>
               )}
               {loading && (
-                <p className="text-sky-600 font-medium text-xs sm:text-base py-6 sm:py-12 text-center flex-1 flex items-center justify-center">Äang tra cá»©u...</p>
+                <p className="text-sky-600 font-medium text-xs sm:text-base py-6 sm:py-12 text-center flex-1 flex items-center justify-center">Đang tra cứu...</p>
               )}
               {loi && (
                 <p className="text-red-600 text-center text-xs sm:text-base max-w-md py-4 sm:py-6">{loi}</p>
@@ -4072,7 +4116,7 @@ export default function TraCuuSP2Page() {
                 <div className="w-full overflow-x-auto flex-1 min-h-0 -mx-1 sm:mx-0">
                   <h3 className="text-slate-800 font-bold text-sm sm:text-base mb-2 sm:mb-3 flex flex-wrap items-center gap-2">
                     <span>
-                      Káº¿t quáº£ tra cá»©u ({Array.isArray(ketQua.data) ? ketQua.data.length : 0} S2)
+                      Kết quả tra cứu ({Array.isArray(ketQua.data) ? ketQua.data.length : 0} S2)
                     </span>
                     {ketQua.fromCache === 'server' && (
                       <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200">
@@ -4081,7 +4125,7 @@ export default function TraCuuSP2Page() {
                     )}
                     {ketQua.fromCache === 'local' && (
                       <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
-                        TrÃ¬nh duyá»‡t nÃ y
+                        Trình duyệt này
                       </span>
                     )}
                   </h3>
@@ -4090,10 +4134,10 @@ export default function TraCuuSP2Page() {
                     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                       <div className="grid grid-cols-[1fr_auto] gap-0">
                         <div className="bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-2 sm:px-6 sm:py-3 text-white font-semibold text-xs sm:text-sm uppercase tracking-wide min-w-0">
-                          Danh sÃ¡ch S2 tÃ¬m tháº¥y
+                          Danh sách S2 tìm thấy
                         </div>
                         <div className="bg-gradient-to-r from-sky-600 to-blue-600 px-3 py-2 sm:px-6 sm:py-3 text-white font-semibold text-xs sm:text-sm uppercase tracking-wide text-right shrink-0">
-                          HÃ nh Ä‘á»™ng
+                          Hành động
                         </div>
                       </div>
                       {ketQua.data.map((row, i) => {
@@ -4102,16 +4146,16 @@ export default function TraCuuSP2Page() {
                         return (
                           <div key={i} className="grid grid-cols-[1fr_auto] gap-0 border-t border-slate-100 hover:bg-slate-50/50 min-w-0">
                             <div className="px-3 py-2 sm:px-6 sm:py-3 text-slate-800 text-xs sm:text-sm font-medium min-w-0 break-words" title={copyText || undefined}>
-                              {copyText || 'â€”'}
+                              {copyText || '—'}
                             </div>
-                            <div className="px-3 py-2 sm:px-6 sm:py-3 flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 flex-wrap">
+                            <div className="px-3 py-2 sm:px-6 sm:py-3 flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 shrink-0">
                               <button
                                 type="button"
                                 onClick={() => openProposalModal(copyText)}
                                 disabled={!copyText}
-                                className="inline-flex items-center gap-1 rounded-lg border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-900 px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-medium disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded-lg border border-violet-300 bg-violet-50 hover:bg-violet-100 text-violet-800 px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-medium disabled:opacity-40"
                               >
-                                Äá» xuáº¥t
+                                Đề xuất
                               </button>
                               <button
                                 type="button"
@@ -4133,7 +4177,7 @@ export default function TraCuuSP2Page() {
                       })}
                     </div>
                   ) : (
-                    <p className="text-slate-500 text-center text-xs sm:text-sm py-6 sm:py-8">KhÃ´ng cÃ³ báº£n ghi S2.</p>
+                    <p className="text-slate-500 text-center text-xs sm:text-sm py-6 sm:py-8">Không có bản ghi S2.</p>
                   )}
                 </div>
               )}
@@ -4144,7 +4188,7 @@ export default function TraCuuSP2Page() {
               <div className="px-3 py-3 sm:px-8 sm:py-6 shrink-0 space-y-4">
                 <div className="flex items-center justify-between gap-2 border-b-2 border-sky-500 pb-1 mb-3 sm:mb-4">
                   <h2 className="text-sm sm:text-base font-semibold text-slate-800 min-w-0 flex-1 leading-snug pr-2">
-                    Tra cá»©u thuÃª bao tá»« Excel
+                    Tra cứu thuê bao từ Excel
                   </h2>
                   {tbUploadGate.status !== 'checking' ? (
                     <div className="flex items-center gap-1 shrink-0">
@@ -4153,8 +4197,8 @@ export default function TraCuuSP2Page() {
                         aria-expanded={tbUploadPanelExpanded}
                         aria-controls="tb-upload-panel-body"
                         onClick={() => setTbUploadPanelExpanded((v) => !v)}
-                        title={tbUploadPanelExpanded ? 'Thu gá»n upload' : 'Má»Ÿ upload hoáº·c nháº­p máº­t kháº©u'}
-                        aria-label={tbUploadPanelExpanded ? 'Thu gá»n' : 'Má»Ÿ panel upload'}
+                        title={tbUploadPanelExpanded ? 'Thu gọn upload' : 'Mở upload hoặc nhập mật khẩu'}
+                        aria-label={tbUploadPanelExpanded ? 'Thu gọn' : 'Mở panel upload'}
                         className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-50 hover:text-slate-900 touch-manipulation"
                       >
                         <svg
@@ -4174,8 +4218,8 @@ export default function TraCuuSP2Page() {
                             e.stopPropagation();
                             handleTbUploadLock();
                           }}
-                          title="KhÃ³a láº¡i khu vá»±c upload (trÃªn trÃ¬nh duyá»‡t nÃ y)"
-                          aria-label="KhÃ³a upload TB"
+                          title="Khóa lại khu vực upload (trên trình duyệt này)"
+                          aria-label="Khóa upload TB"
                           className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-50 hover:text-slate-800 touch-manipulation"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -4187,7 +4231,7 @@ export default function TraCuuSP2Page() {
                   ) : null}
                 </div>
                 {tbUploadGate.status === 'checking' ? (
-                  <p className="text-xs sm:text-sm text-slate-600 -mt-2">Äang kiá»ƒm tra quyá»n upload...</p>
+                  <p className="text-xs sm:text-sm text-slate-600 -mt-2">Đang kiểm tra quyền upload...</p>
                 ) : null}
                 {tbUploadPanelExpanded && tbUploadGate.status !== 'checking' ? (
                   <div id="tb-upload-panel-body" className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 space-y-3">
@@ -4195,9 +4239,9 @@ export default function TraCuuSP2Page() {
                     <form onSubmit={submitTbUploadGate} className="space-y-3 max-w-xs py-2 sm:py-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1.5" htmlFor="tb-upload-gate-password">
-                          MÃ£ má»Ÿ khÃ³a
+                          Mã mở khóa
                         </label>
-                        <p className="text-[11px] text-slate-500 leading-snug">CÃ¹ng mÃ£ vá»›i CÃ i Ä‘áº·t / BÃ¡o cÃ¡o.</p>
+                        <p className="text-[11px] text-slate-500 leading-snug">Cùng mã với Cài đặt / Báo cáo.</p>
                       </div>
                       <div className="flex flex-col sm:flex-row gap-2">
                         <input
@@ -4209,7 +4253,7 @@ export default function TraCuuSP2Page() {
                             setTbUploadGatePassword(e.target.value);
                             setTbUploadGateError('');
                           }}
-                          placeholder="MÃ£ má»Ÿ khÃ³a"
+                          placeholder="Mã mở khóa"
                           className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 placeholder-slate-400 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
                         />
                         <button
@@ -4217,7 +4261,7 @@ export default function TraCuuSP2Page() {
                           disabled={tbUploadGateSubmitting || !tbUploadGatePassword.trim()}
                           className="rounded-lg bg-sky-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-700 min-h-[44px] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {tbUploadGateSubmitting ? 'Äang kiá»ƒm traâ€¦' : 'XÃ¡c nháº­n'}
+                          {tbUploadGateSubmitting ? 'Đang kiểm tra…' : 'Xác nhận'}
                         </button>
                       </div>
                       {tbUploadGateError ? <p className="text-xs text-red-600">{tbUploadGateError}</p> : null}
@@ -4226,8 +4270,8 @@ export default function TraCuuSP2Page() {
                   {(tbUploadGate.status === 'unlocked' || !tbUploadGate.gateEnabled) && tbUploadGate.status !== 'checking' ? (
                     <>
                       <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                        File cáº§n cÃ³ tiÃªu Ä‘á» cá»™t: <strong>STT</strong>, <strong>Acount</strong>, <strong>TÃªn KH</strong>, <strong>Äá»‹a chá»‰</strong>, <strong>Sá»‘ ÄT</strong>, <strong>OLT</strong>, <strong>SLot</strong>, <strong>PORT</strong>, <strong>NhÃ¢n viÃªn QL</strong>.
-                        Báº¯t buá»™c nháº­n diá»‡n Ä‘Æ°á»£c: NhÃ¢n viÃªn QL, OLT, SLOT, PORT.
+                        File cần có tiêu đề cột: <strong>STT</strong>, <strong>Acount</strong>, <strong>Tên KH</strong>, <strong>Địa chỉ</strong>, <strong>Số ĐT</strong>, <strong>OLT</strong>, <strong>SLot</strong>, <strong>PORT</strong>, <strong>Nhân viên QL</strong>.
+                        Bắt buộc nhận diện được: Nhân viên QL, OLT, SLOT, PORT.
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <input
@@ -4243,14 +4287,14 @@ export default function TraCuuSP2Page() {
                           disabled={!tbSelectedFile || tbUploading}
                           className="inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-sky-700 min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {tbUploading ? 'Äang upload...' : 'Upload'}
+                          {tbUploading ? 'Đang upload...' : 'Upload'}
                         </button>
                         <button
                           type="button"
                           onClick={handleDownloadTbMau}
                           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]"
                         >
-                          Táº£i file máº«u
+                          Tải file mẫu
                         </button>
                         <button
                           type="button"
@@ -4258,13 +4302,13 @@ export default function TraCuuSP2Page() {
                           disabled={tbSharedLoading}
                           className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs sm:text-sm font-medium text-violet-700 hover:bg-violet-100 min-h-[40px] disabled:opacity-50"
                         >
-                          {tbSharedLoading ? 'Äang táº£i dá»¯ liá»‡u chungâ€¦' : 'Táº£i dá»¯ liá»‡u chung'}
+                          {tbSharedLoading ? 'Đang tải dữ liệu chung…' : 'Tải dữ liệu chung'}
                         </button>
                         {tbFileName && <span className="text-[11px] text-slate-500 w-full sm:w-auto">File: {tbFileName}</span>}
                         {tbSharedMeta?.uploadedAt && (
                           <span className="text-[11px] text-slate-500 w-full">
-                            Dá»¯ liá»‡u chung cáº­p nháº­t: {new Date(tbSharedMeta.uploadedAt).toLocaleString('vi-VN')}
-                            {tbSharedMeta.fileName ? ` Â· ${tbSharedMeta.fileName}` : ''}
+                            Dữ liệu chung cập nhật: {new Date(tbSharedMeta.uploadedAt).toLocaleString('vi-VN')}
+                            {tbSharedMeta.fileName ? ` · ${tbSharedMeta.fileName}` : ''}
                           </span>
                         )}
                       </div>
@@ -4286,7 +4330,7 @@ export default function TraCuuSP2Page() {
                       {tbParseMessage && (
                         <p
                           className={`text-[11px] sm:text-xs ${
-                            /Thiáº¿u|Lá»—i|KhÃ´ng Ä‘á»c|Chá»‰ há»— trá»£|KhÃ´ng cÃ³ dÃ²ng|File khÃ´ng|ChÆ°a cÃ³ thuÃª bao nÃ o Ä‘Æ°á»£c chuyá»ƒn|máº­t kháº©u|má»Ÿ khÃ³a/i.test(tbParseMessage)
+                            /Thiếu|Lỗi|Không đọc|Chỉ hỗ trợ|Không có dòng|File không|Chưa có thuê bao nào được chuyển|mật khẩu|mở khóa/i.test(tbParseMessage)
                               ? 'text-red-600'
                               : 'text-emerald-800'
                           }`}
@@ -4301,12 +4345,12 @@ export default function TraCuuSP2Page() {
                 <form onSubmit={handleTbTraCuu} className="space-y-3">
                   {tbSharedLoading && tbRows.length === 0 && (
                     <p className="text-[11px] sm:text-xs text-amber-700">
-                      Äang náº¡p dá»¯ liá»‡u thuÃª bao dÃ¹ng chung, vui lÃ²ng chá» trong giÃ¢y lÃ¡t...
+                      Đang nạp dữ liệu thuê bao dùng chung, vui lòng chờ trong giây lát...
                     </p>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
                     <div className="space-y-2">
-                      <label className="block text-[11px] sm:text-xs font-semibold text-slate-600">NhÃ¢n viÃªn QL</label>
+                      <label className="block text-[11px] sm:text-xs font-semibold text-slate-600">Nhân viên QL</label>
                       <select
                         value={tbNvQL}
                         onChange={(e) => {
@@ -4385,7 +4429,7 @@ export default function TraCuuSP2Page() {
                     disabled={tbSharedLoading && tbRows.length === 0}
                     className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-2.5 rounded-lg font-semibold text-white text-xs sm:text-sm bg-sky-600 hover:bg-sky-700 min-h-[40px] sm:min-h-[44px]"
                   >
-                    {tbSharedLoading && tbRows.length === 0 ? 'Äang náº¡p dá»¯ liá»‡u...' : 'Tra cá»©u'}
+                    {tbSharedLoading && tbRows.length === 0 ? 'Đang nạp dữ liệu...' : 'Tra cứu'}
                   </button>
                   {tbTimKiemLoi && <p className="text-xs text-red-600">{tbTimKiemLoi}</p>}
                 </form>
@@ -4393,14 +4437,14 @@ export default function TraCuuSP2Page() {
               <div className="mt-2 sm:mt-6 mx-2 sm:mx-8 mb-2 sm:mb-6 rounded-lg sm:rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 flex-1 min-h-[140px] sm:min-h-[280px] p-3 sm:p-6 flex flex-col overflow-hidden">
                 {tbKetQua === null && !tbTimKiemLoi && (
                   <p className="text-slate-500 text-center text-xs sm:text-base py-8 flex-1 flex items-center justify-center">
-                    Upload file, chá»n bá»™ lá»c vÃ  báº¥m Tra cá»©u Ä‘á»ƒ xem danh sÃ¡ch thuÃª bao.
+                    Upload file, chọn bộ lọc và bấm Tra cứu để xem danh sách thuê bao.
                   </p>
                 )}
                 {Array.isArray(tbKetQua) && (
                   <div className="w-full flex-1 min-h-0 flex flex-col gap-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-slate-800 font-bold text-sm sm:text-base">
-                        Káº¿t quáº£ tra cá»©u ({tbKetQua.length} thuÃª bao)
+                        Kết quả tra cứu ({tbKetQua.length} thuê bao)
                       </h3>
                       <div className="flex w-full sm:w-auto flex-wrap items-center gap-2">
                         {tbKetQua.length > 0 && (
@@ -4408,12 +4452,12 @@ export default function TraCuuSP2Page() {
                             value={String(tbPageSize)}
                             onChange={(e) => setTbPageSize(Number(e.target.value) || 10)}
                             className="w-full sm:w-auto rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs sm:text-sm text-slate-700 min-h-[40px]"
-                            title="Sá»‘ thuÃª bao hiá»ƒn thá»‹ má»—i trang"
+                            title="Số thuê bao hiển thị mỗi trang"
                           >
-                            <option value="10">10 thuÃª bao/trang</option>
-                            <option value="20">20 thuÃª bao/trang</option>
-                            <option value="50">50 thuÃª bao/trang</option>
-                            <option value="100">100 thuÃª bao/trang</option>
+                            <option value="10">10 thuê bao/trang</option>
+                            <option value="20">20 thuê bao/trang</option>
+                            <option value="50">50 thuê bao/trang</option>
+                            <option value="100">100 thuê bao/trang</option>
                           </select>
                         )}
                         {tbKetQua.length > 0 && (
@@ -4422,13 +4466,13 @@ export default function TraCuuSP2Page() {
                             onClick={openTbChuyenModal}
                             className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs sm:text-sm font-medium px-3 py-2 min-h-[40px]"
                           >
-                            Chuyá»ƒn Ä‘á»‹a bÃ n
+                            Chuyển địa bàn
                           </button>
                         )}
                       </div>
                     </div>
                     {tbKetQua.length === 0 ? (
-                      <p className="text-slate-500 text-center text-xs sm:text-sm py-6">KhÃ´ng cÃ³ thuÃª bao khá»›p bá»™ lá»c.</p>
+                      <p className="text-slate-500 text-center text-xs sm:text-sm py-6">Không có thuê bao khớp bộ lọc.</p>
                     ) : (
                       <>
                       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -4437,9 +4481,9 @@ export default function TraCuuSP2Page() {
                             <tr className="bg-slate-100 text-slate-600 border-b border-slate-200">
                               <th className="py-2 px-2 font-semibold">STT</th>
                               <th className="py-2 px-2 font-semibold">Account</th>
-                              <th className="py-2 px-2 font-semibold">TÃªn KH</th>
-                              <th className="py-2 px-2 font-semibold">Äá»‹a chá»‰</th>
-                              <th className="py-2 px-2 font-semibold">Sá»‘ ÄT</th>
+                              <th className="py-2 px-2 font-semibold">Tên KH</th>
+                              <th className="py-2 px-2 font-semibold">Địa chỉ</th>
+                              <th className="py-2 px-2 font-semibold">Số ĐT</th>
                               <th className="py-2 px-2 font-semibold">OLT</th>
                               <th className="py-2 px-2 font-semibold">Slot</th>
                               <th className="py-2 px-2 font-semibold">Port</th>
@@ -4449,15 +4493,15 @@ export default function TraCuuSP2Page() {
                           <tbody>
                             {pagedTbRows.map((r) => (
                               <tr key={r.id} className="border-b border-slate-100 last:border-0 text-slate-800">
-                                <td className="py-1.5 px-2 align-top">{r.stt || 'â€”'}</td>
-                                <td className="py-1.5 px-2 align-top font-medium">{r.account || 'â€”'}</td>
-                                <td className="py-1.5 px-2 align-top max-w-[140px] break-words">{r.tenKH || 'â€”'}</td>
-                                <td className="py-1.5 px-2 align-top max-w-[200px] break-words">{r.diaChi || 'â€”'}</td>
-                                <td className="py-1.5 px-2 align-top whitespace-nowrap">{r.soDt || 'â€”'}</td>
-                                <td className="py-1.5 px-2 align-top">{r.olt || 'â€”'}</td>
-                                <td className="py-1.5 px-2 align-top">{r.slot || 'â€”'}</td>
-                                <td className="py-1.5 px-2 align-top">{r.port ?? 'â€”'}</td>
-                                <td className="py-1.5 px-2 align-top">{r.nvQL || 'â€”'}</td>
+                                <td className="py-1.5 px-2 align-top">{r.stt || '—'}</td>
+                                <td className="py-1.5 px-2 align-top font-medium">{r.account || '—'}</td>
+                                <td className="py-1.5 px-2 align-top max-w-[140px] break-words">{r.tenKH || '—'}</td>
+                                <td className="py-1.5 px-2 align-top max-w-[200px] break-words">{r.diaChi || '—'}</td>
+                                <td className="py-1.5 px-2 align-top whitespace-nowrap">{r.soDt || '—'}</td>
+                                <td className="py-1.5 px-2 align-top">{r.olt || '—'}</td>
+                                <td className="py-1.5 px-2 align-top">{r.slot || '—'}</td>
+                                <td className="py-1.5 px-2 align-top">{r.port ?? '—'}</td>
+                                <td className="py-1.5 px-2 align-top">{r.nvQL || '—'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -4465,7 +4509,7 @@ export default function TraCuuSP2Page() {
                       </div>
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                         <p className="text-[11px] text-slate-600">
-                          Hiá»ƒn thá»‹ {tbStart + 1}-{Math.min(tbStart + tbPageSize, tbResultRows.length)} / {tbResultRows.length} thuÃª bao
+                          Hiển thị {tbStart + 1}-{Math.min(tbStart + tbPageSize, tbResultRows.length)} / {tbResultRows.length} thuê bao
                         </p>
                         <div className="flex items-center gap-1.5">
                           <button
@@ -4474,7 +4518,7 @@ export default function TraCuuSP2Page() {
                             disabled={tbCurrentPage <= 1}
                             className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                           >
-                            Trang trÆ°á»›c
+                            Trang trước
                           </button>
                           <span className="text-[11px] text-slate-600">
                             Trang {tbCurrentPage}/{tbTotalPages}
@@ -4507,19 +4551,19 @@ export default function TraCuuSP2Page() {
         >
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[88vh] flex flex-col border border-slate-200 overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
-              <h3 id="tb-chuyen-title" className="text-sm font-semibold text-slate-800">Chuyá»ƒn Ä‘á»‹a bÃ n</h3>
+              <h3 id="tb-chuyen-title" className="text-sm font-semibold text-slate-800">Chuyển địa bàn</h3>
               <button
                 type="button"
                 onClick={() => setTbShowChuyenModal(false)}
                 className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                aria-label="ÄÃ³ng"
+                aria-label="Đóng"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <div className="px-4 py-3 overflow-y-auto flex-1 min-h-0 space-y-3">
               <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                Chá»n thuÃª bao cáº§n chuyá»ƒn vÃ  <strong>NhÃ¢n viÃªn QL Ä‘Ã­ch</strong> (láº¥y tá»« danh sÃ¡ch trong file Excel Ä‘Ã£ upload).
+                Chọn thuê bao cần chuyển và <strong>Nhân viên QL đích</strong> (lấy từ danh sách trong file Excel đã upload).
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -4527,14 +4571,14 @@ export default function TraCuuSP2Page() {
                   onClick={() => setTbChuyenIds(new Set(tbKetQua.map((r) => r.id)))}
                   className="text-[11px] px-2.5 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
                 >
-                  Chá»n táº¥t cáº£
+                  Chọn tất cả
                 </button>
                 <button
                   type="button"
                   onClick={() => setTbChuyenIds(new Set())}
                   className="text-[11px] px-2.5 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
                 >
-                  Bá» chá»n
+                  Bỏ chọn
                 </button>
               </div>
               <ul className="max-h-[40vh] overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100 text-[11px] sm:text-xs">
@@ -4547,16 +4591,16 @@ export default function TraCuuSP2Page() {
                       className="mt-0.5 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
                     />
                     <span className="min-w-0 break-words">
-                      <span className="font-medium text-slate-800">{r.account || 'â€”'}</span>
+                      <span className="font-medium text-slate-800">{r.account || '—'}</span>
                       <span className="text-slate-500">
-                        {r.tenKH ? ` Â· ${r.tenKH}` : ''} Â· {r.nvQL || 'â€”'} Â· Port {r.port ?? 'â€”'}
+                        {r.tenKH ? ` · ${r.tenKH}` : ''} · {r.nvQL || '—'} · Port {r.port ?? '—'}
                       </span>
                     </span>
                   </li>
                 ))}
               </ul>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">NhÃ¢n viÃªn QL Ä‘Ã­ch</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nhân viên QL đích</label>
                 <select
                   value={tbChuyenTargetNv}
                   onChange={(e) => setTbChuyenTargetNv(e.target.value)}
@@ -4575,79 +4619,92 @@ export default function TraCuuSP2Page() {
                 onClick={() => setTbShowChuyenModal(false)}
                 className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]"
               >
-                Há»§y
+                Hủy
               </button>
               <button
                 type="button"
                 onClick={confirmTbChuyenDiaBan}
                 className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 text-xs font-medium min-h-[40px]"
               >
-                XÃ¡c nháº­n chuyá»ƒn
+                Xác nhận chuyển
               </button>
             </div>
           </div>
         </div>
       )}
-    {proposalModalOpen && (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40" onClick={closeProposalModal}>
-        <div
-          className="bg-white rounded-xl shadow-xl w-full max-w-md p-4 sm:p-6 border border-slate-200"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h3 className="text-base font-bold text-slate-800 mb-1">Äá» xuáº¥t cáº£i táº¡o S2</h3>
-          <p className="text-xs text-slate-600 mb-4 break-words">{proposalTargetS2 || 'â€”'}</p>
-          <label className="block text-xs font-semibold text-slate-600 mb-1">TÃªn NV Ä‘á»‹a bÃ n *</label>
-          <select
-            value={proposalNvDiaBan}
-            onChange={(e) => setProposalNvDiaBan(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-3 min-h-[40px]"
+      {proposalModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40">
+          <div
+            className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md max-h-[90vh] flex flex-col"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="proposal-modal-title"
           >
-            <option value="">â€” Chá»n NV Ä‘á»‹a bÃ n â€”</option>
-            {nvDiaBanOptions.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-          <label className="block text-xs font-semibold text-slate-600 mb-1">Ná»™i dung Ä‘á» xuáº¥t *</label>
-          <textarea
-            value={proposalText}
-            onChange={(e) => setProposalText(e.target.value)}
-            rows={4}
-            placeholder="MÃ´ táº£ Ä‘á» xuáº¥t cáº£i táº¡oâ€¦"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2 resize-y"
-          />
-          <p className="text-[10px] text-slate-500 mb-3">
-            Äá»‹a chá»‰ ghi nháº­n: {resolveAuthAddressForProposal() || '(chÆ°a cÃ³ trong JWT â€” kiá»ƒm tra Authorization)'}
-            . Khi LÆ°u sáº½ láº¥y tá»a Ä‘á»™ GPS hiá»‡n táº¡i.
-          </p>
-          {proposalError && <p className="text-xs text-red-600 mb-2">{proposalError}</p>}
-          <div className="flex gap-2 justify-end">
-            <button
-              type="button"
-              onClick={closeProposalModal}
-              disabled={proposalSaving}
-              className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              Há»§y
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveProposal}
-              disabled={!proposalCanSave}
-              className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white font-medium hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {proposalSaving ? 'Äang lÆ°uâ€¦' : 'LÆ°u láº¡i'}
-            </button>
+            <div className="px-4 py-3 border-b border-slate-100 shrink-0">
+              <h2 id="proposal-modal-title" className="text-sm font-semibold text-slate-800">
+                Đề xuất cải tạo Spliter cấp 2
+              </h2>
+              {proposalTargetS2 ? (
+                <p className="text-[11px] text-slate-500 mt-1 break-words">S2: {proposalTargetS2}</p>
+              ) : null}
+            </div>
+            <div className="px-4 py-3 space-y-3 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nhân viên địa bàn</label>
+                <select
+                  value={proposalNvDiaBan}
+                  onChange={(e) => setProposalNvDiaBan(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 min-h-[40px]"
+                >
+                  <option value="">{PLACEHOLDER}</option>
+                  {nvDiaBanOptions.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nội dung đề xuất</label>
+                <textarea
+                  value={proposalText}
+                  onChange={(e) => setProposalText(e.target.value)}
+                  rows={4}
+                  placeholder="Mô tả đề xuất cải tạo…"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 resize-y min-h-[96px]"
+                />
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Khi bấm Lưu: lấy GPS từ thiết bị; địa chỉ từ JWT Authorization (nếu có).
+              </p>
+              {proposalError ? <p className="text-[11px] text-red-600">{proposalError}</p> : null}
+            </div>
+            <div className="px-4 py-3 border-t border-slate-100 flex flex-wrap justify-end gap-2 shrink-0 bg-slate-50/80">
+              <button
+                type="button"
+                onClick={closeProposalModal}
+                disabled={proposalSaving}
+                className="text-sm px-3 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveProposal}
+                disabled={!proposalCanSave}
+                className="text-sm px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-medium disabled:opacity-50"
+              >
+                {proposalSaving ? 'Đang lưu…' : 'Lưu'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
     {showCopyToast && (
-      <div className="fixed inset-0 flex items-end justify-center pb-8 sm:pb-12 pointer-events-none z-50">
-        <div className="bg-black/40 backdrop-blur-sm text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium border border-white/20">
-          Đã copy!
+        <div className="fixed inset-0 flex items-end justify-center pb-8 sm:pb-12 pointer-events-none z-50">
+          <div className="bg-black/40 backdrop-blur-sm text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium border border-white/20">
+            Đã copy!
+          </div>
         </div>
-      </div>
-    )}
+      )}
     </main>
   );
 }
