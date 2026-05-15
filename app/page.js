@@ -522,6 +522,18 @@ export default function TraCuuSP2Page() {
     refreshServerMeta();
   }, []);
 
+  /** Máy khác: tự cập nhật meta + danh mục cache khi admin đang đồng bộ lên Supabase. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const tick = () => {
+      refreshServerMeta();
+      refreshBrowseSnapshot();
+    };
+    tick();
+    const id = window.setInterval(tick, 20000);
+    return () => window.clearInterval(id);
+  }, []);
+
   useEffect(() => {
     browseSnapshotRef.current = browseSnapshot;
   }, [browseSnapshot]);
@@ -3767,14 +3779,26 @@ export default function TraCuuSP2Page() {
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">
                   Authorization (JWT) còn hạn → tra cứu OneBSS trước. Hết hạn hoặc không nhập → dùng cache Supabase (nếu đã đồng bộ). «Luôn gọi API» bỏ qua cache; «Chỉ tra cứu từ cache» không gọi API.
                 </p>
-                {serverSyncMeta?.lastSyncAt ? (
+                {serverSyncMeta?.lastSyncInProgress ? (
+                  <p className="text-[11px] text-sky-700 mt-1">
+                    Đang đồng bộ lên Supabase
+                    {serverSyncMeta.lastSyncCompleted != null && serverSyncMeta.lastSyncTotal != null
+                      ? `: ${serverSyncMeta.lastSyncCompleted}/${serverSyncMeta.lastSyncTotal} port`
+                      : ''}
+                    . Máy khác có thể chọn danh mục từ cache và tra cứu port đã lưu — không cần Authorization.
+                  </p>
+                ) : serverSyncMeta?.lastSyncAt ? (
                   <p className="text-[11px] text-emerald-700 mt-1">
                     Cache chung: đồng bộ lúc {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
                     {serverSyncMeta.lastSyncTotal != null ? ` — ${serverSyncMeta.lastSyncTotal} port` : ''}.
                   </p>
+                ) : browseSnapshot?.toKyThuat?.length ? (
+                  <p className="text-[11px] text-sky-700 mt-1">
+                    Đã có danh mục cache trên server. Chọn Trạm/OLT/Card/Port rồi tra cứu (không cần Authorization nếu port đã được đồng bộ).
+                  </p>
                 ) : (
                   <p className="text-[11px] text-amber-700 mt-1">
-                    Chưa có lịch sử đồng bộ trên Supabase. Máy khác chỉ tra được sau khi quản trị chạy «Đồng bộ toàn bộ S2» kèm mã ghi cache chung (không chỉ đồng bộ trên một trình duyệt).
+                    Chưa có cache trên Supabase. Quản trị cần «Đồng bộ toàn bộ S2» kèm mã ghi cache chung (không chỉ đồng bộ trên một trình duyệt).
                   </p>
                 )}
               </div>
