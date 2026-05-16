@@ -656,7 +656,7 @@ export default function TraCuuSP2Page() {
 
   async function refreshServerMeta() {
     try {
-      const res = await fetch('/api/sp2-cache?meta=1');
+      const res = await fetch('/api/sp2-cache?meta=1', { cache: 'no-store' });
       const j = await res.json().catch(() => ({}));
       if (j.ok) setServerSyncMeta(j.meta ?? null);
       else setServerSyncMeta(null);
@@ -696,7 +696,7 @@ export default function TraCuuSP2Page() {
 
   async function refreshBrowseSnapshot() {
     try {
-      const res = await fetch('/api/sp2-cache?browse=1');
+      const res = await fetch('/api/sp2-cache?browse=1', { cache: 'no-store' });
       const j = await res.json().catch(() => ({}));
       if (res.status === 503 || !j.ok) {
         setBrowseSnapshot(null);
@@ -2759,11 +2759,14 @@ export default function TraCuuSP2Page() {
         }
         if (srv.kind === 'hit') {
           const arr = srv.data ?? [];
-          const expiredHint =
-            clientAuthExpired || noClientAuth
+          const expiredHint = clientAuthExpired
+            ? arr.length === 0
+              ? 'Authorization (JWT) trên máy này đã hết hạn. Không có bản ghi trong cache Supabase cho port này.'
+              : 'Authorization (JWT) trên máy này đã hết hạn — đang dùng cache đồng bộ (Supabase).'
+            : noClientAuth
               ? arr.length === 0
-                ? 'Authorization đã hết hạn. Không có bản ghi trong cache Supabase cho port này.'
-                : 'Authorization đã hết hạn — đang dùng cache đồng bộ (Supabase).'
+                ? null
+                : 'Chưa nhập Authorization trên máy này — đang dùng cache đồng bộ (Supabase).'
               : null;
           const cacheMsg =
             arr.length === 0 && clientAuthValid && apiFallbackNotice
@@ -2810,8 +2813,8 @@ export default function TraCuuSP2Page() {
         );
       };
 
-      /** JWT hết hạn/sai: Supabase trước; còn hạn (máy hoặc server): OneBSS trước. */
-      if (!boQuaCache && !clientAuthValid) {
+      /** JWT trên máy hết hạn: ưu tiên cache trước (tránh chờ API). Chưa nhập JWT → vẫn gọi API trước (server có thể dùng token lưu Supabase). */
+      if (!boQuaCache && clientAuthExpired) {
         if (await applyCacheFallback()) return;
       }
 
@@ -4195,7 +4198,7 @@ export default function TraCuuSP2Page() {
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">
-                  Authorization (JWT) còn hạn → tra cứu OneBSS trước. Hết hạn hoặc không nhập → dùng cache Supabase (nếu đã đồng bộ). «Luôn gọi API» bỏ qua cache; «Chỉ tra cứu từ cache» không gọi API.
+                  JWT trên máy còn hạn → gọi OneBSS trước. JWT hết hạn trên máy → ưu tiên cache Supabase. Chưa nhập JWT → vẫn gọi server (dùng token OneBSS đã lưu quản trị trên Supabase, nếu còn hạn). «Luôn gọi API» bỏ qua cache; «Chỉ tra cứu từ cache» không gọi API.
                 </p>
                 {serverSyncMeta?.lastSyncInProgress ? (
                   <p className="text-[11px] text-sky-700 mt-1">
@@ -4207,8 +4210,9 @@ export default function TraCuuSP2Page() {
                   </p>
                 ) : serverSyncMeta?.lastSyncAt ? (
                   <p className={`text-[11px] mt-1 ${(serverSyncMeta.lastSyncTotal ?? 0) > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    Cache chung: đồng bộ lúc {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
+                    Cache chung (Supabase): lần ghi meta đồng bộ lúc {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
                     {serverSyncMeta.lastSyncTotal != null ? ` — ${serverSyncMeta.lastSyncTotal} port` : ''}.
+                    «Đồng bộ toàn bộ» chỉ cập nhật dòng này khi có mật khẩu ghi cache chung.
                     {(serverSyncMeta.lastSyncTotal ?? 0) === 0 &&
                       ' Chưa có port — Authorization có thể sai khi đồng bộ; cần lưu token mới và đồng bộ lại.'}
                   </p>
@@ -4219,6 +4223,12 @@ export default function TraCuuSP2Page() {
                 ) : (
                   <p className="text-[11px] text-amber-700 mt-1">
                     Chưa có cache trên Supabase. Quản trị cần «Đồng bộ toàn bộ S2» kèm mã ghi cache chung (không chỉ đồng bộ trên một trình duyệt).
+                  </p>
+                )}
+                {lastSyncInfo?.lastSyncAt && (
+                  <p className="text-[11px] mt-1 text-slate-600">
+                    Trên máy này (cache trình duyệt): đồng bộ lúc {new Date(lastSyncInfo.lastSyncAt).toLocaleString('vi-VN')}
+                    {lastSyncInfo.lastSyncTotal != null ? ` — ${lastSyncInfo.lastSyncTotal} port` : ''}.
                   </p>
                 )}
               </div>

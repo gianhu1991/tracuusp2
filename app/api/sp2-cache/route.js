@@ -174,23 +174,25 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     if (searchParams.get('meta') === '1') {
+      const noStore = { 'Cache-Control': 'private, no-store, max-age=0' };
       const { ok, meta } = await sp2ServerGetMeta();
       if (!ok) {
-        return NextResponse.json({ ok: false, message: 'Supabase chưa cấu hình.' }, { status: 503 });
+        return NextResponse.json({ ok: false, message: 'Supabase chưa cấu hình.' }, { status: 503, headers: noStore });
       }
-      return NextResponse.json({ ok: true, meta });
+      return NextResponse.json({ ok: true, meta }, { headers: noStore });
     }
 
     if (searchParams.get('browse') === '1') {
+      const noStore = { 'Cache-Control': 'private, no-store, max-age=0' };
       const configured = await sp2ServerConfigured();
       if (!configured) {
-        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', snapshot: null }, { status: 503 });
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', snapshot: null }, { status: 503, headers: noStore });
       }
       const { ok, snapshot } = await sp2ServerGetBrowseSnapshot();
       if (!ok) {
-        return NextResponse.json({ ok: false, message: 'Lỗi đọc snapshot danh mục.', snapshot: null }, { status: 500 });
+        return NextResponse.json({ ok: false, message: 'Lỗi đọc snapshot danh mục.', snapshot: null }, { status: 500, headers: noStore });
       }
-      return NextResponse.json({ ok: true, snapshot });
+      return NextResponse.json({ ok: true, snapshot }, { headers: noStore });
     }
 
     if (searchParams.get('stats') === '1') {
