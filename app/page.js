@@ -32,10 +32,6 @@ function authHeadersForFetch(authValue) {
   return authHeadersForOneBss(raw);
 }
 
-function clearStoredAuthorization(setAuthorization) {
-  if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_AUTH);
-  if (typeof setAuthorization === 'function') setAuthorization('');
-}
 const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
 /** Đồng bộ S2 định kỳ khi token còn hạn (JWT). */
 const AUTH_AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -400,6 +396,8 @@ export default function TraCuuSP2Page() {
   const [loi, setLoi] = useState(null);
 
   const [authorization, setAuthorization] = useState('');
+  /** Trì hoãn gọi API danh mục sau khi dán/sửa Authorization (tránh xóa token giữa lúc paste). */
+  const [authorizationDebounced, setAuthorizationDebounced] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showReportMenu, setShowReportMenu] = useState(false);
   const [showReportPanel, setShowReportPanel] = useState(false);
@@ -564,12 +562,7 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const raw = (localStorage.getItem(STORAGE_AUTH) || '').trim();
-      if (raw && !authorizationSeemsUnexpired(raw)) {
-        localStorage.removeItem(STORAGE_AUTH);
-        setAuthorization('');
-      } else {
-        setAuthorization(raw);
-      }
+      setAuthorization(raw);
       setAuthUnlocked(sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) === '1');
     }
   }, []);
@@ -594,6 +587,11 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     syncRunningRef.current = syncRunning;
   }, [syncRunning]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setAuthorizationDebounced(authorization), 650);
+    return () => window.clearTimeout(t);
+  }, [authorization]);
 
   useEffect(() => {
     if (!authUnlocked) return;
@@ -2072,7 +2070,7 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     loadDanhSach();
     refreshBrowseSnapshot();
-  }, [authorization]);
+  }, [authorizationDebounced]);
 
   // Đồng bộ TTVT với danh sách option (tránh select trống khi value không khớp encoding/ma).
   useEffect(() => {
@@ -2153,9 +2151,6 @@ export default function TraCuuSP2Page() {
           return;
         }
         const fromBrowseClean = browseTramsForTo(browseSnapshotRef.current, toQL);
-        if (looksLikeAuthError(status, data)) {
-          clearStoredAuthorization(setAuthorization);
-        }
         if (fromBrowseClean.length > 0) {
           setListError(looksLikeAuthError(status, data) ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListVeTinh(fromBrowseClean);
@@ -2179,7 +2174,7 @@ export default function TraCuuSP2Page() {
         setListError(e.message || 'Lỗi tải danh sách Trạm BTS.');
         setListVeTinh([]);
       });
-  }, [toQL, authorization]);
+  }, [toQL, authorizationDebounced]);
 
   // Chọn Trạm BTS → chỉ load danh sách Thiết bị OLT
   useEffect(() => {
@@ -2223,7 +2218,6 @@ export default function TraCuuSP2Page() {
         }
         const fromBrowseClean = browseOltsForTram(browseSnapshotRef.current, toQL, veTinh);
         const authErr = looksLikeAuthError(status, data);
-        if (authErr) clearStoredAuthorization(setAuthorization);
         if (fromBrowseClean.length > 0) {
           setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListThietBiOlt(fromBrowseClean);
@@ -2243,7 +2237,7 @@ export default function TraCuuSP2Page() {
         setListError(e.message || 'Lỗi tải OLT.');
         setListThietBiOlt([]);
       });
-  }, [veTinh, toQL, authorization]);
+  }, [veTinh, toQL, authorizationDebounced]);
 
   // Chọn Thiết bị OLT → load danh sách Card OLT (body { id: THIETBI_ID })
   useEffect(() => {
@@ -2282,7 +2276,6 @@ export default function TraCuuSP2Page() {
         }
         const fromBrowse = browseCardsForOlt(browseSnapshotRef.current, thietBiOlt);
         const authErr = looksLikeAuthError(status, data);
-        if (authErr) clearStoredAuthorization(setAuthorization);
         if (fromBrowse.length > 0) {
           setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListCardOlt(fromBrowse);
@@ -2303,7 +2296,7 @@ export default function TraCuuSP2Page() {
         setListError(e.message || 'Lỗi tải Card OLT.');
         setListCardOlt([]);
       });
-  }, [thietBiOlt, authorization]);
+  }, [thietBiOlt, authorizationDebounced]);
 
   // Chọn Card OLT → load danh sách Port OLT từ API (layDsPortOltTheoCardOlt), không dùng danh sách cố định
   useEffect(() => {
@@ -2341,7 +2334,6 @@ export default function TraCuuSP2Page() {
         }
         const fromBrowse = browsePortsForCard(browseSnapshotRef.current, cardOlt);
         const authErr = looksLikeAuthError(status, data);
-        if (authErr) clearStoredAuthorization(setAuthorization);
         if (fromBrowse.length > 0) {
           setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
           setListPortOlt(fromBrowse);
@@ -2362,7 +2354,7 @@ export default function TraCuuSP2Page() {
         setListPortOlt([]);
       })
       .finally(() => setLoadingPortOlt(false));
-  }, [cardOlt, authorization]);
+  }, [cardOlt, authorizationDebounced]);
 
   /** Cache danh mục tăng dần khi đồng bộ — chỉ bổ sung option, không reset Trạm/OLT đang chọn. */
   useEffect(() => {
@@ -2447,8 +2439,12 @@ export default function TraCuuSP2Page() {
   };
 
   const saveAuth = (value) => {
-    setAuthorization(value);
-    if (typeof window !== 'undefined') localStorage.setItem(STORAGE_AUTH, value);
+    const trimmed = String(value ?? '').trim();
+    setAuthorization(trimmed);
+    if (typeof window !== 'undefined') {
+      if (trimmed) localStorage.setItem(STORAGE_AUTH, trimmed);
+      else localStorage.removeItem(STORAGE_AUTH);
+    }
   };
 
   const handleHuyDongBo = () => {
@@ -2804,10 +2800,9 @@ export default function TraCuuSP2Page() {
       let supabaseDiag = null;
 
       const invalidateClientAuth = () => {
-        clearStoredAuthorization(setAuthorization);
         clientAuthValid = false;
-        clientAuthExpired = true;
-        noClientAuth = true;
+        clientAuthExpired = !!authTrim;
+        noClientAuth = !authTrim;
       };
 
       const applyCacheFallback = async () => {
@@ -3274,12 +3269,28 @@ export default function TraCuuSP2Page() {
                     </button>
                   </div>
                   <input
-                    type="password"
+                    type="text"
                     value={authorization}
                     onChange={(e) => saveAuth(e.target.value)}
-                    placeholder="Authorization"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 text-base sm:text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData?.getData('text')?.trim();
+                      if (pasted) {
+                        e.preventDefault();
+                        saveAuth(pasted);
+                      }
+                    }}
+                    placeholder="Dán JWT / Bearer token từ OneBSS"
+                    autoComplete="off"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2.5 text-slate-800 placeholder-slate-400 text-base sm:text-sm font-mono focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[44px]"
                   />
+                  {authorization?.trim() && !authorizationSeemsUnexpired(authorization) && (
+                    <p className="text-[11px] text-amber-700 mt-1">
+                      JWT có vẻ đã hết hạn theo máy tính — vẫn có thể «Lưu lên server» hoặc dán token mới từ OneBSS.
+                    </p>
+                  )}
                   <form onSubmit={handleSaveToServer} className="mt-3 space-y-2">
                     <label className="block text-xs text-slate-600">Mã xác thực lưu server</label>
                     <div className="flex gap-2 flex-wrap items-center">
