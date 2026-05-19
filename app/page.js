@@ -10,6 +10,7 @@ import {
 } from '../lib/authorization-expiry';
 import { formatProposalCoord, getNvDiaBanOptions } from '../lib/s2-proposal-nv-list';
 import { runFullSp2Sync } from '../lib/sp2-full-sync';
+import { tbStableRowKey } from '../lib/tb-row-key';
 
 const PLACEHOLDER = '';
 
@@ -502,6 +503,8 @@ export default function TraCuuSP2Page() {
   const [tbPage, setTbPage] = useState(1);
   const [tbPageSize, setTbPageSize] = useState(10);
   const [tbTimKiemLoi, setTbTimKiemLoi] = useState('');
+  /** Khóa ổn định dòng TB đã bấm OK (đỏ, ẩn nút) — đồng bộ Supabase, mọi máy thấy chung. */
+  const [tbRowOkIds, setTbRowOkIds] = useState(() => new Set());
   const [tbShowChuyenModal, setTbShowChuyenModal] = useState(false);
   const [tbChuyenTargetNv, setTbChuyenTargetNv] = useState('');
   const [tbChuyenIds, setTbChuyenIds] = useState(() => new Set());
@@ -1227,6 +1230,18 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  const refreshTbRowOkKeys = async () => {
+    try {
+      const res = await fetch('/api/tb-row-ok', { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) return;
+      const keys = Array.isArray(data.keys) ? data.keys : [];
+      setTbRowOkIds(new Set(keys.filter(Boolean)));
+    } catch {
+      /* giữ trạng thái hiện tại */
+    }
+  };
+
   /** Cùng API/mật khẩu với Cài đặt / Báo cáo (`UNLOCK_PASSWORD`); đặt cookie httpOnly cho upload TB. */
   const unlockAdminWithPassword = async (password) => {
     try {
@@ -1561,6 +1576,43 @@ export default function TraCuuSP2Page() {
   const tbStart = (tbCurrentPage - 1) * tbPageSize;
   const pagedTbRows = tbResultRows.slice(tbStart, tbStart + tbPageSize);
 
+  const markTbRowOk = async (row) => {
+    const key = tbStableRowKey(row);
+    if (!key) return;
+    setTbRowOkIds((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+    try {
+      const res = await fetch('/api/tb-row-ok', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ row }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        setTbRowOkIds((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+        setTbTimKiemLoi(data?.message || 'Không lưu được trạng thái OK lên server.');
+        return;
+      }
+      if (data.key) {
+        setTbRowOkIds((prev) => new Set([...prev, data.key]));
+      }
+    } catch (e) {
+      setTbRowOkIds((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      setTbTimKiemLoi(e?.message || 'Không kết nối được server để lưu OK.');
+    }
+  };
+
   const openTbChuyenModal = () => {
     if (!Array.isArray(tbKetQua) || tbKetQua.length === 0) return;
     setTbChuyenTargetNv('');
@@ -1758,6 +1810,13 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     if (activeMainModule !== TB_MODULE_TB) return;
     loadTbTransferHistory({ silent: true });
+  }, [activeMainModule]);
+
+  useEffect(() => {
+    if (activeMainModule !== TB_MODULE_TB) return undefined;
+    refreshTbRowOkKeys();
+    const id = window.setInterval(refreshTbRowOkKeys, 20000);
+    return () => window.clearInterval(id);
   }, [activeMainModule]);
 
   useEffect(() => {
@@ -4631,11 +4690,21 @@ export default function TraCuuSP2Page() {
                               <th className="py-2 px-2 font-semibold">Slot</th>
                               <th className="py-2 px-2 font-semibold">Port</th>
                               <th className="py-2 px-2 font-semibold">NV QL</th>
+                              <th className="py-2 px-2 font-semibold w-16 text-center">OK</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {pagedTbRows.map((r) => (
-                              <tr key={r.id} className="border-b border-slate-100 last:border-0 text-slate-800">
+                            {pagedTbRows.map((r) => {
+                              const rowOk = tbRowOkIds.has(tbStableRowKey(r));
+                              return (
+                              <tr
+                                key={r.id}
+                                className={`border-b last:border-0 ${
+                                  rowOk
+                                    ? 'bg-red-200 text-red-950 border-red-300'
+                                    : 'border-slate-100 text-slate-800'
+                                }`}
+                              >
                                 <td className="py-1.5 px-2 align-top">{r.stt || '—'}</td>
                                 <td className="py-1.5 px-2 align-top font-medium">{r.account || '—'}</td>
                                 <td className="py-1.5 px-2 align-top max-w-[140px] break-words">{r.tenKH || '—'}</td>
@@ -4645,8 +4714,21 @@ export default function TraCuuSP2Page() {
                                 <td className="py-1.5 px-2 align-top">{r.slot || '—'}</td>
                                 <td className="py-1.5 px-2 align-top">{r.port ?? '—'}</td>
                                 <td className="py-1.5 px-2 align-top">{r.nvQL || '—'}</td>
+                                <td className="py-1.5 px-2 align-top text-center">
+                                  {!rowOk && (
+                                    <button
+                                      type="button"
+                                      onClick={() => void markTbRowOk(r)}
+                                      className="rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold px-2.5 py-1 min-w-[2.25rem] min-h-[28px]"
+                                      title="Đánh dấu đã xử lý"
+                                    >
+                                      OK
+                                    </button>
+                                  )}
+                                </td>
                               </tr>
-                            ))}
+                            );
+                            })}
                           </tbody>
                         </table>
                       </div>
