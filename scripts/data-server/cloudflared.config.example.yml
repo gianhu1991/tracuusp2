@@ -1,0 +1,8 @@
+# Copy → C:\cloudflared\config.yml (sua TUNNEL_ID, user, hostname)
+tunnel: <TUNNEL_ID>
+credentials-file: C:\Users\<WINDOWS_USER>\.cloudflared\<TUNNEL_ID>.json
+
+ingress:
+  - hostname: tracuu-db.ten-cua-ban.com
+    service: http://localhost:8000
+  - service: http_status:404
