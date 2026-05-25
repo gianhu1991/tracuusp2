@@ -10,7 +10,7 @@ import {
 export async function GET() {
   try {
     if (!(await tbServerConfigured())) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', batches: [] }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', batches: [] }, { status: 503 });
     }
     const res = await tbServerGetTransferHistory();
     if (!res.ok) {
@@ -25,7 +25,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     if (!(await tbServerConfigured())) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503 });
     }
     const body = await request.json().catch(() => ({}));
     const batch = body?.batch && typeof body.batch === 'object' ? body.batch : null;
@@ -45,7 +45,7 @@ export async function POST(request) {
 export async function DELETE(request) {
   try {
     if (!(await tbServerConfigured())) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503 });
     }
     const body = await request.json().catch(() => ({}));
     const batchId = String(body?.batchId || '');
@@ -63,7 +63,7 @@ export async function DELETE(request) {
 export async function PATCH(request) {
   try {
     if (!(await tbServerConfigured())) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503 });
     }
     const body = await request.json().catch(() => ({}));
     const batchId = String(body?.batchId || '');

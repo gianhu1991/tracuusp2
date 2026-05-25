@@ -3,7 +3,7 @@ import { storageHealthCheck } from '../../../lib/storage-health';
 
 const NO_STORE = { 'Cache-Control': 'private, no-store, max-age=0' };
 
-/** GET: kiểm tra Vercel → Supabase (dùng sau khi cấu hình tunnel / máy chủ data). */
+/** GET: kiểm tra Vercel → máy chủ lưu trữ. */
 export async function GET() {
   try {
     const result = await storageHealthCheck();

@@ -35,7 +35,7 @@ export async function POST(request) {
           ok: false,
           message:
             saved.message
-            || 'Không lưu được token. Kiểm tra Supabase: bảng app_config đã tạo chưa, env NEXT_PUBLIC_SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY đã set chưa.',
+            || 'Không lưu được token. Kiểm tra server lưu trữ: biến STORAGE_API_URL và STORAGE_API_KEY đã cấu hình đúng chưa.',
         },
         { status: 500 }
       );

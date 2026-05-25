@@ -501,7 +501,7 @@ export default function TraCuuSP2Page() {
   const [tbPage, setTbPage] = useState(1);
   const [tbPageSize, setTbPageSize] = useState(10);
   const [tbTimKiemLoi, setTbTimKiemLoi] = useState('');
-  /** Khóa ổn định dòng TB đã bấm OK (đỏ, ẩn nút) — đồng bộ Supabase, mọi máy thấy chung. */
+  /** Khóa ổn định dòng TB đã bấm OK (đỏ, ẩn nút) — đồng bộ server, mọi máy thấy chung. */
   const [tbRowOkIds, setTbRowOkIds] = useState(() => new Set());
   const [tbShowChuyenModal, setTbShowChuyenModal] = useState(false);
   const [tbChuyenTargetNv, setTbChuyenTargetNv] = useState('');
@@ -670,7 +670,7 @@ export default function TraCuuSP2Page() {
     refreshServerMeta();
   }, []);
 
-  /** Máy khác: tự cập nhật meta + danh mục cache khi admin đang đồng bộ lên Supabase. */
+  /** Máy khác: tự cập nhật meta + danh mục cache khi admin đang đồng bộ lên server. */
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const tick = () => {
@@ -1187,7 +1187,7 @@ export default function TraCuuSP2Page() {
             );
           } else {
             setTbParseMessage(
-              'Chưa có dữ liệu dùng chung trên server. Hãy upload 1 file Excel trên bất kỳ thiết bị nào (hoặc kiểm tra biến môi trường Supabase trên Vercel dùng đúng project có dữ liệu).'
+              'Chưa có dữ liệu dùng chung trên server. Hãy upload 1 file Excel trên bất kỳ thiết bị nào (hoặc kiểm tra biến môi trường STORAGE_API_URL trên Vercel).'
             );
           }
         }
@@ -1932,14 +1932,14 @@ export default function TraCuuSP2Page() {
       });
       const res = await fetch(`/api/sp2-cache?${q}`);
       const j = await res.json().catch(() => ({}));
-      if (res.status === 503 || j?.message?.includes('Chưa cấu hình Supabase')) {
+      if (res.status === 503 || j?.message?.includes('Chưa cấu hình')) {
         return {
           kind: 'unconfigured',
-          message: j?.message || 'Chưa cấu hình Supabase trên server (kiểm tra biến môi trường Vercel).',
+          message: j?.message || 'Chưa cấu hình server lưu trữ (kiểm tra biến môi trường Vercel).',
         };
       }
       if (!j.ok) {
-        return { kind: 'error', message: j?.message || 'Lỗi đọc cache Supabase.' };
+        return { kind: 'error', message: j?.message || 'Lỗi đọc cache server.' };
       }
       if (!j.hit) return { kind: 'miss' };
       return { kind: 'hit', data: Array.isArray(j.data) ? j.data : [] };
@@ -2130,7 +2130,7 @@ export default function TraCuuSP2Page() {
     const fromBrowseInit = browseTramsForTo(snapNow, toQL);
     if (fromBrowseInit.length) {
       setListVeTinh((prev) => mergeBrowseOptions(prev, fromBrowseInit, toQlChanged ? '' : veTinh));
-      if (toQlChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+      if (toQlChanged) setListError('Đang dùng danh mục cache đồng bộ (server).');
     } else if (toQlChanged) {
       setListVeTinh([]);
     }
@@ -2152,7 +2152,7 @@ export default function TraCuuSP2Page() {
         }
         const fromBrowseClean = browseTramsForTo(browseSnapshotRef.current, toQL);
         if (fromBrowseClean.length > 0) {
-          setListError(looksLikeAuthError(status, data) ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
+          setListError(looksLikeAuthError(status, data) ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (server).' : '');
           setListVeTinh(fromBrowseClean);
           return;
         }
@@ -2199,7 +2199,7 @@ export default function TraCuuSP2Page() {
     const fromBrowseInitOlt = browseOltsForTram(snapNow, toQL, veTinh);
     if (fromBrowseInitOlt.length) {
       setListThietBiOlt((prev) => mergeBrowseOptions(prev, fromBrowseInitOlt, veTinhChanged ? '' : thietBiOlt));
-      if (veTinhChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+      if (veTinhChanged) setListError('Đang dùng danh mục cache đồng bộ (server).');
     } else if (veTinhChanged) {
       setListThietBiOlt([]);
     }
@@ -2219,7 +2219,7 @@ export default function TraCuuSP2Page() {
         const fromBrowseClean = browseOltsForTram(browseSnapshotRef.current, toQL, veTinh);
         const authErr = looksLikeAuthError(status, data);
         if (fromBrowseClean.length > 0) {
-          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
+          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (server).' : '');
           setListThietBiOlt(fromBrowseClean);
           return;
         }
@@ -2257,7 +2257,7 @@ export default function TraCuuSP2Page() {
     const fromBrowseInitCard = browseCardsForOlt(snapNowCard, thietBiOlt);
     if (fromBrowseInitCard.length) {
       setListCardOlt((prev) => mergeBrowseOptions(prev, fromBrowseInitCard, oltChanged ? '' : cardOlt));
-      if (oltChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+      if (oltChanged) setListError('Đang dùng danh mục cache đồng bộ (server).');
     } else if (oltChanged) {
       setListCardOlt([]);
     }
@@ -2277,7 +2277,7 @@ export default function TraCuuSP2Page() {
         const fromBrowse = browseCardsForOlt(browseSnapshotRef.current, thietBiOlt);
         const authErr = looksLikeAuthError(status, data);
         if (fromBrowse.length > 0) {
-          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
+          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (server).' : '');
           setListCardOlt(fromBrowse);
           return;
         }
@@ -2315,7 +2315,7 @@ export default function TraCuuSP2Page() {
     const fromBrowseInitPort = browsePortsForCard(snapNowPort, cardOlt);
     if (fromBrowseInitPort.length) {
       setListPortOlt((prev) => mergeBrowseOptions(prev, fromBrowseInitPort, cardChanged ? '' : portOlt));
-      if (cardChanged) setListError('Đang dùng danh mục cache đồng bộ (Supabase).');
+      if (cardChanged) setListError('Đang dùng danh mục cache đồng bộ (server).');
     } else if (cardChanged) {
       setListPortOlt([]);
     }
@@ -2335,7 +2335,7 @@ export default function TraCuuSP2Page() {
         const fromBrowse = browsePortsForCard(browseSnapshotRef.current, cardOlt);
         const authErr = looksLikeAuthError(status, data);
         if (fromBrowse.length > 0) {
-          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (Supabase).' : '');
+          setListError(authErr ? 'Authorization hết hạn — đã dùng danh mục cache đồng bộ (server).' : '');
           setListPortOlt(fromBrowse);
           return;
         }
@@ -2770,13 +2770,13 @@ export default function TraCuuSP2Page() {
           const arr = srv.data ?? [];
           const message =
             arr.length === 0
-              ? 'Không có bản ghi trong cache chung (Supabase) cho port đã chọn.'
+              ? 'Không có bản ghi trong cache chung (server) cho port đã chọn.'
               : null;
           setKetQua({ data: arr, message, fromCache: 'server' });
           return;
         }
         if (srv.kind === 'unconfigured') {
-          setLoi(srv.message || 'Chưa cấu hình Supabase trên server.');
+          setLoi(srv.message || 'Chưa cấu hình server lưu trữ.');
           return;
         }
         const cached = await getPortCache(cacheKey, fp);
@@ -2808,19 +2808,19 @@ export default function TraCuuSP2Page() {
       const applyCacheFallback = async () => {
         const srv = await fetchServerPortCache(keyBody);
         if (srv.kind === 'unconfigured' || srv.kind === 'error') {
-          supabaseDiag = srv.message || 'Không đọc được cache Supabase.';
+          supabaseDiag = srv.message || 'Không đọc được cache server.';
           return false;
         }
         if (srv.kind === 'hit') {
           const arr = srv.data ?? [];
           const expiredHint = clientAuthExpired
             ? arr.length === 0
-              ? 'Authorization (JWT) trên máy này đã hết hạn. Không có bản ghi trong cache Supabase cho port này.'
-              : 'Authorization (JWT) trên máy này đã hết hạn — đang dùng cache đồng bộ (Supabase).'
+              ? 'Authorization (JWT) trên máy này đã hết hạn. Không có bản ghi trong cache server cho port này.'
+              : 'Authorization (JWT) trên máy này đã hết hạn — đang dùng cache đồng bộ (server).'
             : noClientAuth
               ? arr.length === 0
                 ? null
-                : 'Chưa nhập Authorization trên máy này — đang dùng cache đồng bộ (Supabase).'
+                : 'Chưa nhập Authorization trên máy này — đang dùng cache đồng bộ (server).'
               : null;
           const cacheMsg =
             arr.length === 0 && clientAuthValid && apiFallbackNotice
@@ -2849,7 +2849,7 @@ export default function TraCuuSP2Page() {
       const failWithoutCache = () => {
         if (supabaseDiag) {
           setLoi(
-            `${supabaseDiag} Tra cứu không cần Authorization chỉ hoạt động khi đã cấu hình Supabase và đồng bộ dữ liệu lên server.`
+            `${supabaseDiag} Tra cứu không cần Authorization chỉ hoạt động khi đã cấu hình server lưu trữ và đồng bộ dữ liệu.`
           );
           return;
         }
@@ -2858,16 +2858,16 @@ export default function TraCuuSP2Page() {
             ? ' Danh mục Trạm/OLT vẫn có thể chọn từ cache; cần chọn đủ Port OLT đã được đồng bộ.'
             : '';
           setLoi(
-            `Authorization đã hết hạn hoặc không hợp lệ, và chưa có dữ liệu S2 trên Supabase cho port này.${browseHint} Quản trị cần lưu Authorization mới và «Đồng bộ toàn bộ S2» (có mã cache chung).`
+            `Authorization đã hết hạn hoặc không hợp lệ, và chưa có dữ liệu S2 trên server cho port này.${browseHint} Quản trị cần lưu Authorization mới và «Đồng bộ toàn bộ S2» (có mã cache chung).`
           );
           return;
         }
         setLoi(
-          'Chưa có dữ liệu cache trên Supabase cho port đã chọn. Quản trị cần chạy «Đồng bộ toàn bộ S2» và nhập mã ghi cache chung — không chỉ đồng bộ trên một trình duyệt.'
+          'Chưa có dữ liệu cache trên server cho port đã chọn. Quản trị cần chạy «Đồng bộ toàn bộ S2» và nhập mã ghi cache chung — không chỉ đồng bộ trên một trình duyệt.'
         );
       };
 
-      /** JWT trên máy hết hạn: ưu tiên cache trước (tránh chờ API). Chưa nhập JWT → vẫn gọi API trước (server có thể dùng token lưu Supabase). */
+      /** JWT trên máy hết hạn: ưu tiên cache trước (tránh chờ API). Chưa nhập JWT → vẫn gọi API trước (server có thể dùng token lưu trên server). */
       if (!boQuaCache && clientAuthExpired) {
         if (await applyCacheFallback()) return;
       }
@@ -3359,7 +3359,7 @@ export default function TraCuuSP2Page() {
                     )}
                     {serverSyncMeta?.lastSyncAt != null && (
                       <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5">
-                        <span className="font-semibold">Cache chung (Supabase):</span>{' '}
+                        <span className="font-semibold">Cache chung (server):</span>{' '}
                         {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
                         {serverSyncMeta.lastSyncTotal != null && ` — ${serverSyncMeta.lastSyncTotal} port`}
                         {serverSyncMeta.lastSyncS2Total != null && (
@@ -4214,7 +4214,7 @@ export default function TraCuuSP2Page() {
                           }}
                           className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
-                        Chỉ tra cứu từ cache (Supabase + trình duyệt, không gọi API)
+                        Chỉ tra cứu từ cache (server + trình duyệt, không gọi API)
                       </label>
                       <label className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer">
                         <input
@@ -4268,11 +4268,11 @@ export default function TraCuuSP2Page() {
                   {loading ? 'Đang tra cứu...' : 'Tra cứu'}
                 </button>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">
-                  JWT trên máy còn hạn → gọi OneBSS trước. JWT hết hạn trên máy → ưu tiên cache Supabase. Chưa nhập JWT → vẫn gọi server (dùng token OneBSS đã lưu quản trị trên Supabase, nếu còn hạn). «Luôn gọi API» bỏ qua cache; «Chỉ tra cứu từ cache» không gọi API.
+                  JWT trên máy còn hạn → gọi OneBSS trước. JWT hết hạn trên máy → ưu tiên cache server. Chưa nhập JWT → vẫn gọi server (dùng token OneBSS đã lưu quản trị trên server, nếu còn hạn). «Luôn gọi API» bỏ qua cache; «Chỉ tra cứu từ cache» không gọi API.
                 </p>
                 {serverSyncMeta?.lastSyncInProgress ? (
                   <p className="text-[11px] text-sky-700 mt-1">
-                    Đang đồng bộ lên Supabase
+                    Đang đồng bộ lên server
                     {serverSyncMeta.lastSyncCompleted != null && serverSyncMeta.lastSyncTotal != null
                       ? `: ${serverSyncMeta.lastSyncCompleted}/${serverSyncMeta.lastSyncTotal} port`
                       : ''}
@@ -4280,7 +4280,7 @@ export default function TraCuuSP2Page() {
                   </p>
                 ) : serverSyncMeta?.lastSyncAt ? (
                   <p className={`text-[11px] mt-1 ${(serverSyncMeta.lastSyncTotal ?? 0) > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    Cache chung (Supabase): lần ghi meta đồng bộ lúc {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
+                    Cache chung (server): lần ghi meta đồng bộ lúc {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
                     {serverSyncMeta.lastSyncTotal != null ? ` — ${serverSyncMeta.lastSyncTotal} port` : ''}.
                     «Đồng bộ toàn bộ» chỉ cập nhật dòng này khi có mật khẩu ghi cache chung.
                     {(serverSyncMeta.lastSyncTotal ?? 0) === 0 &&
@@ -4292,7 +4292,7 @@ export default function TraCuuSP2Page() {
                   </p>
                 ) : (
                   <p className="text-[11px] text-amber-700 mt-1">
-                    Chưa có cache trên Supabase. Quản trị cần «Đồng bộ toàn bộ S2» kèm mã ghi cache chung (không chỉ đồng bộ trên một trình duyệt).
+                    Chưa có cache trên server. Quản trị cần «Đồng bộ toàn bộ S2» kèm mã ghi cache chung (không chỉ đồng bộ trên một trình duyệt).
                   </p>
                 )}
                 {lastSyncInfo?.lastSyncAt && (
@@ -4333,7 +4333,7 @@ export default function TraCuuSP2Page() {
                     </span>
                     {ketQua.fromCache === 'server' && (
                       <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200">
-                        Cache chung (Supabase)
+                        Cache chung (server)
                       </span>
                     )}
                     {ketQua.fromCache === 'local' && (

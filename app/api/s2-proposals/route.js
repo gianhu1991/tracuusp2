@@ -6,7 +6,7 @@ import { s2ProposalAdd, s2ProposalConfigured, s2ProposalDeleteById, s2ProposalLi
 export async function GET() {
   try {
     if (!(await s2ProposalConfigured())) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', rows: [] }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', rows: [] }, { status: 503 });
     }
     const res = await s2ProposalList();
     if (!res.ok) {
@@ -21,7 +21,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     if (!(await s2ProposalConfigured())) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503 });
     }
     const body = await request.json().catch(() => ({}));
     const tenSp2 = String(body?.tenSp2 || '').trim();
@@ -66,7 +66,7 @@ export async function POST(request) {
 export async function DELETE(request) {
   try {
     if (!(await s2ProposalConfigured())) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503 });
     }
     const cookieStore = await cookies();
     const unlock = assertAdminUnlockCookie(cookieStore.get(adminUnlockCookieName())?.value);

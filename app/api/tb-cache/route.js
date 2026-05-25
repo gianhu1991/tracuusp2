@@ -13,7 +13,7 @@ import { assertAdminUnlockCookie, adminUnlockCookieName } from '../../../lib/adm
 export async function GET() {
   try {
     if (!(await tbServerConfigured())) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', rows: [] }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', rows: [] }, { status: 503 });
     }
     const res = await tbServerGetSharedRows();
     if (!res.ok) {
@@ -36,7 +36,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     if (!(await tbServerConfigured())) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503 });
     }
     const gate = assertAdminUnlockCookie(cookies().get(adminUnlockCookieName())?.value);
     if (!gate.ok) {

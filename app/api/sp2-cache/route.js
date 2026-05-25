@@ -177,7 +177,7 @@ export async function GET(request) {
       const noStore = { 'Cache-Control': 'private, no-store, max-age=0' };
       const { ok, meta } = await sp2ServerGetMeta();
       if (!ok) {
-        return NextResponse.json({ ok: false, message: 'Supabase chưa cấu hình.' }, { status: 503, headers: noStore });
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503, headers: noStore });
       }
       return NextResponse.json({ ok: true, meta }, { headers: noStore });
     }
@@ -186,7 +186,7 @@ export async function GET(request) {
       const noStore = { 'Cache-Control': 'private, no-store, max-age=0' };
       const configured = await sp2ServerConfigured();
       if (!configured) {
-        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', snapshot: null }, { status: 503, headers: noStore });
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', snapshot: null }, { status: 503, headers: noStore });
       }
       const { ok, snapshot } = await sp2ServerGetBrowseSnapshot();
       if (!ok) {
@@ -198,7 +198,7 @@ export async function GET(request) {
     if (searchParams.get('stats') === '1') {
       const configured = await sp2ServerConfigured();
       if (!configured) {
-        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', rows: [] }, { status: 503 });
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', rows: [] }, { status: 503 });
       }
       const resStats = await sp2ServerGetPonOneSp2StatsByToQL();
       if (!resStats.ok) {
@@ -210,7 +210,7 @@ export async function GET(request) {
     if (searchParams.get('stats') === 'one_sp2_excel') {
       const configured = await sp2ServerConfigured();
       if (!configured) {
-        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503 });
       }
       const toQlFilter = (searchParams.get('toQL') || '').trim();
       const detailRes = await sp2ServerGetPonOneSp2DetailRows();
@@ -272,7 +272,7 @@ export async function GET(request) {
     if (searchParams.get('stats') === 'olt_pon_detail') {
       const configured = await sp2ServerConfigured();
       if (!configured) {
-        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', rows: [] }, { status: 503 });
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', rows: [] }, { status: 503 });
       }
       const detailRes = await sp2ServerGetPonSp2DetailRowsByOlt();
       if (!detailRes.ok) {
@@ -300,7 +300,7 @@ export async function GET(request) {
     if (searchParams.get('stats') === 'olt_pon_excel') {
       const configured = await sp2ServerConfigured();
       if (!configured) {
-        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503 });
       }
       const toQlFilter = (searchParams.get('toQL') || '').trim();
       const oltFilter = (searchParams.get('thietBiOlt') || '').trim();
@@ -364,7 +364,7 @@ export async function GET(request) {
     if (searchParams.get('stats') === 'no_sp2_detail') {
       const configured = await sp2ServerConfigured();
       if (!configured) {
-        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', rows: [] }, { status: 503 });
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', rows: [] }, { status: 503 });
       }
       const detailRes = await sp2ServerGetPonNoSp2DetailRows();
       if (!detailRes.ok) {
@@ -397,7 +397,7 @@ export async function GET(request) {
     if (searchParams.get('stats') === 'no_sp2_excel') {
       const configured = await sp2ServerConfigured();
       if (!configured) {
-        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503 });
       }
       const toQlFilter = (searchParams.get('toQL') || '').trim();
       const oltFilter = (searchParams.get('thietBiOlt') || '').trim();
@@ -463,7 +463,7 @@ export async function GET(request) {
     if (searchParams.get('stats') === 's2_capacity_detail') {
       const configured = await sp2ServerConfigured();
       if (!configured) {
-        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', rows: [] }, { status: 503 });
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', rows: [] }, { status: 503 });
       }
       const toQlFilter = (searchParams.get('toQL') || '').trim();
       const oltFilter = (searchParams.get('thietBiOlt') || '').trim();
@@ -492,7 +492,7 @@ export async function GET(request) {
     if (searchParams.get('stats') === 's2_capacity_excel') {
       const configured = await sp2ServerConfigured();
       if (!configured) {
-        return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+        return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503 });
       }
       const toQlFilter = (searchParams.get('toQL') || '').trim();
       const oltFilter = (searchParams.get('thietBiOlt') || '').trim();
@@ -551,7 +551,7 @@ export async function GET(request) {
 
     const configured = await sp2ServerConfigured();
     if (!configured) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', hit: false }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', hit: false }, { status: 503 });
     }
 
     const res = await sp2ServerGetPort(cacheKey);
@@ -586,7 +586,7 @@ export async function POST(request) {
 
     if (!(await sp2ServerConfigured())) {
       return NextResponse.json(
-        { ok: false, message: 'Chưa cấu hình Supabase (URL + key) trên server.' },
+        { ok: false, message: 'Chưa cấu hình lưu trữ (STORAGE_API_URL + STORAGE_API_KEY) trên Vercel.' },
         { status: 503 }
       );
     }

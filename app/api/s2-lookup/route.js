@@ -241,7 +241,7 @@ export async function POST(request) {
   try {
     const configured = await sp2ServerConfigured();
     if (!configured) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', rows: [] }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', rows: [] }, { status: 503 });
     }
     const body = await request.json().catch(() => ({}));
     const s2List = Array.isArray(body?.s2List) ? body.s2List : [];

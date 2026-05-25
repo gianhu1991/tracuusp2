@@ -6,7 +6,7 @@ const NO_STORE = { 'Cache-Control': 'private, no-store, max-age=0' };
 export async function GET() {
   try {
     if (!(await tbServerConfigured())) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.', keys: [] }, { status: 503, headers: NO_STORE });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', keys: [] }, { status: 503, headers: NO_STORE });
     }
     const res = await tbServerGetRowOkKeys();
     if (!res.ok) {
@@ -21,7 +21,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     if (!(await tbServerConfigured())) {
-      return NextResponse.json({ ok: false, message: 'Chưa cấu hình Supabase.' }, { status: 503 });
+      return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.' }, { status: 503 });
     }
     const body = await request.json().catch(() => ({}));
     const row = body?.row && typeof body.row === 'object' ? body.row : null;
