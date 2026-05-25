@@ -1,0 +1,11 @@
+# Copy thanh C:\cloudflared\config.yml sau khi tao tunnel
+# Sua: TUNNEL_ID, duong dan credentials-file, hostname
+
+tunnel: <TUNNEL_ID>
+credentials-file: C:\Users\<TEN_WINDOWS>\.cloudflared\<TUNNEL_ID>.json
+
+ingress:
+  # Hostname co dinh — trỏ Node storage (CHAY-MAY-CHU-NODE.bat, port 3920)
+  - hostname: luutru.ten-cua-ban.com
+    service: http://localhost:3920
+  - service: http_status:404
