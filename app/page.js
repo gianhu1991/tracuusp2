@@ -678,7 +678,7 @@ export default function TraCuuSP2Page() {
       if (!syncRunningRef.current) refreshBrowseSnapshot();
     };
     tick();
-    const id = window.setInterval(tick, 1800000);
+    const id = window.setInterval(tick, 20000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -1793,7 +1793,7 @@ export default function TraCuuSP2Page() {
 
     const interval = window.setInterval(() => {
       loadTbSharedRows({ silent: true });
-    }, 1800000);
+    }, 15000);
 
     document.addEventListener('visibilitychange', onWake);
     window.addEventListener('focus', onFocus);
@@ -1813,7 +1813,7 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     if (activeMainModule !== TB_MODULE_TB) return undefined;
     refreshTbRowOkKeys();
-    const id = window.setInterval(refreshTbRowOkKeys, 1800000);
+    const id = window.setInterval(refreshTbRowOkKeys, 20000);
     return () => window.clearInterval(id);
   }, [activeMainModule]);
 
