@@ -28,10 +28,15 @@ export async function POST(request) {
       );
     }
 
-    const ok = await setStoredAuth(authorization.trim());
-    if (!ok) {
+    const saved = await setStoredAuth(authorization.trim());
+    if (!saved.ok) {
       return NextResponse.json(
-        { ok: false, message: 'Không lưu được token. Kiểm tra Supabase: bảng app_config đã tạo chưa, env NEXT_PUBLIC_SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY đã set chưa.' },
+        {
+          ok: false,
+          message:
+            saved.message
+            || 'Không lưu được token. Kiểm tra Supabase: bảng app_config đã tạo chưa, env NEXT_PUBLIC_SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY đã set chưa.',
+        },
         { status: 500 }
       );
     }
