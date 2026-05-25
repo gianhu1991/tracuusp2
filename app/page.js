@@ -34,7 +34,7 @@ function authHeadersForFetch(authValue) {
 
 const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
 /** Đồng bộ S2 định kỳ khi token còn hạn (JWT). */
-const AUTH_AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+const AUTH_AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000;
 const DEFAULT_TO_QL_DONVI_ID = '1002689'; // Tổ Kỹ thuật Địa bàn Nho Quan
 const DEFAULT_TO_QL_ID = '5f0ad13b-53ee-4869-a66f-4023cba821a7';
 const REPORT_MENU_ITEMS = [
@@ -678,7 +678,7 @@ export default function TraCuuSP2Page() {
       if (!syncRunningRef.current) refreshBrowseSnapshot();
     };
     tick();
-    const id = window.setInterval(tick, 20000);
+    const id = window.setInterval(tick, 1800000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -1793,7 +1793,7 @@ export default function TraCuuSP2Page() {
 
     const interval = window.setInterval(() => {
       loadTbSharedRows({ silent: true });
-    }, 15000);
+    }, 1800000);
 
     document.addEventListener('visibilitychange', onWake);
     window.addEventListener('focus', onFocus);
@@ -1813,7 +1813,7 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     if (activeMainModule !== TB_MODULE_TB) return undefined;
     refreshTbRowOkKeys();
-    const id = window.setInterval(refreshTbRowOkKeys, 20000);
+    const id = window.setInterval(refreshTbRowOkKeys, 1800000);
     return () => window.clearInterval(id);
   }, [activeMainModule]);
 
