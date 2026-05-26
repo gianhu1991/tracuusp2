@@ -440,6 +440,7 @@ export default function TraCuuSP2Page() {
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null);
   const [lastSyncInfo, setLastSyncInfo] = useState(null);
+  const [nextAutoSyncAt, setNextAutoSyncAt] = useState(null);
   const [chiTrongCache, setChiTrongCache] = useState(false);
   const [boQuaCache, setBoQuaCache] = useState(false);
   const [adminPasswordForSync, setAdminPasswordForSync] = useState('');
@@ -2389,15 +2390,17 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const authTrim = (authorization || '').trim();
-    if (!authorizationSeemsUnexpired(authTrim)) return undefined;
+    if (!authorizationSeemsUnexpired(authTrim)) { setNextAutoSyncAt(null); return undefined; }
+    setNextAutoSyncAt(Date.now() + AUTH_AUTO_SYNC_INTERVAL_MS);
     const id = window.setInterval(() => {
-      if (syncRunningRef.current) return;
+      if (syncRunningRef.current) { setNextAutoSyncAt(Date.now() + 30_000); return; }
       const latest = (typeof window !== 'undefined' && localStorage.getItem(STORAGE_AUTH)) || '';
-      if (!authorizationSeemsUnexpired(String(latest).trim())) return;
+      if (!authorizationSeemsUnexpired(String(latest).trim())) { setNextAutoSyncAt(null); return; }
+      setNextAutoSyncAt(Date.now() + AUTH_AUTO_SYNC_INTERVAL_MS);
       const fn = startFullSyncRef.current;
       if (typeof fn === 'function') void Promise.resolve(fn({ adminPasswordOverride: '__auto__' })).catch(() => {});
     }, AUTH_AUTO_SYNC_INTERVAL_MS);
-    return () => window.clearInterval(id);
+    return () => { window.clearInterval(id); setNextAutoSyncAt(null); };
   }, [authorization]);
 
   const handleUnlockAuth = async (e) => {
@@ -3347,6 +3350,11 @@ export default function TraCuuSP2Page() {
                         {serverSyncMeta.lastSyncAborted && ' — đã dừng giữa chừng'}
                       </p>
                     )}
+                    {nextAutoSyncAt && !syncRunning && (
+                      <p className="text-[11px] text-sky-700 bg-sky-50 border border-sky-100 rounded px-2 py-1.5">
+                        Tự đồng bộ tiếp lúc <strong>{new Date(nextAutoSyncAt).toLocaleTimeString('vi-VN')}</strong> (mỗi 30 phút)
+                      </p>
+                    )}
                       </>
                     )}
                     {showReportPanel && (
@@ -4263,6 +4271,9 @@ export default function TraCuuSP2Page() {
                     «Đồng bộ toàn bộ» sẽ tự động ghi lên server.
                     {(serverSyncMeta.lastSyncTotal ?? 0) === 0 &&
                       ' Chưa có port — Authorization có thể sai khi đồng bộ; cần lưu token mới và đồng bộ lại.'}
+                    {nextAutoSyncAt && !syncRunning && (
+                      <> Tự đồng bộ tiếp lúc <strong>{new Date(nextAutoSyncAt).toLocaleTimeString('vi-VN')}</strong>.</>
+                    )}
                   </p>
                 ) : hasBrowseCatalog(browseSnapshot) ? (
                   <p className="text-[11px] text-sky-700 mt-1">
