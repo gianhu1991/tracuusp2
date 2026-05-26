@@ -45,6 +45,7 @@ const SYNC_INTERVAL_OPTIONS = [
   { label: '4 giờ', value: 4 * 60 * 60 * 1000 },
 ];
 const STORAGE_SYNC_INTERVAL = 'sp2_sync_interval_ms';
+const SETTINGS_API = '/api/settings';
 const DEFAULT_TO_QL_DONVI_ID = '1002689'; // Tổ Kỹ thuật Địa bàn Nho Quan
 const DEFAULT_TO_QL_ID = '5f0ad13b-53ee-4869-a66f-4023cba821a7';
 const REPORT_MENU_ITEMS = [
@@ -576,8 +577,12 @@ export default function TraCuuSP2Page() {
       const raw = (localStorage.getItem(STORAGE_AUTH) || '').trim();
       setAuthorization(raw);
       setAuthUnlocked(sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) === '1');
-      const savedInterval = parseInt(localStorage.getItem(STORAGE_SYNC_INTERVAL) || '', 10);
-      if (savedInterval > 0) setAutoSyncIntervalMs(savedInterval);
+      fetch(SETTINGS_API, { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.ok && d.settings?.syncIntervalMs > 0) setAutoSyncIntervalMs(d.settings.syncIntervalMs);
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -3370,7 +3375,11 @@ export default function TraCuuSP2Page() {
                         onChange={(e) => {
                           const v = Number(e.target.value);
                           setAutoSyncIntervalMs(v);
-                          localStorage.setItem(STORAGE_SYNC_INTERVAL, String(v));
+                          fetch(SETTINGS_API, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ settings: { syncIntervalMs: v } }),
+                          }).catch(() => {});
                         }}
                         className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                       >
