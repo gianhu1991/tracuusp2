@@ -2385,7 +2385,7 @@ export default function TraCuuSP2Page() {
     setListPortOlt((prev) => mergeBrowseOptions(prev, from, portOlt));
   }, [browseSnapshot, cardOlt, portOlt]);
 
-  /** Đồng bộ toàn bộ S2 mỗi 5 phút khi JWT Authorization còn hạn (kể cả tab ẩn / nền). */
+  /** Đồng bộ toàn bộ S2 mỗi 30 phút khi JWT Authorization còn hạn (kể cả tab ẩn / nền). */
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const authTrim = (authorization || '').trim();
@@ -2505,7 +2505,7 @@ export default function TraCuuSP2Page() {
   startFullSyncRef.current = startFullSync;
 
   const handleDongBoToanBo = async () => {
-    await startFullSync();
+    await startFullSync({ adminPasswordOverride: '__auto__' });
   };
 
   const handleSaveToServer = async (e) => {
@@ -2782,7 +2782,7 @@ export default function TraCuuSP2Page() {
         const cached = await getPortCache(cacheKey, fp);
         if (cached === null) {
           setLoi(
-            'Chưa có dữ liệu đồng bộ cho bộ lọc này. Quản trị chạy «Đồng bộ toàn bộ S2» kèm mã ghi cache chung, hoặc tắt «Chỉ tra cứu từ cache».'
+            'Chưa có dữ liệu đồng bộ cho bộ lọc này. Quản trị chạy «Đồng bộ toàn bộ S2», hoặc tắt «Chỉ tra cứu từ cache».'
           );
           return;
         }
@@ -2858,12 +2858,12 @@ export default function TraCuuSP2Page() {
             ? ' Danh mục Trạm/OLT vẫn có thể chọn từ cache; cần chọn đủ Port OLT đã được đồng bộ.'
             : '';
           setLoi(
-            `Authorization đã hết hạn hoặc không hợp lệ, và chưa có dữ liệu S2 trên server cho port này.${browseHint} Quản trị cần lưu Authorization mới và «Đồng bộ toàn bộ S2» (có mã cache chung).`
+            `Authorization đã hết hạn hoặc không hợp lệ, và chưa có dữ liệu S2 trên server cho port này.${browseHint} Quản trị cần lưu Authorization mới và chạy «Đồng bộ toàn bộ S2».`
           );
           return;
         }
         setLoi(
-          'Chưa có dữ liệu cache trên server cho port đã chọn. Quản trị cần chạy «Đồng bộ toàn bộ S2» và nhập mã ghi cache chung — không chỉ đồng bộ trên một trình duyệt.'
+          'Chưa có dữ liệu cache trên server cho port đã chọn. Quản trị cần chạy «Đồng bộ toàn bộ S2».'
         );
       };
 
@@ -3304,6 +3304,19 @@ export default function TraCuuSP2Page() {
                       <button type="submit" disabled={saveToServerStatus === 'saving' || !authorization?.trim()} className="rounded-lg bg-sky-600 text-white px-4 py-2 text-sm font-medium hover:bg-sky-700 disabled:opacity-50">
                         {saveToServerStatus === 'saving' ? 'Đang lưu...' : 'Lưu lên server'}
                       </button>
+                      <button
+                        type="button"
+                        onClick={handleDongBoToanBo}
+                        disabled={syncRunning}
+                        className="rounded-lg bg-indigo-600 text-white px-3 py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        {syncRunning ? 'Đang đồng bộ…' : 'Đồng bộ toàn bộ S2'}
+                      </button>
+                      {syncRunning && (
+                        <button type="button" onClick={handleHuyDongBo} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                          Hủy
+                        </button>
+                      )}
                     </div>
                     {saveToServerMessage && <p className={`text-xs ${saveToServerStatus === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{saveToServerMessage}</p>}
                   </form>
@@ -3313,41 +3326,6 @@ export default function TraCuuSP2Page() {
                   <div className="mt-5 pt-5 border-t border-slate-200 space-y-3">
                     {!showReportPanel && (
                       <>
-                    <p className="text-xs font-semibold text-slate-700">Đồng bộ toàn bộ S2 &amp; cache tra cứu</p>
-                    <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                      Quét Tổ KT → Trạm → OLT → Card → Port. Số port lớn có thể mất nhiều phút.
-                    </p>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      Nếu Authorization là JWT còn hạn, trang sẽ tự chạy đồng bộ lại mỗi 5 phút (chỉ khi tab đang hiển thị; không chạy trùng lúc đang đồng bộ tay).
-                    </p>
-                    <div className="max-w-lg">
-                      <label className="block text-[11px] sm:text-xs text-slate-600">
-                        Mã xác thực (ghi cache chung)
-                        <input
-                          type="password"
-                          value={adminPasswordForSync}
-                          onChange={(e) => setAdminPasswordForSync(e.target.value)}
-                          placeholder="Trống = chỉ lưu trên máy này"
-                          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
-                          autoComplete="off"
-                        />
-                      </label>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleDongBoToanBo}
-                        disabled={syncRunning}
-                        className="rounded-lg bg-indigo-600 text-white px-3 py-2 text-xs sm:text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 min-h-[40px]"
-                      >
-                        {syncRunning ? 'Đang đồng bộ…' : 'Đồng bộ toàn bộ S2'}
-                      </button>
-                      {syncRunning && (
-                        <button type="button" onClick={handleHuyDongBo} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]">
-                          Hủy
-                        </button>
-                      )}
-                    </div>
                     {syncRunning && syncProgress && (
                       <p className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-1.5">
                         <span className="font-semibold">Tiến độ</span> trên <strong>đầu trang</strong>
@@ -4282,7 +4260,7 @@ export default function TraCuuSP2Page() {
                   <p className={`text-[11px] mt-1 ${(serverSyncMeta.lastSyncTotal ?? 0) > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
                     Cache chung (server): lần ghi meta đồng bộ lúc {new Date(serverSyncMeta.lastSyncAt).toLocaleString('vi-VN')}
                     {serverSyncMeta.lastSyncTotal != null ? ` — ${serverSyncMeta.lastSyncTotal} port` : ''}.
-                    «Đồng bộ toàn bộ» chỉ cập nhật dòng này khi có mật khẩu ghi cache chung.
+                    «Đồng bộ toàn bộ» sẽ tự động ghi lên server.
                     {(serverSyncMeta.lastSyncTotal ?? 0) === 0 &&
                       ' Chưa có port — Authorization có thể sai khi đồng bộ; cần lưu token mới và đồng bộ lại.'}
                   </p>
@@ -4292,7 +4270,7 @@ export default function TraCuuSP2Page() {
                   </p>
                 ) : (
                   <p className="text-[11px] text-amber-700 mt-1">
-                    Chưa có cache trên server. Quản trị cần «Đồng bộ toàn bộ S2» kèm mã ghi cache chung (không chỉ đồng bộ trên một trình duyệt).
+                    Chưa có cache trên server. Quản trị cần chạy «Đồng bộ toàn bộ S2».
                   </p>
                 )}
                 {lastSyncInfo?.lastSyncAt && (
