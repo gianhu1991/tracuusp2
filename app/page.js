@@ -34,7 +34,17 @@ function authHeadersForFetch(authValue) {
 
 const AUTH_AUTO_LOCK_MS = 5 * 60 * 1000;
 /** Đồng bộ S2 định kỳ khi token còn hạn (JWT). */
-const AUTH_AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000;
+const DEFAULT_AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000;
+const SYNC_INTERVAL_OPTIONS = [
+  { label: '5 phút', value: 5 * 60 * 1000 },
+  { label: '10 phút', value: 10 * 60 * 1000 },
+  { label: '15 phút', value: 15 * 60 * 1000 },
+  { label: '30 phút', value: 30 * 60 * 1000 },
+  { label: '1 giờ', value: 60 * 60 * 1000 },
+  { label: '2 giờ', value: 2 * 60 * 60 * 1000 },
+  { label: '4 giờ', value: 4 * 60 * 60 * 1000 },
+];
+const STORAGE_SYNC_INTERVAL = 'sp2_sync_interval_ms';
 const DEFAULT_TO_QL_DONVI_ID = '1002689'; // Tổ Kỹ thuật Địa bàn Nho Quan
 const DEFAULT_TO_QL_ID = '5f0ad13b-53ee-4869-a66f-4023cba821a7';
 const REPORT_MENU_ITEMS = [
@@ -441,6 +451,7 @@ export default function TraCuuSP2Page() {
   const [syncProgress, setSyncProgress] = useState(null);
   const [lastSyncInfo, setLastSyncInfo] = useState(null);
   const [nextAutoSyncAt, setNextAutoSyncAt] = useState(null);
+  const [autoSyncIntervalMs, setAutoSyncIntervalMs] = useState(DEFAULT_AUTO_SYNC_INTERVAL_MS);
   const [chiTrongCache, setChiTrongCache] = useState(false);
   const [boQuaCache, setBoQuaCache] = useState(false);
   const [adminPasswordForSync, setAdminPasswordForSync] = useState('');
@@ -565,6 +576,8 @@ export default function TraCuuSP2Page() {
       const raw = (localStorage.getItem(STORAGE_AUTH) || '').trim();
       setAuthorization(raw);
       setAuthUnlocked(sessionStorage.getItem(STORAGE_AUTH_UNLOCKED) === '1');
+      const savedInterval = parseInt(localStorage.getItem(STORAGE_SYNC_INTERVAL) || '', 10);
+      if (savedInterval > 0) setAutoSyncIntervalMs(savedInterval);
     }
   }, []);
 
@@ -2391,17 +2404,17 @@ export default function TraCuuSP2Page() {
     if (typeof window === 'undefined') return undefined;
     const authTrim = (authorization || '').trim();
     if (!authorizationSeemsUnexpired(authTrim)) { setNextAutoSyncAt(null); return undefined; }
-    setNextAutoSyncAt(Date.now() + AUTH_AUTO_SYNC_INTERVAL_MS);
+    setNextAutoSyncAt(Date.now() + autoSyncIntervalMs);
     const id = window.setInterval(() => {
       if (syncRunningRef.current) { setNextAutoSyncAt(Date.now() + 30_000); return; }
       const latest = (typeof window !== 'undefined' && localStorage.getItem(STORAGE_AUTH)) || '';
       if (!authorizationSeemsUnexpired(String(latest).trim())) { setNextAutoSyncAt(null); return; }
-      setNextAutoSyncAt(Date.now() + AUTH_AUTO_SYNC_INTERVAL_MS);
+      setNextAutoSyncAt(Date.now() + autoSyncIntervalMs);
       const fn = startFullSyncRef.current;
       if (typeof fn === 'function') void Promise.resolve(fn({ adminPasswordOverride: '__auto__' })).catch(() => {});
-    }, AUTH_AUTO_SYNC_INTERVAL_MS);
+    }, autoSyncIntervalMs);
     return () => { window.clearInterval(id); setNextAutoSyncAt(null); };
-  }, [authorization]);
+  }, [authorization, autoSyncIntervalMs]);
 
   const handleUnlockAuth = async (e) => {
     e.preventDefault();
@@ -3347,9 +3360,25 @@ export default function TraCuuSP2Page() {
                     )}
                     {nextAutoSyncAt && !syncRunning && (
                       <p className="text-[11px] text-sky-700 bg-sky-50 border border-sky-100 rounded px-2 py-1.5">
-                        Tự đồng bộ tiếp lúc <strong>{new Date(nextAutoSyncAt).toLocaleTimeString('vi-VN')}</strong> (mỗi 30 phút)
+                        Tự đồng bộ tiếp lúc <strong>{new Date(nextAutoSyncAt).toLocaleTimeString('vi-VN')}</strong>
                       </p>
                     )}
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] sm:text-xs text-slate-600 whitespace-nowrap">Chu kỳ tự đồng bộ:</label>
+                      <select
+                        value={autoSyncIntervalMs}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          setAutoSyncIntervalMs(v);
+                          localStorage.setItem(STORAGE_SYNC_INTERVAL, String(v));
+                        }}
+                        className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                      >
+                        {SYNC_INTERVAL_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
                       </>
                     )}
                     {showReportPanel && (
