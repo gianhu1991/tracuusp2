@@ -2404,21 +2404,30 @@ export default function TraCuuSP2Page() {
     setListPortOlt((prev) => mergeBrowseOptions(prev, from, portOlt));
   }, [browseSnapshot, cardOlt, portOlt]);
 
-  /** Đồng bộ toàn bộ S2 mỗi 30 phút khi JWT Authorization còn hạn (kể cả tab ẩn / nền). */
+  /** Đồng bộ toàn bộ S2 định kỳ khi JWT Authorization còn hạn (kể cả tab ẩn / nền). */
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const authTrim = (authorization || '').trim();
     if (!authorizationSeemsUnexpired(authTrim)) { setNextAutoSyncAt(null); return undefined; }
-    setNextAutoSyncAt(Date.now() + autoSyncIntervalMs);
-    const id = window.setInterval(() => {
-      if (syncRunningRef.current) { setNextAutoSyncAt(Date.now() + 30_000); return; }
-      const latest = (typeof window !== 'undefined' && localStorage.getItem(STORAGE_AUTH)) || '';
-      if (!authorizationSeemsUnexpired(String(latest).trim())) { setNextAutoSyncAt(null); return; }
+    let timerId = null;
+    let cancelled = false;
+    const schedule = () => {
+      if (cancelled) return;
       setNextAutoSyncAt(Date.now() + autoSyncIntervalMs);
-      const fn = startFullSyncRef.current;
-      if (typeof fn === 'function') void Promise.resolve(fn({ adminPasswordOverride: '__auto__' })).catch(() => {});
-    }, autoSyncIntervalMs);
-    return () => { window.clearInterval(id); setNextAutoSyncAt(null); };
+      timerId = window.setTimeout(async () => {
+        if (cancelled) return;
+        if (syncRunningRef.current) { schedule(); return; }
+        const latest = (typeof window !== 'undefined' && localStorage.getItem(STORAGE_AUTH)) || '';
+        if (!authorizationSeemsUnexpired(String(latest).trim())) { setNextAutoSyncAt(null); return; }
+        const fn = startFullSyncRef.current;
+        if (typeof fn === 'function') {
+          try { await fn({ adminPasswordOverride: '__auto__' }); } catch (_) {}
+        }
+        schedule();
+      }, autoSyncIntervalMs);
+    };
+    schedule();
+    return () => { cancelled = true; if (timerId) window.clearTimeout(timerId); setNextAutoSyncAt(null); };
   }, [authorization, autoSyncIntervalMs]);
 
   const handleUnlockAuth = async (e) => {
