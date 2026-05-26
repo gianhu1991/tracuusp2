@@ -3315,11 +3315,6 @@ export default function TraCuuSP2Page() {
                       >
                         {syncRunning ? 'Đang đồng bộ…' : 'Đồng bộ toàn bộ S2'}
                       </button>
-                      {syncRunning && (
-                        <button type="button" onClick={handleHuyDongBo} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
-                          Hủy
-                        </button>
-                      )}
                     </div>
                     {saveToServerMessage && <p className={`text-xs ${saveToServerStatus === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{saveToServerMessage}</p>}
                   </form>
@@ -4186,36 +4181,6 @@ export default function TraCuuSP2Page() {
                         )}
                         {lastSyncInfo.lastSyncErrors > 0 && ` — ${lastSyncInfo.lastSyncErrors} lỗi`}
                       </p>
-                    )}
-                    {!showReportPanel && (
-                    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 pt-1">
-                      <label className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={chiTrongCache}
-                          onChange={(e) => {
-                            const v = e.target.checked;
-                            setChiTrongCache(v);
-                            if (v) setBoQuaCache(false);
-                          }}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        Chỉ tra cứu từ cache (server + trình duyệt, không gọi API)
-                      </label>
-                      <label className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={boQuaCache}
-                          onChange={(e) => {
-                            const v = e.target.checked;
-                            setBoQuaCache(v);
-                            if (v) setChiTrongCache(false);
-                          }}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        Luôn gọi API (bỏ qua bộ nhớ)
-                      </label>
-                    </div>
                     )}
                   </div>
                 </div>
