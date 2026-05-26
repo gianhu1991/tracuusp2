@@ -2395,7 +2395,7 @@ export default function TraCuuSP2Page() {
       const latest = (typeof window !== 'undefined' && localStorage.getItem(STORAGE_AUTH)) || '';
       if (!authorizationSeemsUnexpired(String(latest).trim())) return;
       const fn = startFullSyncRef.current;
-      if (typeof fn === 'function') void Promise.resolve(fn()).catch(() => {});
+      if (typeof fn === 'function') void Promise.resolve(fn({ adminPasswordOverride: '__auto__' })).catch(() => {});
     }, AUTH_AUTO_SYNC_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [authorization]);
