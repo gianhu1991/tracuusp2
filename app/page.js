@@ -113,6 +113,8 @@ function getCurrentPositionAsync() {
 
 const TB_MODULE_SPLITTER = 'splitter';
 const TB_MODULE_TB = 'tb';
+const TB_SUBTAB_MANAGED = 'tb_managed';
+const TB_SUBTAB_NO_CABLE = 'tb_no_cable';
 const TB_SHARED_LOCAL_CACHE_KEY = 'tb_shared_rows_cache_v1';
 
 function ttvtOptionValue(item) {
@@ -515,6 +517,16 @@ export default function TraCuuSP2Page() {
   const [tbPage, setTbPage] = useState(1);
   const [tbPageSize, setTbPageSize] = useState(10);
   const [tbTimKiemLoi, setTbTimKiemLoi] = useState('');
+  const [tbSubTab, setTbSubTab] = useState(TB_SUBTAB_MANAGED);
+  const [tbNoCableRows, setTbNoCableRows] = useState([]);
+  const [tbNoCableLoading, setTbNoCableLoading] = useState(false);
+  const [tbNoCableError, setTbNoCableError] = useState('');
+  const [tbNoCableNvQL, setTbNoCableNvQL] = useState('');
+  const [tbNoCableBaseMeta, setTbNoCableBaseMeta] = useState({ configured: false, fileName: '', uploadedAt: '', count: 0 });
+  const [tbNoCableBaseUploading, setTbNoCableBaseUploading] = useState(false);
+  const [tbNoCableBaseProgress, setTbNoCableBaseProgress] = useState(null);
+  const [tbNoCablePage, setTbNoCablePage] = useState(1);
+  const [tbNoCablePageSize, setTbNoCablePageSize] = useState(10);
   /** Khóa ổn định dòng TB đã bấm OK (đỏ, ẩn nút) — đồng bộ server, mọi máy thấy chung. */
   const [tbRowOkIds, setTbRowOkIds] = useState(() => new Set());
   const [tbShowChuyenModal, setTbShowChuyenModal] = useState(false);
@@ -1254,6 +1266,138 @@ export default function TraCuuSP2Page() {
     }
   };
 
+  const loadTbNoCableRows = async ({ silent = false } = {}) => {
+    if (!silent) setTbNoCableLoading(true);
+    setTbNoCableError('');
+    try {
+      const res = await fetch('/api/tb-chua-nhap-cap?donvi_id=301431', { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        setTbNoCableRows([]);
+        setTbNoCableError(data?.message || 'Không đọc được danh sách TB chưa nhập cáp.');
+        return;
+      }
+      if (data?.configured === false) {
+        setTbNoCableRows([]);
+        setTbNoCableError(data?.message || 'Chưa upload dữ liệu gốc.');
+        return;
+      }
+      const rows = Array.isArray(data.rows) ? data.rows : [];
+      setTbNoCableRows(rows);
+      if (!rows.length && !silent) {
+        setTbNoCableError('Không có thuê bao Fiber chưa nhập cáp.');
+      }
+    } catch (e) {
+      setTbNoCableRows([]);
+      setTbNoCableError(e?.message || 'Không đọc được danh sách TB chưa nhập cáp.');
+    } finally {
+      if (!silent) setTbNoCableLoading(false);
+    }
+  };
+
+  const loadTbNoCableBaseMeta = async () => {
+    try {
+      const res = await fetch('/api/tb-no-cable-base', { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) return;
+      setTbNoCableBaseMeta({
+        configured: Boolean(data.configured),
+        fileName: String(data.fileName || ''),
+        uploadedAt: String(data.uploadedAt || ''),
+        count: Number(data.count || 0),
+      });
+    } catch {
+      /* bỏ qua */
+    }
+  };
+
+  function tbNoCableNormHeader(s) {
+    return String(s || '')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '')
+      .replace(/_/g, '');
+  }
+
+  function tbNoCableResolveCols(headerRow) {
+    const idx = {};
+    const cells = (headerRow || []).map((h, i) => ({ i, n: tbNoCableNormHeader(h) }));
+    for (const { i, n } of cells) {
+      if (idx.maTb == null && (n === 'MATB' || n === 'MA_TB')) idx.maTb = i;
+    }
+    return idx;
+  }
+
+  const handleTbNoCableBaseUpload = async (event) => {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    if (event?.target) event.target.value = '';
+    setTbNoCableBaseUploading(true);
+    setTbNoCableBaseProgress(null);
+    setTbNoCableError('');
+    try {
+      const lowerName = String(file.name || '').toLowerCase();
+      if (!lowerName.endsWith('.xlsx') && !lowerName.endsWith('.xls')) {
+        throw new Error('Chỉ hỗ trợ file Excel (.xlsx/.xls).');
+      }
+      const xlsx = await import('xlsx');
+      const buffer = await file.arrayBuffer();
+      const wb = xlsx.read(buffer, { type: 'array' });
+      const sheetName = wb.SheetNames?.[0];
+      const ws = sheetName ? wb.Sheets[sheetName] : null;
+      const matrix = ws ? xlsx.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) : [];
+      if (!matrix.length) throw new Error('File không có dữ liệu.');
+      const col = tbNoCableResolveCols(matrix[0]);
+      if (col.maTb == null) throw new Error('Thiếu cột bắt buộc MA_TB trong dòng tiêu đề.');
+
+      const maTbList = [];
+      for (let r = 1; r < matrix.length; r++) {
+        const row = matrix[r];
+        if (!Array.isArray(row)) continue;
+        const v = String(row[col.maTb] ?? '').trim();
+        if (!v) continue;
+        maTbList.push(v);
+      }
+      const uniq = Array.from(new Set(maTbList.map((x) => x.toUpperCase()))).map((x) => x);
+      if (!uniq.length) throw new Error('File không có MA_TB hợp lệ.');
+
+      // Chunk upload để tránh request quá lớn
+      const uploadId = `base-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const chunkSize = 5000;
+      const totalChunks = Math.max(1, Math.ceil(uniq.length / chunkSize));
+      const uploadedAt = new Date().toISOString();
+      for (let i = 0; i < totalChunks; i++) {
+        const part = uniq.slice(i * chunkSize, i * chunkSize + chunkSize);
+        setTbNoCableBaseProgress({ current: i + 1, total: totalChunks });
+        const res = await fetch('/api/tb-no-cable-base', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'chunk',
+            uploadId,
+            fileName: file.name || '',
+            uploadedAt,
+            chunkIndex: i,
+            totalChunks,
+            maTbList: part,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.ok) {
+          throw new Error(data?.message || `Không upload được dữ liệu gốc (${res.status}).`);
+        }
+      }
+
+      await loadTbNoCableBaseMeta();
+      setTbNoCableRows([]);
+      setTbNoCableNvQL('');
+      setTbNoCableError('');
+    } finally {
+      setTbNoCableBaseUploading(false);
+      setTbNoCableBaseProgress(null);
+    }
+  };
+
   const refreshTbRowOkKeys = async () => {
     try {
       const res = await fetch('/api/tb-row-ok', { cache: 'no-store' });
@@ -1599,6 +1743,15 @@ export default function TraCuuSP2Page() {
   const tbCurrentPage = Math.min(tbPage, tbTotalPages);
   const tbStart = (tbCurrentPage - 1) * tbPageSize;
   const pagedTbRows = tbResultRows.slice(tbStart, tbStart + tbPageSize);
+  const tbNoCableNvChoices = [...new Set(tbNoCableRows.map((r) => r.nhanVienQl).filter(Boolean))]
+    .sort((a, b) => String(a).localeCompare(String(b), 'vi'));
+  const tbNoCableFilteredRows = !tbNoCableNvQL
+    ? tbNoCableRows
+    : tbNoCableRows.filter((r) => String(r.nhanVienQl) === String(tbNoCableNvQL));
+  const tbNoCableTotalPages = Math.max(1, Math.ceil(tbNoCableFilteredRows.length / tbNoCablePageSize));
+  const tbNoCableCurrentPage = Math.min(tbNoCablePage, tbNoCableTotalPages);
+  const tbNoCableStart = (tbNoCableCurrentPage - 1) * tbNoCablePageSize;
+  const pagedTbNoCableRows = tbNoCableFilteredRows.slice(tbNoCableStart, tbNoCableStart + tbNoCablePageSize);
 
   const markTbRowOk = async (row) => {
     const key = tbStableRowKey(row);
@@ -1846,6 +1999,18 @@ export default function TraCuuSP2Page() {
   useEffect(() => {
     setTbPage(1);
   }, [tbKetQua, tbPageSize]);
+
+  useEffect(() => {
+    if (activeMainModule !== TB_MODULE_TB) return;
+    if (tbSubTab !== TB_SUBTAB_NO_CABLE) return;
+    loadTbNoCableBaseMeta();
+    if (tbNoCableRows.length) return;
+    loadTbNoCableRows({ silent: false });
+  }, [activeMainModule, tbSubTab, tbNoCableRows.length]);
+
+  useEffect(() => {
+    setTbNoCablePage(1);
+  }, [tbNoCableNvQL, tbNoCablePageSize, tbNoCableRows]);
 
   useEffect(() => {
     if (!ponExportToQl) return;
@@ -4426,6 +4591,30 @@ export default function TraCuuSP2Page() {
                   <h2 className="text-sm sm:text-base font-semibold text-slate-800 min-w-0 flex-1 leading-snug pr-2">
                     Tra cứu thuê bao từ Excel
                   </h2>
+                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+                    <button
+                      type="button"
+                      onClick={() => setTbSubTab(TB_SUBTAB_MANAGED)}
+                      className={`px-2.5 py-1 text-[11px] rounded-md ${
+                        tbSubTab === TB_SUBTAB_MANAGED
+                          ? 'bg-sky-600 text-white'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      TB đang quản lý
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTbSubTab(TB_SUBTAB_NO_CABLE)}
+                      className={`px-2.5 py-1 text-[11px] rounded-md ${
+                        tbSubTab === TB_SUBTAB_NO_CABLE
+                          ? 'bg-sky-600 text-white'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      TB chưa nhập cáp
+                    </button>
+                  </div>
                   {tbUploadGate.status !== 'checking' ? (
                     <div className="flex items-center gap-1 shrink-0">
                       <button
@@ -4466,6 +4655,7 @@ export default function TraCuuSP2Page() {
                     </div>
                   ) : null}
                 </div>
+                <div className={tbSubTab === TB_SUBTAB_MANAGED ? '' : 'hidden'}>
                 {tbUploadGate.status === 'checking' ? (
                   <p className="text-xs sm:text-sm text-slate-600 -mt-2">Đang kiểm tra quyền upload...</p>
                 ) : null}
@@ -4797,6 +4987,136 @@ export default function TraCuuSP2Page() {
                   </div>
                 )}
               </div>
+              </div>
+              {tbSubTab === TB_SUBTAB_NO_CABLE && (
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4 space-y-2">
+                    <p className="text-[11px] sm:text-xs text-slate-700 font-semibold">
+                      Bước 1: Upload file dữ liệu gốc (có cột <span className="font-mono">MA_TB</span>)
+                    </p>
+                    <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
+                      Hệ thống sẽ chỉ hiển thị thuê bao từ API khi <span className="font-mono">MA_TB</span> có trong file gốc. (Các cột khác có thể tồn tại: PORT_OLT, TEN_TB, DIACHI_LD, KINHDO_LD, VIDO_LD, MA_NV, TEN_NV, TOQL, TTVT.)
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={handleTbNoCableBaseUpload}
+                        disabled={tbNoCableBaseUploading || (tbUploadGate.gateEnabled && tbUploadGate.status !== 'unlocked')}
+                        className="block w-full sm:w-auto rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm text-slate-700 min-h-[40px] file:mr-3 file:rounded-md file:border-0 file:bg-sky-100 file:px-2.5 file:py-1.5 file:text-xs file:font-semibold file:text-sky-700 hover:file:bg-sky-200 disabled:opacity-50"
+                      />
+                      {tbUploadGate.gateEnabled && tbUploadGate.status !== 'unlocked' ? (
+                        <span className="text-[11px] text-amber-700">Cần mở khóa upload (mã như tab TB đang quản lý).</span>
+                      ) : null}
+                      {tbNoCableBaseProgress ? (
+                        <span className="text-[11px] text-sky-700">
+                          Đang upload {tbNoCableBaseProgress.current}/{tbNoCableBaseProgress.total}...
+                        </span>
+                      ) : null}
+                      {tbNoCableBaseMeta?.configured ? (
+                        <span className="text-[11px] text-emerald-700">
+                          Đã có dữ liệu gốc: {tbNoCableBaseMeta.count} MA_TB
+                          {tbNoCableBaseMeta.fileName ? ` · ${tbNoCableBaseMeta.fileName}` : ''}
+                          {tbNoCableBaseMeta.uploadedAt ? ` · ${new Date(tbNoCableBaseMeta.uploadedAt).toLocaleString('vi-VN')}` : ''}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-600">Chưa có dữ liệu gốc trên server.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="min-w-[220px]">
+                      <label className="block text-[11px] sm:text-xs font-semibold text-slate-600 mb-1">Nhân viên QL</label>
+                      <select
+                        value={tbNoCableNvQL}
+                        onChange={(e) => setTbNoCableNvQL(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 min-h-[40px]"
+                      >
+                        <option value="">Tất cả nhân viên</option>
+                        {tbNoCableNvChoices.map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => loadTbNoCableRows({ silent: false })}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 min-h-[40px]"
+                      disabled={!tbNoCableBaseMeta?.configured}
+                    >
+                      {tbNoCableLoading ? 'Đang tải...' : 'Tải lại danh sách'}
+                    </button>
+                  </div>
+                  {tbNoCableError && <p className="text-xs text-red-600">{tbNoCableError}</p>}
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <table className="min-w-[980px] w-full text-[11px] sm:text-xs text-left">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-600 border-b border-slate-200">
+                          <th className="py-2 px-2 font-semibold">Mã TB</th>
+                          <th className="py-2 px-2 font-semibold">Tên TB</th>
+                          <th className="py-2 px-2 font-semibold">Địa chỉ lắp đặt</th>
+                          <th className="py-2 px-2 font-semibold">Nhân viên QL</th>
+                          <th className="py-2 px-2 font-semibold">Tổ KT</th>
+                          <th className="py-2 px-2 font-semibold">Khu vực</th>
+                          <th className="py-2 px-2 font-semibold">Ngày SD</th>
+                          <th className="py-2 px-2 font-semibold">Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagedTbNoCableRows.map((r) => (
+                          <tr key={r.thueBaoId || r.maTb} className="border-b last:border-0 border-slate-100 text-slate-800">
+                            <td className="py-1.5 px-2 align-top font-medium">{r.maTb || '—'}</td>
+                            <td className="py-1.5 px-2 align-top">{r.tenTb || '—'}</td>
+                            <td className="py-1.5 px-2 align-top max-w-[260px] break-words">{r.diaChiLd || '—'}</td>
+                            <td className="py-1.5 px-2 align-top">{r.nhanVienQl || '—'}</td>
+                            <td className="py-1.5 px-2 align-top">{r.tenTo || '—'}</td>
+                            <td className="py-1.5 px-2 align-top">{r.tenKv || '—'}</td>
+                            <td className="py-1.5 px-2 align-top whitespace-nowrap">{r.ngaySd || '—'}</td>
+                            <td className="py-1.5 px-2 align-top">{r.trangThaiTb || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] text-slate-600">
+                      Hiển thị {tbNoCableFilteredRows.length ? `${tbNoCableStart + 1}-${Math.min(tbNoCableStart + tbNoCablePageSize, tbNoCableFilteredRows.length)}` : '0'} / {tbNoCableFilteredRows.length} thuê bao Fiber chưa nhập cáp
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={String(tbNoCablePageSize)}
+                        onChange={(e) => setTbNoCablePageSize(Number(e.target.value) || 10)}
+                        className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700"
+                      >
+                        <option value="10">10/trang</option>
+                        <option value="20">20/trang</option>
+                        <option value="50">50/trang</option>
+                        <option value="100">100/trang</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setTbNoCablePage((p) => Math.max(1, p - 1))}
+                        disabled={tbNoCableCurrentPage <= 1}
+                        className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Trang trước
+                      </button>
+                      <span className="text-[11px] text-slate-600">
+                        Trang {tbNoCableCurrentPage}/{tbNoCableTotalPages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setTbNoCablePage((p) => Math.min(tbNoCableTotalPages, p + 1))}
+                        disabled={tbNoCableCurrentPage >= tbNoCableTotalPages}
+                        className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Trang sau
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           ))}
         </div>
