@@ -6,6 +6,7 @@ import {
 } from '../../../lib/sp2-server-cache';
 import { getStoredAuth } from '../../../lib/auth-store';
 import { pickAuthorizationForApi } from '../../../lib/authorization-expiry';
+import { matchS2Query } from '../../../lib/s2-match';
 
 const DEFAULT_BACKEND_URL = 'https://api-onebss.vnpt.vn/web-ecms/tracuu/ds_splitter_theo_port_olt';
 
@@ -159,23 +160,24 @@ function pickFirstDefined(item, keys) {
   return undefined;
 }
 
-function normalizeS2Text(v) {
-  return String(v || '')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, '');
-}
-
 function isCap2(item) {
   const cap = item?.CAP_SP ?? item?.cap_sp ?? item?.Cap_Sp;
   if (cap === undefined || cap === null) return false;
   return cap === 2 || cap === '2' || Number(cap) === 2 || String(cap).trim() === '2';
 }
 
-function mapOnlineRowsForQuery(query, sourceRows = []) {
-  const queryNorm = normalizeS2Text(query);
+function mapOnlineRowsForQuery(query, sourceRows = [], fuzzyMatch = false) {
   return (Array.isArray(sourceRows) ? sourceRows : [])
-    .filter((item) => isCap2(item))
+    .filter((item) => {
+      if (!isCap2(item)) return false;
+      const kyHieu = String(
+        pickFirstDefined(item, ['KYHIEU', 'KY_HIEU', 'ky_hieu', 'MA_SP', 'ID_SPLITTER']) || ''
+      ).trim();
+      const tenSplitter = String(
+        pickFirstDefined(item, ['TEN_KC', 'TEN_SPLITTER', 'TEN_SP', 'ten', 'name', 'TEN']) || ''
+      ).trim();
+      return matchS2Query({ query, kyHieu, tenSplitter, fuzzyMatch }).match;
+    })
     .map((item) => {
       const toQL = String(
         pickFirstDefined(item, ['TO_ID', 'TOKT_ID', 'DONVI_ID', 'toQL', 'to_id', 'tokt_id']) || ''
@@ -201,6 +203,7 @@ function mapOnlineRowsForQuery(query, sourceRows = []) {
       const diaChi = String(
         pickFirstDefined(item, ['DIA_CHI', 'DIACHI', 'DIA_CHI_LAP_DAT', 'dia_chi', 'diaChi']) || ''
       ).trim();
+      const { matchType } = matchS2Query({ query, kyHieu, tenSplitter, fuzzyMatch });
       return {
         queryS2: String(query || ''),
         toQL,
@@ -211,14 +214,14 @@ function mapOnlineRowsForQuery(query, sourceRows = []) {
         kyHieu,
         tenSplitter,
         diaChi,
-        matchType: normalizeS2Text(kyHieu) === queryNorm || normalizeS2Text(tenSplitter) === queryNorm ? 'exact' : 'partial',
+        matchType: matchType || 'exact',
         source: 'online',
         cacheKey: '',
       };
     });
 }
 
-async function lookupOnlineByS2({ s2, authorization, backendUrl }) {
+async function lookupOnlineByS2({ s2, authorization, backendUrl, fuzzyMatch = false }) {
   const payload = { ky_hieu: s2, dia_chi: null };
   const res = await fetch(backendUrl, {
     method: 'POST',
@@ -234,7 +237,7 @@ async function lookupOnlineByS2({ s2, authorization, backendUrl }) {
   }
   let list = Array.isArray(data) ? data : (data?.data ?? data?.list ?? data?.result ?? data?.danhSach);
   if (!Array.isArray(list)) list = [];
-  return { ok: true, rows: mapOnlineRowsForQuery(s2, list) };
+  return { ok: true, rows: mapOnlineRowsForQuery(s2, list, fuzzyMatch) };
 }
 
 export async function POST(request) {
@@ -244,6 +247,7 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, message: 'Chưa cấu hình lưu trữ.', rows: [] }, { status: 503 });
     }
     const body = await request.json().catch(() => ({}));
+    const fuzzyMatch = Boolean(body?.fuzzyMatch);
     const s2List = Array.isArray(body?.s2List) ? body.s2List : [];
     const cleaned = Array.from(new Set(
       s2List
@@ -274,7 +278,7 @@ export async function POST(request) {
     if (authorization) {
       for (const code of cleaned) {
         try {
-          const online = await lookupOnlineByS2({ s2: code, authorization, backendUrl });
+          const online = await lookupOnlineByS2({ s2: code, authorization, backendUrl, fuzzyMatch });
           if (!online.ok) continue;
           if (Array.isArray(online.rows) && online.rows.length > 0) {
             onlineRows.push(...online.rows);
@@ -289,7 +293,7 @@ export async function POST(request) {
     let cacheRows = [];
     const needCache = Array.from(needCacheSet);
     if (needCache.length > 0) {
-      const lookupRes = await sp2ServerLookupS2Rows(needCache);
+      const lookupRes = await sp2ServerLookupS2Rows(needCache, { fuzzyMatch });
       if (!lookupRes.ok) {
         return NextResponse.json({ ok: false, message: lookupRes.message || 'Lỗi tra cứu S2.', rows: [] }, { status: 500 });
       }

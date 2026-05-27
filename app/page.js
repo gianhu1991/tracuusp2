@@ -501,6 +501,7 @@ export default function TraCuuSP2Page() {
   const [s2LookupPage, setS2LookupPage] = useState(1);
   const [s2LookupPageSize, setS2LookupPageSize] = useState(10);
   const [s2LookupFileName, setS2LookupFileName] = useState('');
+  const [s2LookupFuzzy, setS2LookupFuzzy] = useState(false);
   const [activeMainModule, setActiveMainModule] = useState(TB_MODULE_SPLITTER);
   const [tbRows, setTbRows] = useState([]);
   const [tbFileName, setTbFileName] = useState('');
@@ -997,7 +998,7 @@ export default function TraCuuSP2Page() {
       const res = await fetch('/api/s2-lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ s2List }),
+        body: JSON.stringify({ s2List, fuzzyMatch: s2LookupFuzzy }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) {
@@ -3475,8 +3476,17 @@ export default function TraCuuSP2Page() {
                               </label>
                             </div>
                           </div>
+                          <label className="inline-flex items-center gap-2 text-[11px] text-slate-600 cursor-pointer mb-2">
+                            <input
+                              type="checkbox"
+                              checked={s2LookupFuzzy}
+                              onChange={(e) => setS2LookupFuzzy(e.target.checked)}
+                              className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                            />
+                            Tìm gần đúng (không chỉ khớp chính xác mã S2)
+                          </label>
                           <p className="text-[10px] text-slate-500 mb-2">
-                            Hỗ trợ file TXT/CSV/Excel. Hệ thống sẽ tìm S2 đang nằm ở OLT, Card, Port nào trong cache đồng bộ.
+                            Hỗ trợ file TXT/CSV/Excel. Mặc định chỉ lấy kết quả khớp đúng mã S2; bật «Tìm gần đúng» nếu cần tìm mã tương tự trong cache/OneBSS.
                             {s2LookupFileName ? ` File gần nhất: ${s2LookupFileName}.` : ''}
                           </p>
                           {s2LookupError && <p className="text-[11px] text-red-600 mb-1">{s2LookupError}</p>}
