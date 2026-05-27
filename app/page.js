@@ -4655,7 +4655,8 @@ export default function TraCuuSP2Page() {
                     </div>
                   ) : null}
                 </div>
-                <div className={tbSubTab === TB_SUBTAB_MANAGED ? '' : 'hidden'}>
+                {tbSubTab === TB_SUBTAB_MANAGED && (
+                <div>
                 {tbUploadGate.status === 'checking' ? (
                   <p className="text-xs sm:text-sm text-slate-600 -mt-2">Đang kiểm tra quyền upload...</p>
                 ) : null}
@@ -4988,6 +4989,7 @@ export default function TraCuuSP2Page() {
                 )}
               </div>
               </div>
+              )}
               {tbSubTab === TB_SUBTAB_NO_CABLE && (
                 <div className="space-y-3">
                   <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4 space-y-2">
