@@ -3486,7 +3486,7 @@ export default function TraCuuSP2Page() {
                             Tìm gần đúng (không chỉ khớp chính xác mã S2)
                           </label>
                           <p className="text-[10px] text-slate-500 mb-2">
-                            Hỗ trợ file TXT/CSV/Excel. Mặc định chỉ lấy kết quả khớp đúng mã S2; bật «Tìm gần đúng» nếu cần tìm mã tương tự trong cache/OneBSS.
+                            Hỗ trợ file TXT/CSV/Excel. OLT/Card/Port lấy từ cache đồng bộ — cần chạy «Đồng bộ toàn bộ S2» trước. Mặc định chỉ khớp đúng mã S2.
                             {s2LookupFileName ? ` File gần nhất: ${s2LookupFileName}.` : ''}
                           </p>
                           {s2LookupError && <p className="text-[11px] text-red-600 mb-1">{s2LookupError}</p>}

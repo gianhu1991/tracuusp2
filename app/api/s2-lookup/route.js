@@ -128,6 +128,62 @@ function buildBrowseNameMaps(snapshot) {
   return { toNameById, tramNameByToTram, oltNameByToTramOlt, cardNameByPath, portNameByPath };
 }
 
+function rowHasPortInfo(row) {
+  return Boolean(
+    String(row?.thietBiOlt ?? '').trim() ||
+    String(row?.cardOlt ?? '').trim() ||
+    String(row?.portOlt ?? '').trim()
+  );
+}
+
+/** Gộp kết quả online (có địa chỉ) với cache (có OLT/Card/Port từ đồng bộ). */
+function mergeOnlineAndCacheRows(onlineRows, cacheRows) {
+  const cacheBestByQuery = new Map();
+  for (const row of cacheRows) {
+    const q = String(row?.queryS2 ?? '').trim();
+    if (!q) continue;
+    const prev = cacheBestByQuery.get(q);
+    if (!prev || (rowHasPortInfo(row) && !rowHasPortInfo(prev))) {
+      cacheBestByQuery.set(q, row);
+    }
+  }
+
+  const out = [];
+  const queriesHandled = new Set();
+
+  for (const online of onlineRows) {
+    const q = String(online?.queryS2 ?? '').trim();
+    if (!q) continue;
+    queriesHandled.add(q);
+    const cached = cacheBestByQuery.get(q);
+    if (cached) {
+      out.push({
+        ...cached,
+        queryS2: q,
+        kyHieu: online.kyHieu || cached.kyHieu,
+        tenSplitter: online.tenSplitter || cached.tenSplitter,
+        diaChi: online.diaChi || cached.diaChi,
+        matchType: online.matchType || cached.matchType,
+        oltTen: online.oltTen || cached.oltTen,
+        cardTen: online.cardTen || cached.cardTen,
+        portTen: online.portTen || cached.portTen,
+        source: rowHasPortInfo(cached) ? 'cache' : (online.source || 'online'),
+      });
+      cacheBestByQuery.delete(q);
+    } else {
+      out.push(online);
+    }
+  }
+
+  for (const row of cacheRows) {
+    const q = String(row?.queryS2 ?? '').trim();
+    if (!q || queriesHandled.has(q)) continue;
+    out.push(row);
+  }
+
+  return out;
+}
+
 function enrichPortRows(rows, maps) {
   return (Array.isArray(rows) ? rows : []).map((r) => {
     const toId = String(r?.toQL || '');
@@ -135,11 +191,11 @@ function enrichPortRows(rows, maps) {
     const oltIdKey = String(r?.thietBiOlt || '');
     const cardIdKey = String(r?.cardOlt || '');
     const portIdKey = String(r?.portOlt || '');
-    const toTen = maps.toNameById.get(toId) || toId;
-    const tramTen = maps.tramNameByToTram.get(`${toId}|${tramIdKey}`) || tramIdKey;
-    const oltTen = maps.oltNameByToTramOlt.get(`${toId}|${tramIdKey}|${oltIdKey}`) || oltIdKey;
-    const cardTen = maps.cardNameByPath.get(`${oltIdKey}|${cardIdKey}`) || cardIdKey;
-    const portTen = maps.portNameByPath.get(`${cardIdKey}|${portIdKey}`) || portIdKey;
+    const toTen = r.toTen || maps.toNameById.get(toId) || toId;
+    const tramTen = r.tramTen || maps.tramNameByToTram.get(`${toId}|${tramIdKey}`) || tramIdKey;
+    const oltTen = r.oltTen || maps.oltNameByToTramOlt.get(`${toId}|${tramIdKey}|${oltIdKey}`) || oltIdKey;
+    const cardTen = r.cardTen || maps.cardNameByPath.get(`${oltIdKey}|${cardIdKey}`) || cardIdKey;
+    const portTen = r.portTen || maps.portNameByPath.get(`${cardIdKey}|${portIdKey}`) || portIdKey;
     return {
       ...r,
       toTen,
@@ -186,13 +242,22 @@ function mapOnlineRowsForQuery(query, sourceRows = [], fuzzyMatch = false) {
         pickFirstDefined(item, ['TRAMTB_ID', 'TRAM_ID', 'veTinh', 'tramtb_id']) || ''
       ).trim();
       const thietBiOlt = String(
-        pickFirstDefined(item, ['OLT_ID', 'THIETBI_ID', 'thietBiOlt', 'olt_id']) || ''
+        pickFirstDefined(item, ['OLT_ID', 'THIETBI_ID', 'olt_id', 'ID_OLT', 'thietBiOlt']) || ''
       ).trim();
       const cardOlt = String(
-        pickFirstDefined(item, ['CARDOLT_ID', 'CARD_ID', 'SLOT_ID', 'cardOlt']) || ''
+        pickFirstDefined(item, ['CARDOLT_ID', 'CARD_OLT_ID', 'CARD_ID', 'SLOT_ID', 'cardolt_id', 'cardOlt']) || ''
       ).trim();
       const portOlt = String(
-        pickFirstDefined(item, ['PORTVL_ID', 'PORT_ID', 'VITRI', 'portOlt']) || ''
+        pickFirstDefined(item, ['PORTVL_ID', 'PORT_ID', 'PORT_OLT_ID', 'lst_port_vl_id', 'VITRI', 'portOlt']) || ''
+      ).trim();
+      const oltTen = String(
+        pickFirstDefined(item, ['TEN_OLT', 'OLT_TEN', 'TEN_TB', 'ten_olt']) || ''
+      ).trim();
+      const cardTen = String(
+        pickFirstDefined(item, ['TEN_CARD', 'CARD_TEN', 'TEN_CARD_OLT', 'TEN_SLOT', 'ten_card']) || ''
+      ).trim();
+      const portTen = String(
+        pickFirstDefined(item, ['TEN_PORT', 'PORT_TEN', 'TEN_PORT_OLT', 'ten_port']) || ''
       ).trim();
       const kyHieu = String(
         pickFirstDefined(item, ['KYHIEU', 'KY_HIEU', 'ky_hieu', 'MA_SP', 'ID_SPLITTER']) || ''
@@ -214,6 +279,9 @@ function mapOnlineRowsForQuery(query, sourceRows = [], fuzzyMatch = false) {
         kyHieu,
         tenSplitter,
         diaChi,
+        oltTen,
+        cardTen,
+        portTen,
         matchType: matchType || 'exact',
         source: 'online',
         cacheKey: '',
@@ -282,7 +350,10 @@ export async function POST(request) {
           if (!online.ok) continue;
           if (Array.isArray(online.rows) && online.rows.length > 0) {
             onlineRows.push(...online.rows);
-            needCacheSet.delete(code);
+            // Chỉ bỏ tra cache khi online đã có đủ OLT/Card/Port
+            if (online.rows.every(rowHasPortInfo)) {
+              needCacheSet.delete(code);
+            }
           }
         } catch {
           // Neu online loi, se fallback cache ben duoi.
@@ -300,7 +371,7 @@ export async function POST(request) {
       cacheRows = Array.isArray(lookupRes.rows) ? lookupRes.rows : [];
     }
 
-    const mergedRows = [...onlineRows, ...cacheRows];
+    const mergedRows = mergeOnlineAndCacheRows(onlineRows, cacheRows);
     const browseRes = await sp2ServerGetBrowseSnapshot();
     const maps = buildBrowseNameMaps(browseRes?.ok ? browseRes?.snapshot : null);
     const rows = enrichPortRows(mergedRows, maps);
