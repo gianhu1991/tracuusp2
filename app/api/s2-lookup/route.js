@@ -3,6 +3,7 @@ import {
   sp2ServerConfigured,
   sp2ServerGetBrowseSnapshot,
   sp2ServerLookupS2Rows,
+  capacityFromSplitterItem,
 } from '../../../lib/sp2-server-cache';
 import { getStoredAuth } from '../../../lib/auth-store';
 import { pickAuthorizationForApi } from '../../../lib/authorization-expiry';
@@ -167,6 +168,9 @@ function mergeOnlineAndCacheRows(onlineRows, cacheRows) {
         oltTen: online.oltTen || cached.oltTen,
         cardTen: online.cardTen || cached.cardTen,
         portTen: online.portTen || cached.portTen,
+        dungLuong: cached.dungLuong ?? online.dungLuong ?? null,
+        daDung: cached.daDung ?? online.daDung ?? null,
+        chuaDung: cached.chuaDung ?? online.chuaDung ?? null,
         source: rowHasPortInfo(cached) ? 'cache' : (online.source || 'online'),
       });
       cacheBestByQuery.delete(q);
@@ -269,6 +273,7 @@ function mapOnlineRowsForQuery(query, sourceRows = [], fuzzyMatch = false) {
         pickFirstDefined(item, ['DIA_CHI', 'DIACHI', 'DIA_CHI_LAP_DAT', 'dia_chi', 'diaChi']) || ''
       ).trim();
       const { matchType } = matchS2Query({ query, kyHieu, tenSplitter, fuzzyMatch });
+      const cap = capacityFromSplitterItem(item);
       return {
         queryS2: String(query || ''),
         toQL,
@@ -282,6 +287,7 @@ function mapOnlineRowsForQuery(query, sourceRows = [], fuzzyMatch = false) {
         oltTen,
         cardTen,
         portTen,
+        ...cap,
         matchType: matchType || 'exact',
         source: 'online',
         cacheKey: '',

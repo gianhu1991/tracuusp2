@@ -1089,6 +1089,9 @@ export default function TraCuuSP2Page() {
         OLT: String(r?.oltTen || r?.thietBiOlt || ''),
         CARD: String(r?.cardTen || r?.cardOlt || ''),
         PORT_PON: String(r?.portTen || r?.portOlt || ''),
+        DUNG_LUONG: r?.dungLuong ?? '',
+        DA_DUNG: r?.daDung ?? '',
+        CHUA_DUNG: r?.chuaDung ?? '',
         TRAM_BTS: String(r?.tramTen || r?.veTinh || ''),
         CACHE_KEY: String(r?.cacheKey || ''),
       }));
@@ -1103,6 +1106,9 @@ export default function TraCuuSP2Page() {
         OLT: '',
         CARD: '',
         PORT_PON: '',
+        DUNG_LUONG: '',
+        DA_DUNG: '',
+        CHUA_DUNG: '',
         TRAM_BTS: '',
         CACHE_KEY: '',
       }));
@@ -3501,7 +3507,7 @@ export default function TraCuuSP2Page() {
                           )}
                           {s2LookupRows.length > 0 && (
                             <div className="overflow-x-auto -mx-1 px-1">
-                              <table className="min-w-[680px] text-[11px]">
+                              <table className="min-w-[860px] text-[11px]">
                                 <thead>
                                   <tr className="border-b border-slate-200 text-slate-600">
                                     <th className="text-left py-1 pr-2 font-semibold">S2 tra cứu</th>
@@ -3510,6 +3516,9 @@ export default function TraCuuSP2Page() {
                                     <th className="text-left py-1 px-2 font-semibold">OLT</th>
                                     <th className="text-left py-1 px-2 font-semibold">Card</th>
                                     <th className="text-left py-1 px-2 font-semibold">Port</th>
+                                    <th className="text-right py-1 px-2 font-semibold">Dung lượng</th>
+                                    <th className="text-right py-1 px-2 font-semibold">Đã dùng</th>
+                                    <th className="text-right py-1 px-2 font-semibold">Chưa dùng</th>
                                     <th className="text-left py-1 pl-2 font-semibold">Tổ KT</th>
                                   </tr>
                                 </thead>
@@ -3525,6 +3534,9 @@ export default function TraCuuSP2Page() {
                                       <td className="py-1.5 px-2">{String(row?.oltTen || row?.thietBiOlt || '—')}</td>
                                       <td className="py-1.5 px-2">{String(row?.cardTen || row?.cardOlt || '—')}</td>
                                       <td className="py-1.5 px-2">{String(row?.portTen || row?.portOlt || '—')}</td>
+                                      <td className="py-1.5 px-2 text-right">{row?.dungLuong ?? '—'}</td>
+                                      <td className="py-1.5 px-2 text-right">{row?.daDung ?? '—'}</td>
+                                      <td className="py-1.5 px-2 text-right">{row?.chuaDung ?? '—'}</td>
                                       <td className="py-1.5 pl-2">{String(row?.toTen || row?.toQL || '—')}</td>
                                     </tr>
                                   ))}
